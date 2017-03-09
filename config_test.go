@@ -496,11 +496,17 @@ func TestGetSlice(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.AddReader(&mr)
 	mr.config["slice"] = []interface{}{1, 2, 3, 4}
-	mr.config["notaslice"] = "bogus"
+	mr.config["casttoslice"] = "bogus"
+	mr.config["notaslice"] = struct{}{}
 	if val, err := cfg.GetSlice("slice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
 	} else if !reflect.DeepEqual(val, []interface{}{1, 2, 3, 4}) {
 		t.Errorf("read slice %v, expected %v", val, mr.config["slice"])
+	}
+	if val, err := cfg.GetSlice("casttoslice"); err != nil {
+		t.Errorf("couldn't read slice - %v", err)
+	} else if !reflect.DeepEqual(val, []interface{}{"bogus"}) {
+		t.Errorf("read slice %v, expected %v", val, mr.config["casttoslice"])
 	}
 	if val, err := cfg.GetSlice("notaslice"); err == nil {
 		t.Errorf("could read slice - notaslice -%v", val)
@@ -523,12 +529,18 @@ func TestGetIntSlice(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.AddReader(&mr)
 	mr.config["slice"] = []int64{1, 2, -3, 4}
+	mr.config["casttoslice"] = "42"
 	mr.config["stringslice"] = []string{"one", "two", "three"}
 	mr.config["notaslice"] = "bogus"
 	if val, err := cfg.GetIntSlice("slice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
 	} else if !reflect.DeepEqual(val, mr.config["slice"]) {
 		t.Errorf("read slice %v, expected %v", val, mr.config["slice"])
+	}
+	if val, err := cfg.GetIntSlice("casttoslice"); err != nil {
+		t.Errorf("couldn't read slice - %v", err)
+	} else if !reflect.DeepEqual(val, []int64{42}) {
+		t.Errorf("read slice %v, expected %v", val, []int64{42})
 	}
 	if val, err := cfg.GetIntSlice("stringslice"); err == nil {
 		t.Errorf("could read slice - stringslice -%v", val)
@@ -561,13 +573,20 @@ func TestGetStringSlice(t *testing.T) {
 	mr.config["stringslice"] = []string{"one", "two", "three"}
 	mr.config["uintslice"] = []uint64{1, 2, 3, 4}
 	mr.config["notastringslice"] = []interface{}{1, 2, struct{}{}}
-	mr.config["notaslice"] = "bogus"
+	mr.config["casttoslice"] = "bogus"
+	mr.config["notaslice"] = struct{}{}
 	expectedIntSlice := []string{"1", "2", "-3", "4"}
 	expectedUintSlice := []string{"1", "2", "3", "4"}
+	expectedCastToSlice := []string{"bogus"}
 	if val, err := cfg.GetStringSlice("stringslice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
 	} else if !reflect.DeepEqual(val, mr.config["stringslice"]) {
 		t.Errorf("read slice %v, expected %v", val, mr.config["stringslice"])
+	}
+	if val, err := cfg.GetStringSlice("casttoslice"); err != nil {
+		t.Errorf("couldn't read slice - %v", err)
+	} else if !reflect.DeepEqual(val, expectedCastToSlice) {
+		t.Errorf("read slice %v, expected %v", val, expectedCastToSlice)
 	}
 	if val, err := cfg.GetStringSlice("intslice"); err != nil {
 		t.Errorf("couldn't read slice - intslice -%v", val)
@@ -607,6 +626,7 @@ func TestGetUintSlice(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.AddReader(&mr)
 	mr.config["slice"] = []uint64{1, 2, 3, 4}
+	mr.config["casttoslice"] = "42"
 	mr.config["intslice"] = []int64{1, 2, -3, 4}
 	mr.config["stringslice"] = []string{"one", "two", "three"}
 	mr.config["notaslice"] = "bogus"
@@ -614,6 +634,11 @@ func TestGetUintSlice(t *testing.T) {
 		t.Errorf("couldn't read slice - %v", err)
 	} else if !reflect.DeepEqual(val, mr.config["slice"]) {
 		t.Errorf("read slice %v, expected %v", val, mr.config["slice"])
+	}
+	if val, err := cfg.GetUintSlice("casttoslice"); err != nil {
+		t.Errorf("couldn't read slice - %v", err)
+	} else if !reflect.DeepEqual(val, []uint64{42}) {
+		t.Errorf("read slice %v, expected %v", val, []uint64{42})
 	}
 	if val, err := cfg.GetUintSlice("intslice"); err == nil {
 		t.Errorf("could read slice - intslice -%v", val)

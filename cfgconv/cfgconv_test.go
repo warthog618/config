@@ -95,7 +95,7 @@ func TestConvert(t *testing.T) {
 	} else if cv != 0 {
 		t.Errorf("didn't return zero on conversion to int, got %v", cv)
 	}
-	//overflow
+	// overflow
 	ct = reflect.TypeOf(int8(0))
 	cin = 257
 	if cv, err := Convert(cin, ct); err == nil {
@@ -112,6 +112,7 @@ func TestConvert(t *testing.T) {
 	}
 
 	// uint
+	// good
 	ct = reflect.TypeOf(uint(0))
 	cin = "42"
 	if cv, err := Convert(cin, ct); err == nil {
@@ -140,7 +141,7 @@ func TestConvert(t *testing.T) {
 	} else if cv != uint(0) {
 		t.Errorf("didn't return zero on conversion to uint, got %v", cv)
 	}
-	//overflow
+	// overflow
 	ct = reflect.TypeOf(uint8(0))
 	cin = 257
 	if cv, err := Convert(cin, ct); err == nil {
@@ -157,6 +158,7 @@ func TestConvert(t *testing.T) {
 	}
 
 	// float
+	// good
 	ct = reflect.TypeOf(float32(0))
 	cin = "42"
 	if cv, err := Convert(cin, ct); err == nil {
@@ -185,7 +187,7 @@ func TestConvert(t *testing.T) {
 	} else if cv != float32(0) {
 		t.Errorf("didn't return zero on conversion to float, got %v", cv)
 	}
-	//overflow
+	// overflow
 	cin = float64(340282356779733642748073463979561713664)
 	if cv, err := Convert(cin, ct); err == nil {
 		t.Errorf("converted '%v'to float, got %v", cin, cv)
@@ -201,6 +203,7 @@ func TestConvert(t *testing.T) {
 	}
 
 	// string
+	// good
 	ct = reflect.TypeOf("")
 	cin = 42
 	if cv, err := Convert(cin, ct); err == nil {
@@ -224,6 +227,7 @@ func TestConvert(t *testing.T) {
 	}
 
 	// bool
+	// good
 	ct = reflect.TypeOf(true)
 	cin = 42
 	if cv, err := Convert(cin, ct); err == nil {
@@ -254,10 +258,19 @@ func TestConvert(t *testing.T) {
 	}
 
 	// slice
+	// good
 	ct = reflect.TypeOf([]int{})
 	cin = []string{"1", "2", "3"}
 	if cv, err := Convert(cin, ct); err == nil {
 		if !reflect.DeepEqual(cv, []int{1, 2, 3}) {
+			t.Errorf("failed to convert '%v' to slice, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to slice, got %v", cin, err)
+	}
+	cin = "42"
+	if cv, err := Convert(cin, ct); err == nil {
+		if !reflect.DeepEqual(cv, []int{42}) {
 			t.Errorf("failed to convert '%v' to slice, got %v", cin, cv)
 		}
 	} else {
@@ -406,10 +419,10 @@ func TestSlice(t *testing.T) {
 	assertSlice(t, intSlice, []interface{}{1, 2, -3}, "intSlice")
 	assertSlice(t, stringSlice, []interface{}{"one", "two"}, "stringSlice")
 	assertSlice(t, uintSlice, []interface{}{1, 2, 3}, "uintSlice")
+	assertSlice(t, "42", []interface{}{"42"}, "string int")
 	// failure cases
 	refuteSlice(t, true, "bool true")
 	refuteSlice(t, false, "bool false")
-	refuteSlice(t, "42", "string int")
 	refuteSlice(t, int(42), "int")
 	refuteSlice(t, int(-42), "int negative")
 	refuteSlice(t, uint(42), "uint")

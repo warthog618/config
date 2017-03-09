@@ -30,6 +30,8 @@ func int2bool(val int) bool {
 	return true
 }
 
+// Convert generic object into an bool, if possible.
+// Returns 0 and an error if conversion is not possible.
 func Bool(v interface{}) (bool, error) {
 	switch vt := v.(type) {
 	case bool:
@@ -113,24 +115,38 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 		}
 		rv.SetBool(cv)
 	case reflect.Slice:
-		vv := reflect.ValueOf(v)
-		if vv.Kind() != reflect.Slice {
-			return ri, TypeError{Value: v, Kind: reflect.Slice}
-		}
 		et := rt.Elem()
-		rv = reflect.MakeSlice(rv.Type(), vv.Len(), vv.Len())
-		for idx := 0; idx < vv.Len(); idx++ {
-			sv, err := Convert(vv.Index(idx).Interface(), et)
+		vv := reflect.ValueOf(v)
+		switch vv.Kind() {
+		case reflect.Slice:
+			rv = reflect.MakeSlice(rv.Type(), vv.Len(), vv.Len())
+			for idx := 0; idx < vv.Len(); idx++ {
+				sv, err := Convert(vv.Index(idx).Interface(), et)
+				if err != nil {
+					rv = reflect.Indirect(reflect.New(rt))
+					return rv.Interface(), err
+				}
+				rv.Index(idx).Set(reflect.ValueOf(sv))
+			}
+		case reflect.String:
+			rv = reflect.MakeSlice(rv.Type(), 1, 1)
+			sv, err := Convert(vv.Interface(), et)
 			if err != nil {
 				rv = reflect.Indirect(reflect.New(rt))
 				return rv.Interface(), err
 			}
-			rv.Index(idx).Set(reflect.ValueOf(sv))
+			rv.Index(0).Set(reflect.ValueOf(sv))
+		default:
+			return ri, TypeError{Value: v, Kind: reflect.Slice}
+		}
+		if vv.Kind() != reflect.Slice {
 		}
 	}
 	return rv.Interface(), nil
 }
 
+// Convert generic object into an float64, if possible.
+// Returns 0 and an error if conversion is not possible.
 func Float(v interface{}) (float64, error) {
 	switch vt := v.(type) {
 	case float64:
@@ -170,6 +186,8 @@ func Float(v interface{}) (float64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Float64}
 }
 
+// Convert generic object into an int64, if possible.
+// Returns 0 and an error if conversion is not possible.
 func Int(v interface{}) (int64, error) {
 	switch vt := v.(type) {
 	case bool:
@@ -211,21 +229,38 @@ func Int(v interface{}) (int64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Int}
 }
 
+// Convert a slice of something into a []interface{}
+//
+// Also interprets strings as a single element slice,
+// to handle the case where a Reader cannot distinguish
+// between a single entry slice and a literal,
+// e.g. the env reader.
+// !!! Currently only convert string literals.
+// Should also handle other literals??
 func Slice(v interface{}) ([]interface{}, error) {
 	if slice, ok := v.([]interface{}); ok {
 		return slice, nil
 	}
 	vv := reflect.ValueOf(v)
-	if vv.Kind() == reflect.Slice {
+	switch vv.Kind() {
+	case reflect.Slice:
 		slice := make([]interface{}, vv.Len(), vv.Len())
 		for idx := 0; idx < vv.Len(); idx++ {
 			slice[idx] = vv.Index(idx).Interface()
 		}
 		return slice, nil
+	case reflect.String:
+		slice := make([]interface{}, 1, 1)
+		slice[0] = v
+		return slice, nil
+	}
+	if vv.Kind() == reflect.Slice {
 	}
 	return []interface{}{}, TypeError{Value: v, Kind: reflect.Slice}
 }
 
+// Convert generic object into an string, if possible.
+// Returns 0 and an error if conversion is not possible.
 func String(v interface{}) (string, error) {
 	switch vt := v.(type) {
 	case string:
@@ -240,6 +275,8 @@ func String(v interface{}) (string, error) {
 	return "", TypeError{Value: v, Kind: reflect.String}
 }
 
+// Convert generic object into an uint64, if possible.
+// Returns 0 and an error if conversion is not possible.
 func Uint(v interface{}) (uint64, error) {
 	switch vt := v.(type) {
 	case uint:
@@ -293,6 +330,9 @@ func Uint(v interface{}) (uint64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Uint}
 }
 
+// Error indicating type conversion was not possible.
+// Identifies the value being converted and the kind it
+// couldn't be converted into.
 type TypeError struct {
 	Value interface{}
 	Kind  reflect.Kind
@@ -302,6 +342,9 @@ func (e TypeError) Error() string {
 	return fmt.Sprintf("cfgconv: cannot convert '%#v'(%T) to %s", e.Value, e.Value, e.Kind)
 }
 
+// Error indicating type conversion would lose precision.
+// Identifies the value being converted and the kind it
+// couldn't be converted into without loss of precision.
 type OverflowError struct {
 	Value interface{}
 	Kind  reflect.Kind
