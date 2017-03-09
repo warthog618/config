@@ -1,7 +1,7 @@
 package json
 
 import (
-	"config/cfgconv"
+	"github.com/warthog618/config/cfgconv"
 	"reflect"
 	"testing"
 )
@@ -42,7 +42,7 @@ var nestedStringSlice = []interface{}{"one", "two", "three"}
 
 func testReaderContains(t *testing.T, reader *reader) {
 	for _, key := range configKeys {
-		if ok := reader.Contains(key); ok == false {
+		if ok := reader.Contains(key); !ok {
 			t.Errorf("doesn't contain %s", key)
 		}
 	}
@@ -56,7 +56,7 @@ func testReaderContains(t *testing.T, reader *reader) {
 // Test that config fields can be read and converted to required types using cfgconv.
 func testReaderRead(t *testing.T, reader *reader) {
 	for _, key := range configKeys {
-		if _, ok := reader.Read(key); ok == false {
+		if _, ok := reader.Read(key); !ok {
 			t.Errorf("couldn't read %s", key)
 		}
 	}
@@ -96,14 +96,14 @@ func testReaderRead(t *testing.T, reader *reader) {
 	if val, ok := reader.Read("intSlice"); ok {
 		if v, err := cfgconv.Slice(val); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if reflect.DeepEqual(v, intSlice) == false {
+		} else if !reflect.DeepEqual(v, intSlice) {
 			t.Errorf("expected int slice %v, got %v", intSlice, v)
 		}
 	}
 	if val, ok := reader.Read("stringSlice"); ok {
 		if v, err := cfgconv.Slice(val); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if reflect.DeepEqual(v, stringSlice) == false {
+		} else if !reflect.DeepEqual(v, stringSlice) {
 			t.Errorf("expected string slice %v, got %v", stringSlice, v)
 		}
 	}
@@ -138,14 +138,14 @@ func testReaderRead(t *testing.T, reader *reader) {
 	if val, ok := reader.Read("nested.intSlice"); ok {
 		if v, err := cfgconv.Slice(val); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if reflect.DeepEqual(v, nestedIntSlice) == false {
+		} else if !reflect.DeepEqual(v, nestedIntSlice) {
 			t.Errorf("expected int slice %v, got %v", nestedIntSlice, v)
 		}
 	}
 	if val, ok := reader.Read("nested.stringSlice"); ok {
 		if v, err := cfgconv.Slice(val); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if reflect.DeepEqual(v, nestedStringSlice) == false {
+		} else if !reflect.DeepEqual(v, nestedStringSlice) {
 			t.Errorf("expected string slice %v, got %v", nestedStringSlice, v)
 		}
 	}
@@ -161,7 +161,7 @@ func TestNewBytes(t *testing.T) {
 }
 
 func TestNewFile(t *testing.T) {
-  if _, err := NewFile("no_such.json"); err == nil {
+	if _, err := NewFile("no_such.json"); err == nil {
 		t.Errorf("parsed no such config")
 	}
 	if _, err := NewFile("config.json"); err != nil {

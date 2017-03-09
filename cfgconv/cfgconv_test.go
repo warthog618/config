@@ -2,6 +2,7 @@ package cfgconv
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -59,6 +60,223 @@ func TestBool(t *testing.T) {
 	refuteBool(t, float32(0), "float32 0")
 	refuteBool(t, float32(1), "float32 1")
 	refuteBool(t, "junk", "string junk")
+}
+
+func TestConvert(t *testing.T) {
+
+	// int
+	// good
+	ct := reflect.TypeOf(0)
+	var cin interface{}
+	cin = "42"
+	if cv, err := Convert(cin, ct); err == nil {
+		if cv != 42 {
+			t.Errorf("failed to convert '%v' to int, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to int, got %v", cin, err)
+	}
+	// bad type
+	cin = []int{}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to int, got %v", cin, cv)
+	} else {
+		if !strings.Contains(err.Error(), "to int") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != 0 {
+			t.Errorf("didn't return zero on conversion to int, got %v", cv)
+		}
+	}
+	// bad parse
+	cin = "glob"
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to int, got %v", cin, cv)
+	} else if cv != 0 {
+		t.Errorf("didn't return zero on conversion to int, got %v", cv)
+	}
+	//overflow
+	ct = reflect.TypeOf(int8(0))
+	cin = 257
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to int, got %v", cin, cv)
+	} else {
+		if _, ok := err.(OverflowError); !ok {
+			t.Errorf("didn't return overflow error, got %v", err)
+		} else if !strings.Contains(err.Error(), "to int") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != int8(0) {
+			t.Errorf("didn't return zero on overflow to int, got %v", cv)
+		}
+	}
+
+	// uint
+	ct = reflect.TypeOf(uint(0))
+	cin = "42"
+	if cv, err := Convert(cin, ct); err == nil {
+		if cv != uint(42) {
+			t.Errorf("failed to convert '%v' to uint, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to uint, got %v", cin, err)
+	}
+	// bad type
+	cin = []int{}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to uint, got %v", []int{}, cv)
+	} else {
+		if !strings.Contains(err.Error(), "to uint") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != uint(0) {
+			t.Errorf("didn't return zero on conversion to uint, got %v", cv)
+		}
+	}
+	// bad parse
+	cin = "glob"
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to uint, got %v", cin, cv)
+	} else if cv != uint(0) {
+		t.Errorf("didn't return zero on conversion to uint, got %v", cv)
+	}
+	//overflow
+	ct = reflect.TypeOf(uint8(0))
+	cin = 257
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to uint, got %v", cin, cv)
+	} else {
+		if _, ok := err.(OverflowError); !ok {
+			t.Errorf("didn't return overflow error, got %v", err)
+		} else if !strings.Contains(err.Error(), "to uint") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != uint8(0) {
+			t.Errorf("didn't return zero on overflow to uint, got %v", cv)
+		}
+	}
+
+	// float
+	ct = reflect.TypeOf(float32(0))
+	cin = "42"
+	if cv, err := Convert(cin, ct); err == nil {
+		if cv != float32(42) {
+			t.Errorf("failed to convert '%v' to float, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to float, got %v", cin, err)
+	}
+	// bad type
+	cin = []int{}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to float, got %v", []int{}, cv)
+	} else {
+		if !strings.Contains(err.Error(), "to float") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != float32(0) {
+			t.Errorf("didn't return zero on conversion to float, got %v", cv)
+		}
+	}
+	// bad parse
+	cin = "glob"
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to float, got %v", cin, cv)
+	} else if cv != float32(0) {
+		t.Errorf("didn't return zero on conversion to float, got %v", cv)
+	}
+	//overflow
+	cin = float64(340282356779733642748073463979561713664)
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to float, got %v", cin, cv)
+	} else {
+		if _, ok := err.(OverflowError); !ok {
+			t.Errorf("didn't return overflow error, got %v", err)
+		} else if !strings.Contains(err.Error(), "to float32") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != float32(0) {
+			t.Errorf("didn't return zero on overflow to float, got %v", cv)
+		}
+	}
+
+	// string
+	ct = reflect.TypeOf("")
+	cin = 42
+	if cv, err := Convert(cin, ct); err == nil {
+		if cv != "42" {
+			t.Errorf("failed to convert '%v' to string, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to string, got %v", cin, err)
+	}
+	// bad type
+	cin = []int{}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to string, got %v", []int{}, cv)
+	} else {
+		if !strings.Contains(err.Error(), "to string") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != "" {
+			t.Errorf("didn't return empty string on conversion to string, got %v", cv)
+		}
+	}
+
+	// bool
+	ct = reflect.TypeOf(true)
+	cin = 42
+	if cv, err := Convert(cin, ct); err == nil {
+		if cv != true {
+			t.Errorf("failed to convert '%v' to bool, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to bool, got %v", cin, err)
+	}
+	// bad type
+	cin = []int{}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to bool, got %v", []int{}, cv)
+	} else {
+		if !strings.Contains(err.Error(), "to bool") {
+			t.Errorf("overflow error doesn't indicate target type")
+		}
+		if cv != false {
+			t.Errorf("didn't return false on conversion to bool, got %v", cv)
+		}
+	}
+	// bad parse
+	cin = "glob"
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to bool, got %v", cin, cv)
+	} else if cv != false {
+		t.Errorf("didn't return false on conversion to bool, got %v", cv)
+	}
+
+	// slice
+	ct = reflect.TypeOf([]int{})
+	cin = []string{"1", "2", "3"}
+	if cv, err := Convert(cin, ct); err == nil {
+		if !reflect.DeepEqual(cv, []int{1, 2, 3}) {
+			t.Errorf("failed to convert '%v' to slice, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to slice, got %v", cin, err)
+	}
+	// bad type
+	cin = 3
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to slice, got %v", []int{}, cv)
+	} else if !reflect.DeepEqual(cv, []int(nil)) {
+		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
+	}
+	// bad parse
+	cin = []string{"1", "2", "3", "glob"}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v'to slice, got %v", "glob", cv)
+	} else if !reflect.DeepEqual(cv, []int(nil)) {
+		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
+	}
 }
 
 func assertFloat(t *testing.T, val interface{}, expected float64, comment string) {
@@ -162,62 +380,11 @@ func TestInt(t *testing.T) {
 	refuteInt(t, []int{42}, "slice")
 }
 
-func assertObject(t *testing.T, val interface{}, expected map[string]interface{}, comment string) {
-	if result, err := Object(val); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if reflect.DeepEqual(result, expected) == false {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
-		}
-	}
-}
-
-func refuteObject(t *testing.T, val interface{}, comment string) {
-	if result, err := Object(val); err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-}
-
-func TestObject(t *testing.T) {
-	obj := map[string]interface{}{"key": 42, "slice": []string{"one", "two"}}
-	// success cases
-	assertObject(t, obj, obj, "object")
-	// failure cases
-	refuteObject(t, true, "bool true")
-	refuteObject(t, false, "bool false")
-	refuteObject(t, "42", "string int")
-	refuteObject(t, int(42), "int")
-	refuteObject(t, int(-42), "int negative")
-	refuteObject(t, uint(42), "uint")
-	refuteObject(t, int8(42), "int8")
-	refuteObject(t, int8(-42), "int8 negative")
-	refuteObject(t, uint8(42), "uint8")
-	refuteObject(t, int16(42), "int16")
-	refuteObject(t, int16(-42), "int16 negative")
-	refuteObject(t, uint16(42), "uint16")
-	refuteObject(t, int32(42), "int32")
-	refuteObject(t, int32(-42), "int32 negative")
-	refuteObject(t, uint32(42), "uint32")
-	refuteObject(t, int64(42), "int64")
-	refuteObject(t, int64(-42), "int64 negative")
-	refuteObject(t, uint64(42), "uint64")
-	refuteObject(t, float64(42), "float64")
-	refuteObject(t, float64(0), "float64 zero")
-	refuteObject(t, float64(-42), "float64 negative")
-	refuteObject(t, float64(42.6), "float64 truncate")
-	refuteObject(t, float64(-42.6), "float64 truncate negative")
-	refuteObject(t, float32(42), "float32")
-	refuteObject(t, float32(-42), "float32 negative")
-	refuteObject(t, float32(42.6), "float32 truncate")
-	refuteObject(t, float32(-42.6), "float32 truncate negative")
-	refuteObject(t, nil, "nil")
-}
-
 func assertSlice(t *testing.T, val interface{}, expected []interface{}, comment string) {
 	if result, err := Slice(val); err != nil {
 		t.Errorf("conversion failed for %s with error %v", comment, err)
 	} else {
-		if reflect.DeepEqual(result, expected) == false {
+		if !reflect.DeepEqual(result, expected) {
 			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
 		}
 	}
@@ -230,13 +397,15 @@ func refuteSlice(t *testing.T, val interface{}, comment string) {
 }
 
 func TestSlice(t *testing.T) {
-	intSlice := []interface{}{[]int{1, 2, 3}}
-	stringSlice := []interface{}{[]string{"one", "two"}}
-	uintSlice := []interface{}{[]int{1, 2, 3}}
+	slice := []interface{}{[]int{1, 2, 3}}
+	intSlice := []int{1, 2, -3}
+	stringSlice := []string{"one", "two"}
+	uintSlice := []int{1, 2, 3}
 	// success cases
-	assertSlice(t, intSlice, intSlice, "object")
-	assertSlice(t, stringSlice, stringSlice, "object")
-	assertSlice(t, uintSlice, uintSlice, "object")
+	assertSlice(t, slice, slice, "slice")
+	assertSlice(t, intSlice, []interface{}{1, 2, -3}, "intSlice")
+	assertSlice(t, stringSlice, []interface{}{"one", "two"}, "stringSlice")
+	assertSlice(t, uintSlice, []interface{}{1, 2, 3}, "uintSlice")
 	// failure cases
 	refuteSlice(t, true, "bool true")
 	refuteSlice(t, false, "bool false")

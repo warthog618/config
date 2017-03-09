@@ -1,8 +1,9 @@
 package config
 
 import (
-	"config/cfgconv"
 	"fmt"
+	"github.com/warthog618/config/cfgconv"
+	"reflect"
 	"strings"
 )
 
@@ -10,6 +11,7 @@ type Config interface {
 	AddAlias(newKey string, oldKey string)
 	AddReader(reader Reader)
 	Contains(key string) bool
+	SetSeparator(separator string)
 	// Base get
 	Get(key string) (interface{}, error)
 	// Type gets
@@ -21,21 +23,16 @@ type Config interface {
 	// Slice gets
 	GetSlice(key string) ([]interface{}, error)
 	GetIntSlice(key string) ([]int64, error)
-	GetUintSlice(key string) ([]uint64, error)
 	GetStringSlice(key string) ([]string, error)
-	// Tree get
+	GetUintSlice(key string) ([]uint64, error)
+	// Tree gets
 	GetConfig(key string) (Config, error)
-	GetObject(key string) (map[string]interface{}, error)
-	// Defaulted gets - returns the def if not found in the config.
-	GetBoolDef(key string, def bool) bool
-	GetFloatDef(key string, def float64) float64
-	GetIntDef(key string, def int64) int64
-	GetStringDef(key string, def string) string
-	GetUintDef(key string, def uint64) uint64
+	Unmarshal(key string, obj interface{}) error
+	UnmarshalToMap(key string, objmap map[string]interface{}) error
 }
 
 func New() Config {
-	return &config{"", make([]Reader, 0), make(map[string][]string)}
+	return &config{"", ".", make([]Reader, 0), make(map[string][]string)}
 }
 
 type Reader interface {
@@ -48,17 +45,25 @@ type Reader interface {
 	Read(key string) (interface{}, bool)
 }
 
+// Optional extension to Reader to provide masking capabilities.
+type Masker interface {
+	Reader
+	// Indicates whether searching for a matching Reader should stop at this Reader.
+	Mask(key string) bool
+}
+
 type config struct {
-	// The prefix section of all keys within this config node.
+	// The prefix common to all keys within this config node.
 	// For the root node this is empty.
 	// For other nodes this indicates the location of the node in the config tree.
 	// The keys passed into the non-root nodes should be local to that node,
 	// i.e. they should treat the node as the root of their own config tree.
-	// The node
 	prefix string
+	// path separator for nested objects
+	separator string
 	// A list of Readers providing config key/value pairs.
 	readers []Reader
-	// A map to a list of old names for existing config keys.
+	// A map to a list of old names for current config keys.
 	aliases map[string][]string
 }
 
@@ -72,12 +77,13 @@ func (c *config) AddReader(reader Reader) {
 }
 
 // Return the absolute config key for a key relative to the config node.
-func (c *config) prefixedKey(key string) string {
+func (c *config) prefixedKey(key ...string) string {
+	rhs := strings.Join(key, c.separator)
 	if len(c.prefix) == 0 {
 		// we are root.
-		return key
+		return rhs
 	}
-	return c.prefix + "." + key
+	return c.prefix + c.separator + rhs
 }
 
 // Add an alias from a newKey, which should be used by the code,
@@ -87,8 +93,11 @@ func (c *config) prefixedKey(key string) string {
 func (c *config) AddAlias(newKey string, oldKey string) {
 	lNewKey := c.prefixedKey(strings.ToLower(newKey))
 	lOldKey := c.prefixedKey(strings.ToLower(oldKey))
+	if lNewKey == lOldKey {
+		return
+	}
 	aliases, ok := c.aliases[lNewKey]
-	if ok != true {
+	if !ok {
 		aliases = make([]string, 1)
 	}
 	// prepended so alias are searched in LIFO order.
@@ -98,12 +107,12 @@ func (c *config) AddAlias(newKey string, oldKey string) {
 // Returns true of the key is contained in the config tree.
 // Key may be a leaf or a node.
 func (c *config) Contains(key string) bool {
-	lowerKey := c.prefixedKey(strings.ToLower(key))
+	fullKey := c.prefixedKey(strings.ToLower(key))
 	for _, reader := range c.readers {
-		if reader.Contains(lowerKey) {
+		if reader.Contains(fullKey) {
 			return true
 		}
-		if aliases, ok := c.aliases[lowerKey]; ok {
+		if aliases, ok := c.aliases[fullKey]; ok {
 			for _, alias := range aliases {
 				if reader.Contains(alias) {
 					return true
@@ -114,170 +123,267 @@ func (c *config) Contains(key string) bool {
 	return false
 }
 
+func (c *config) SetSeparator(separator string) {
+	c.separator = separator
+}
+
 // Get the raw string value corresponding to the key.
 // Iterates through the list of readers, searching for a matching key,
 // or matching alias.  Returns the first match found, or an error if none is found.
 func (c *config) Get(key string) (interface{}, error) {
-	lowerKey := strings.ToLower(key)
+	fullKey := c.prefixedKey(strings.ToLower(key))
 	for _, reader := range c.readers {
-		if val, ok := reader.Read(c.prefixedKey(lowerKey)); ok {
-			return val, nil
+		if v, ok := reader.Read(fullKey); ok {
+			return v, nil
 		}
-		if aliases, ok := c.aliases[lowerKey]; ok {
-			for _, alias := range aliases {
-				if val, ok := reader.Read(c.prefixedKey(alias)); ok {
-					return val, nil
+		if len(c.aliases) > 0 {
+			// leaf alias
+			if aliases, ok := c.aliases[fullKey]; ok {
+				for _, alias := range aliases {
+					if v, ok := reader.Read(alias); ok {
+						return v, nil
+					}
+				}
+			}
+			// node alias
+			path := strings.Split(fullKey, c.separator)
+			for plen := len(path) - 1; plen >= 0; plen-- {
+				nodeKey := strings.Join(path[:plen], c.separator)
+				if aliases, ok := c.aliases[nodeKey]; ok {
+					for _, alias := range aliases {
+						if len(alias) > 0 {
+							alias = alias + c.separator
+						}
+						idx := len(nodeKey)
+						if idx > 0 {
+							idx += len(c.separator)
+						}
+						aliasKey := alias + fullKey[idx:]
+						if v, ok := reader.Read(aliasKey); ok {
+							return v, nil
+						}
+					}
 				}
 			}
 		}
+		// masking
+		if masker, ok := reader.(Masker); ok {
+			if masker.Mask(key) {
+				break
+			}
+		}
 	}
-	return "", fmt.Errorf("config key '%s' not found", key)
+	return "", NotFoundError{Key: fullKey}
 }
 
 func (c *config) GetBool(key string) (bool, error) {
-	val, err := c.Get(key)
+	v, err := c.Get(key)
 	if err != nil {
 		return false, err
 	}
-	return cfgconv.Bool(val)
-}
-
-func (c *config) GetBoolDef(key string, def bool) bool {
-	if val, err := c.GetBool(key); err == nil {
-		return val
-	} else {
-		return def
-	}
+	return cfgconv.Bool(v)
 }
 
 func (c *config) GetConfig(key string) (Config, error) {
-	return &config{c.prefixedKey(key), c.readers, c.aliases}, nil
+	aliases := make(map[string][]string, len(c.aliases))
+	for k, v := range c.aliases {
+		aliases[k] = v[:]
+	}
+	readers := c.readers[:]
+	return &config{c.prefixedKey(key), c.separator, readers, aliases}, nil
 }
 
 func (c *config) GetFloat(key string) (float64, error) {
-	val, err := c.Get(key)
+	v, err := c.Get(key)
 	if err != nil {
 		return 0, err
 	}
-	return cfgconv.Float(val)
-}
-
-func (c *config) GetFloatDef(key string, def float64) float64 {
-	if val, err := c.GetFloat(key); err == nil {
-		return val
-	} else {
-		return def
-	}
+	return cfgconv.Float(v)
 }
 
 func (c *config) GetInt(key string) (int64, error) {
-	val, err := c.Get(key)
+	v, err := c.Get(key)
 	if err != nil {
 		return 0, err
 	}
-	return cfgconv.Int(val)
-}
-
-func (c *config) GetIntDef(key string, def int64) int64 {
-	if val, err := c.GetInt(key); err == nil {
-		return val
-	} else {
-		return def
-	}
+	return cfgconv.Int(v)
 }
 
 func (c *config) GetIntSlice(key string) ([]int64, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
-		return []int64{}, fmt.Errorf("config key '%s' is not a slice", key)
+		return []int64(nil), err
 	}
 	retval := make([]int64, 0, len(slice))
-	for _, val := range slice {
-		valint, err := cfgconv.Int(val)
+	for _, v := range slice {
+		cv, err := cfgconv.Int(v)
 		if err != nil {
-			return []int64{}, err
+			return []int64(nil), err
 		}
-		retval = append(retval, valint)
+		retval = append(retval, cv)
 	}
 	return retval, nil
 }
 
-func (c *config) GetObject(key string) (map[string]interface{}, error) {
-	val, err := c.Get(key)
-	if err != nil {
-		return map[string]interface{}{}, err
-	}
-	return cfgconv.Object(val)
-}
-
 func (c *config) GetSlice(key string) ([]interface{}, error) {
-	val, err := c.Get(key)
+	v, err := c.Get(key)
 	if err != nil {
-		return []interface{}{}, err
+		return []interface{}(nil), err
 	}
-	return cfgconv.Slice(val)
+	return cfgconv.Slice(v)
 }
 
 func (c *config) GetString(key string) (string, error) {
-	val, err := c.Get(key)
+	v, err := c.Get(key)
 	if err != nil {
 		return "", err
 	}
-	return cfgconv.String(val)
-}
-
-func (c *config) GetStringDef(key string, def string) string {
-	if val, err := c.GetString(key); err == nil {
-		return val
-	} else {
-		return def
-	}
+	return cfgconv.String(v)
 }
 
 func (c *config) GetStringSlice(key string) ([]string, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
-		return []string{}, fmt.Errorf("config key '%s' is not a slice", key)
+		return []string(nil), err
 	}
 	retval := make([]string, 0, len(slice))
-	for _, val := range slice {
-		valstr, err := cfgconv.String(val)
+	for _, v := range slice {
+		cv, err := cfgconv.String(v)
 		if err != nil {
-			return []string{}, err
+			return []string(nil), err
 		}
-		retval = append(retval, valstr)
+		retval = append(retval, cv)
 	}
 	return retval, nil
 }
 
 func (c *config) GetUint(key string) (uint64, error) {
-	val, err := c.Get(key)
+	v, err := c.Get(key)
 	if err != nil {
 		return 0, err
 	}
-	return cfgconv.Uint(val)
-}
-
-func (c *config) GetUintDef(key string, def uint64) uint64 {
-	if val, err := c.GetUint(key); err == nil {
-		return val
-	} else {
-		return def
-	}
+	return cfgconv.Uint(v)
 }
 
 func (c *config) GetUintSlice(key string) ([]uint64, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
-		return []uint64{}, fmt.Errorf("config key '%s' is not a slice", key)
+		return []uint64(nil), err
 	}
 	retval := make([]uint64, 0, len(slice))
-	for _, val := range slice {
-		valuint, err := cfgconv.Uint(val)
+	for _, v := range slice {
+		cv, err := cfgconv.Uint(v)
 		if err != nil {
-			return []uint64{}, err
+			return []uint64(nil), err
 		}
-		retval = append(retval, valuint)
+		retval = append(retval, cv)
 	}
 	return retval, nil
+}
+
+type NotFoundError struct {
+	Key string
+}
+
+func (e NotFoundError) Error() string {
+	return "config: key '" + e.Key + "' not found"
+}
+
+type UnmarshalError struct {
+	Key string
+	Err error
+}
+
+func (e UnmarshalError) Error() string {
+	return "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
+}
+
+// Unmarshal a section of the config tree into a struct.
+//
+// The node identifies the section of the tree to unmarshal.
+// The obj is struct with fields corresponding to config values.
+// The config values will be converted to the type defined in the corresponding
+// struct fields.
+// If non-nil, the config values will be converted to the type already contained in the map.
+// If nil then the value is set to the raw value returned by the Reader.
+//
+// By default the config field names are drawn from the struct field, lower cased.
+// This can be overridden using `config:"<name>"` tags.
+//
+// Struct fields which do not have corresponding config fields are ignored,
+// as are config fields which have no corresponding struct field.
+//
+// The error identifies first type conversion error, if any.
+func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
+	nodeCfg, _ := c.GetConfig(node)
+	ov := reflect.Indirect(reflect.ValueOf(obj))
+	if ov.Kind() != reflect.Struct {
+		return fmt.Errorf("Unmarshal obj is not a struct -", obj)
+	}
+	for idx := 0; idx < ov.NumField(); idx++ {
+		fv := ov.Field(idx)
+		ft := ov.Type().Field(idx)
+		key := ft.Tag.Get("config")
+		if len(key) == 0 {
+			key = ft.Name
+		}
+		if fv.Kind() == reflect.Struct {
+			// nested struct
+			err := nodeCfg.Unmarshal(key, fv.Addr().Interface())
+			if err != nil && rerr == nil {
+				rerr = err
+			}
+		} else {
+			// else assume a leaf
+			if v, err := nodeCfg.Get(key); err == nil {
+				if cv, err := cfgconv.Convert(v, fv.Type()); err == nil {
+					fv.Set(reflect.ValueOf(cv))
+				} else if rerr == nil {
+					rerr = UnmarshalError{c.prefixedKey(node, strings.ToLower(key)), err}
+				}
+			}
+		}
+	}
+	return rerr
+}
+
+// Unmarshal a section of the config tree into a map[string]interface{}.
+//
+// The node identifies the section of the tree to unmarshal.
+// The objmap keys define the fields to be populated from config.
+// If non-nil, the config values will be converted to the type already contained in the map.
+// If nil then the value is set to the raw value returned by the Reader.
+//
+// Nested objects can be populated by adding them as map[string]interface{},
+// with keys set corresponding to the nested field names.
+//
+// Map keys which do not have corresponding config fields are ignored,
+// as are config fields which have no corresponding map key.
+//
+// The error identifies first type conversion error, if any.
+func (c *config) UnmarshalToMap(node string, objmap map[string]interface{}) (rerr error) {
+	nodeCfg, _ := c.GetConfig(node)
+	for key := range objmap {
+		vv := reflect.ValueOf(objmap[key])
+		if !vv.IsValid() {
+			// raw value
+			if v, err := nodeCfg.Get(key); err == nil {
+				objmap[key] = v
+			}
+		} else if v, ok := objmap[key].(map[string]interface{}); ok {
+			// nested map
+			err := nodeCfg.UnmarshalToMap(key, v)
+			if err != nil && rerr == nil {
+				rerr = err
+			}
+		} else if v, err := nodeCfg.Get(key); err == nil {
+			// else assume a leaf
+			if cv, err := cfgconv.Convert(v, vv.Type()); err == nil {
+				objmap[key] = cv
+			} else if rerr == nil {
+				rerr = UnmarshalError{c.prefixedKey(node, key), err}
+			}
+		}
+	}
+	return rerr
 }
