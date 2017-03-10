@@ -5,6 +5,7 @@ import (
 	"github.com/warthog618/config/cfgconv"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 type Config interface {
@@ -32,7 +33,11 @@ type Config interface {
 }
 
 func New() Config {
-	return &config{"", ".", make([]Reader, 0), make(map[string][]string)}
+	return &config{
+		separator: ".",
+		readers:   make([]Reader, 0),
+		aliases:   make(map[string][]string),
+	}
 }
 
 type Reader interface {
@@ -53,6 +58,10 @@ type Masker interface {
 }
 
 type config struct {
+	// RWLock covering other fields.
+	// It does not prevent concurrent access to the readers themselves,
+	// only to the config fields.
+	mu sync.RWMutex
 	// The prefix common to all keys within this config node.
 	// For the root node this is empty.
 	// For other nodes this indicates the location of the node in the config tree.
@@ -72,6 +81,8 @@ type config struct {
 // When applied to a non-root node, the reader only applies to that node,
 // and any subsequently created children.
 func (c *config) AddReader(reader Reader) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	// prepended so readers are searched in LIFO order.
 	c.readers = append([]Reader{reader}, c.readers...)
 }
@@ -91,6 +102,8 @@ func (c *config) prefixedKey(key ...string) string {
 // As with readers, the aliases are local to the config node, and any
 // subsequently created children.
 func (c *config) AddAlias(newKey string, oldKey string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	lNewKey := c.prefixedKey(strings.ToLower(newKey))
 	lOldKey := c.prefixedKey(strings.ToLower(oldKey))
 	if lNewKey == lOldKey {
@@ -107,6 +120,8 @@ func (c *config) AddAlias(newKey string, oldKey string) {
 // Returns true of the key is contained in the config tree.
 // Key may be a leaf or a node.
 func (c *config) Contains(key string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	fullKey := c.prefixedKey(strings.ToLower(key))
 	for _, reader := range c.readers {
 		if reader.Contains(fullKey) {
@@ -124,6 +139,8 @@ func (c *config) Contains(key string) bool {
 }
 
 func (c *config) SetSeparator(separator string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.separator = separator
 }
 
@@ -131,6 +148,8 @@ func (c *config) SetSeparator(separator string) {
 // Iterates through the list of readers, searching for a matching key,
 // or matching alias.  Returns the first match found, or an error if none is found.
 func (c *config) Get(key string) (interface{}, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	fullKey := c.prefixedKey(strings.ToLower(key))
 	for _, reader := range c.readers {
 		if v, ok := reader.Read(fullKey); ok {
@@ -185,12 +204,19 @@ func (c *config) GetBool(key string) (bool, error) {
 }
 
 func (c *config) GetConfig(key string) (Config, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	aliases := make(map[string][]string, len(c.aliases))
 	for k, v := range c.aliases {
 		aliases[k] = v[:]
 	}
 	readers := c.readers[:]
-	return &config{c.prefixedKey(key), c.separator, readers, aliases}, nil
+	return &config{
+		prefix:    c.prefixedKey(key),
+		separator: c.separator,
+		readers:   readers,
+		aliases:   aliases,
+	}, nil
 }
 
 func (c *config) GetFloat(key string) (float64, error) {
