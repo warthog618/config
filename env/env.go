@@ -9,7 +9,7 @@ import (
 func New(prefix string) (*reader, error) {
 	config := map[string]string(nil)
 	nodes := map[string]bool(nil)
-	r := reader{config, nodes, prefix, "_", "", ".", ":"}
+	r := reader{config, nodes, prefix, "_", ".", ":"}
 	r.load()
 	return &r, nil
 }
@@ -25,8 +25,6 @@ type reader struct {
 	envPrefix string
 	// separator between key tiers in ENV space.
 	envSeparator string
-	// string that defines the env root in config space
-	cfgPrefix string
 	// separator between key tiers in config space.
 	cfgSeparator string
 	// The separator for slices stored in string values.
@@ -34,12 +32,6 @@ type reader struct {
 }
 
 func (r *reader) Contains(key string) bool {
-	if len(r.cfgPrefix) > 0 {
-		if !strings.HasPrefix(key, r.cfgPrefix) {
-			return false
-		}
-		key = key[len(r.cfgPrefix):]
-	}
 	if _, ok := r.config[key]; ok {
 		return true
 	}
@@ -50,21 +42,11 @@ func (r *reader) Contains(key string) bool {
 }
 
 func (r *reader) Read(key string) (interface{}, bool) {
-	if len(r.cfgPrefix) > 0 {
-		if !strings.HasPrefix(key, r.cfgPrefix) {
-			return nil, false
-		}
-		key = key[len(r.cfgPrefix):]
-	}
 	val, ok := r.config[key]
 	if ok && len(r.listSeparator) > 0 && strings.Contains(val, r.listSeparator) {
 		return strings.Split(val, r.listSeparator), ok
 	}
 	return val, ok
-}
-
-func (r *reader) SetCfgPrefix(prefix string) {
-	r.cfgPrefix = strings.ToLower(prefix)
 }
 
 func (r *reader) SetCfgSeparator(separator string) {

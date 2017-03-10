@@ -98,57 +98,6 @@ func TestReaderRead(t *testing.T) {
 	}
 }
 
-func TestReaderSetCfgPrefix(t *testing.T) {
-	prefix := "CFGENV_"
-	setup(prefix)
-	c, err := New(prefix)
-	if err != nil {
-		t.Fatalf("new returned error", err)
-	}
-	// single
-	c.SetCfgPrefix("C")
-	if c.Contains("nested.leaf") {
-		t.Errorf("contains nested.leaf")
-	}
-	if v, ok := c.Read("nested.leaf"); ok {
-		t.Errorf("contains nested.leaf - got %v", v)
-	}
-	if !c.Contains("cnested.leaf") {
-		t.Errorf("doesn't contain cnested.leaf")
-	}
-	if v, ok := c.Read("cnested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read cnested.leaf %v, expected %v", v, "44")
-		}
-	} else {
-		t.Errorf("failed to read Cnested_leaf")
-	}
-	// multi
-	c.SetCfgPrefix("C.")
-	if !c.Contains("c.nested.leaf") {
-		t.Errorf("doesn't contain c.nested.leaf")
-	}
-	if v, ok := c.Read("c.nested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read c.nested.leaf %v, expected %v", v, "44")
-		}
-	} else {
-		t.Errorf("failed to read c.nested.leaf")
-	}
-	// none
-	c.SetCfgPrefix("")
-	if !c.Contains("nested.leaf") {
-		t.Errorf("doesn't contain nested.leaf")
-	}
-	if v, ok := c.Read("nested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read nested.leaf %v, expected %v", v, "44")
-		}
-	} else {
-		t.Errorf("failed to read nested.leaf")
-	}
-}
-
 func TestReaderSetCfgSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
