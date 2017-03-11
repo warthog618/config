@@ -312,6 +312,20 @@ func TestGetMasked(t *testing.T) {
 	assertGet(t, cfg, "c", mr3.config["c"].(string), "single reader get")
 	assertGet(t, cfg, "d", mr3.config["d"].(string), "single reader get")
 	refuteGet(t, cfg, "e", "single reader get")
+
+	// Nested
+	mr1.config["d.a"] = "d.a"
+	mr1.config["e.a"] = "e.a"
+	assertGet(t, cfg, "d.a", mr1.config["d.a"].(string), "nested reader get")
+	assertGet(t, cfg, "e.a", mr1.config["e.a"].(string), "nested reader get")
+	// leaf
+	mr2.mask["d.a"] = true
+	refuteGet(t, cfg, "d.a", "single reader get")
+	assertGet(t, cfg, "e.a", mr1.config["e.a"].(string), "nested reader get")
+	// node
+	mr2.mask["e"] = true
+	refuteGet(t, cfg, "d.a", "single reader get")
+	refuteGet(t, cfg, "e.a", "single reader get")
 }
 
 func TestGetBool(t *testing.T) {

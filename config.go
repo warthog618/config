@@ -42,11 +42,21 @@ func New() Config {
 
 type Reader interface {
 	// Indicate whether this Reader provides the named config key.
+	// Returns true of the key is contained in the config tree.
+	// Key may be a leaf or a node.
+	// If key is a node, then should return true if any leaves
+	// are present within the node.
+	// This function is currently only used by config.Contains,
+	// and conditional maskers, so third party Readers can weaken this
+	// requirement if support for neither of those is required.
 	Contains(key string) bool
-	// Read and return the value of the named config key.
+	// Read and return the value of the named config leaf key.
 	// Also returns an ok, similar to a map read, to indicate if the value
 	// was found.
-	// The underlying type must be convertable to the expected type by cfgconv.
+	// The type underlying the returned interface{} must be convertable to
+	// the expected type by cfgconv.
+	// Read is not expected to be performed on node keys, and its behaviour
+	// in that case is not defined.
 	Read(key string) (interface{}, bool)
 }
 
@@ -54,6 +64,11 @@ type Reader interface {
 type Masker interface {
 	Reader
 	// Indicates whether searching for a matching Reader should stop at this Reader.
+	// The key may be either a node of leaf in the config tree.
+	// A masked node implies masking of the sub-tree contained by the node.
+	// The function only needs to consider the particular key, not parent nodes.
+	// The config module will walk down the config tree, checking that the leaf and
+	// ALL parents are not masked.
 	Mask(key string) bool
 }
 
@@ -118,7 +133,6 @@ func (c *config) AddAlias(newKey string, oldKey string) {
 }
 
 // Returns true of the key is contained in the config tree.
-// Key may be a leaf or a node.
 func (c *config) Contains(key string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -187,8 +201,12 @@ func (c *config) Get(key string) (interface{}, error) {
 		}
 		// masking
 		if masker, ok := reader.(Masker); ok {
-			if masker.Mask(key) {
-				break
+			path := strings.Split(fullKey, c.separator)
+			for plen := 1; plen <= len(path); plen++ {
+				pathKey := strings.Join(path[:plen], c.separator)
+				if masker.Mask(pathKey) {
+					return "", NotFoundError{Key: fullKey}
+				}
 			}
 		}
 	}

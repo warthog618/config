@@ -1,6 +1,7 @@
 package env
 
 import (
+	"github.com/warthog618/config"
 	"os"
 	"reflect"
 	"testing"
@@ -16,16 +17,19 @@ func setup(prefix string) {
 
 func TestNew(t *testing.T) {
 	setup("CFGENV_")
-	c, err := New("CFGENV_")
+	e, err := New("CFGENV_")
 	if err != nil {
 		t.Fatalf("new returned error", err)
 	}
-	if len(c.nodes) != 1 {
-		t.Errorf("incorrect number of nodes, expected 1, got %v", len(c.nodes))
+	if len(e.nodes) != 1 {
+		t.Errorf("incorrect number of nodes, expected 1, got %v", len(e.nodes))
 	}
-	if len(c.config) != 4 {
-		t.Errorf("incorrect number of leaves, expected 4, got %v", len(c.nodes))
+	if len(e.config) != 4 {
+		t.Errorf("incorrect number of leaves, expected 4, got %v", len(e.config))
 	}
+	// test provides config.Reader interface.
+	cfg := config.New()
+	cfg.AddReader(e)
 }
 
 func TestReaderContains(t *testing.T) {

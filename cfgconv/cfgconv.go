@@ -254,8 +254,6 @@ func Slice(v interface{}) ([]interface{}, error) {
 		slice[0] = v
 		return slice, nil
 	}
-	if vv.Kind() == reflect.Slice {
-	}
 	return []interface{}{}, TypeError{Value: v, Kind: reflect.Slice}
 }
 

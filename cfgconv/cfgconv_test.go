@@ -125,7 +125,7 @@ func TestConvert(t *testing.T) {
 	// bad type
 	cin = []int{}
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to uint, got %v", []int{}, cv)
+		t.Errorf("converted '%v' to uint, got %v", []int{}, cv)
 	} else {
 		if !strings.Contains(err.Error(), "to uint") {
 			t.Errorf("overflow error doesn't indicate target type")
@@ -137,7 +137,7 @@ func TestConvert(t *testing.T) {
 	// bad parse
 	cin = "glob"
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to uint, got %v", cin, cv)
+		t.Errorf("converted '%v' to uint, got %v", cin, cv)
 	} else if cv != uint(0) {
 		t.Errorf("didn't return zero on conversion to uint, got %v", cv)
 	}
@@ -145,7 +145,7 @@ func TestConvert(t *testing.T) {
 	ct = reflect.TypeOf(uint8(0))
 	cin = 257
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to uint, got %v", cin, cv)
+		t.Errorf("converted '%v' to uint, got %v", cin, cv)
 	} else {
 		if _, ok := err.(OverflowError); !ok {
 			t.Errorf("didn't return overflow error, got %v", err)
@@ -171,7 +171,7 @@ func TestConvert(t *testing.T) {
 	// bad type
 	cin = []int{}
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to float, got %v", []int{}, cv)
+		t.Errorf("converted '%v' to float, got %v", []int{}, cv)
 	} else {
 		if !strings.Contains(err.Error(), "to float") {
 			t.Errorf("overflow error doesn't indicate target type")
@@ -183,14 +183,14 @@ func TestConvert(t *testing.T) {
 	// bad parse
 	cin = "glob"
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to float, got %v", cin, cv)
+		t.Errorf("converted '%v' to float, got %v", cin, cv)
 	} else if cv != float32(0) {
 		t.Errorf("didn't return zero on conversion to float, got %v", cv)
 	}
 	// overflow
 	cin = float64(340282356779733642748073463979561713664)
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to float, got %v", cin, cv)
+		t.Errorf("converted '%v' to float, got %v", cin, cv)
 	} else {
 		if _, ok := err.(OverflowError); !ok {
 			t.Errorf("didn't return overflow error, got %v", err)
@@ -216,7 +216,7 @@ func TestConvert(t *testing.T) {
 	// bad type
 	cin = []int{}
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to string, got %v", []int{}, cv)
+		t.Errorf("converted '%v' to string, got %v", []int{}, cv)
 	} else {
 		if !strings.Contains(err.Error(), "to string") {
 			t.Errorf("overflow error doesn't indicate target type")
@@ -240,7 +240,7 @@ func TestConvert(t *testing.T) {
 	// bad type
 	cin = []int{}
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to bool, got %v", []int{}, cv)
+		t.Errorf("converted '%v' to bool, got %v", []int{}, cv)
 	} else {
 		if !strings.Contains(err.Error(), "to bool") {
 			t.Errorf("overflow error doesn't indicate target type")
@@ -252,7 +252,7 @@ func TestConvert(t *testing.T) {
 	// bad parse
 	cin = "glob"
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to bool, got %v", cin, cv)
+		t.Errorf("converted '%v' to bool, got %v", cin, cv)
 	} else if cv != false {
 		t.Errorf("didn't return false on conversion to bool, got %v", cv)
 	}
@@ -279,14 +279,20 @@ func TestConvert(t *testing.T) {
 	// bad type
 	cin = 3
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to slice, got %v", []int{}, cv)
+		t.Errorf("converted '%v' to slice, got %v", []int{}, cv)
 	} else if !reflect.DeepEqual(cv, []int(nil)) {
 		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
 	}
 	// bad parse
 	cin = []string{"1", "2", "3", "glob"}
 	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v'to slice, got %v", "glob", cv)
+		t.Errorf("converted '%v' to slice, got %v", cin, cv)
+	} else if !reflect.DeepEqual(cv, []int(nil)) {
+		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
+	}
+	cin = "glob"
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to slice, got %v", cin, cv)
 	} else if !reflect.DeepEqual(cv, []int(nil)) {
 		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
 	}

@@ -1,12 +1,13 @@
 package json
 
 import (
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/cfgconv"
 	"reflect"
 	"testing"
 )
 
-var config = []byte(`{
+var validConfig = []byte(`{
   "bool": true,
   "int": 42,
   "float": 3.1415,
@@ -23,13 +24,13 @@ var config = []byte(`{
   }
 }`)
 
-var malformed = []byte(`malformed{
+var malformedConfig = []byte(`malformed{
   "bool": true,
   "int": 42,
   "float": 3.1415
 }`)
 
-var configKeys = []string{"bool", "int", "float", "string", "intSlice", "stringSlice",
+var validKeys = []string{"bool", "int", "float", "string", "intSlice", "stringSlice",
 	"nested", "nested.bool", "nested.int", "nested.float", "nested.string",
 	"nested.intSlice", "nested.stringSlice"}
 
@@ -41,7 +42,7 @@ var stringSlice = []interface{}{"one", "two", "three", "four"}
 var nestedStringSlice = []interface{}{"one", "two", "three"}
 
 func testReaderContains(t *testing.T, reader *reader) {
-	for _, key := range configKeys {
+	for _, key := range validKeys {
 		if ok := reader.Contains(key); !ok {
 			t.Errorf("doesn't contain %s", key)
 		}
@@ -55,7 +56,7 @@ func testReaderContains(t *testing.T, reader *reader) {
 
 // Test that config fields can be read and converted to required types using cfgconv.
 func testReaderRead(t *testing.T, reader *reader) {
-	for _, key := range configKeys {
+	for _, key := range validKeys {
 		if _, ok := reader.Read(key); !ok {
 			t.Errorf("couldn't read %s", key)
 		}
@@ -152,11 +153,15 @@ func testReaderRead(t *testing.T, reader *reader) {
 }
 
 func TestNewBytes(t *testing.T) {
-	if _, err := NewBytes(config); err != nil {
-		t.Errorf("failed to parse config")
-	}
-	if _, err := NewBytes(malformed); err == nil {
+	if _, err := NewBytes(malformedConfig); err == nil {
 		t.Errorf("parsed malformed config")
+	}
+	if b, err := NewBytes(validConfig); err != nil {
+		t.Errorf("failed to parse validConfig")
+	} else {
+		// test provides config.Reader interface.
+		cfg := config.New()
+		cfg.AddReader(b)
 	}
 }
 
@@ -164,8 +169,12 @@ func TestNewFile(t *testing.T) {
 	if _, err := NewFile("no_such.json"); err == nil {
 		t.Errorf("parsed no such config")
 	}
-	if _, err := NewFile("config.json"); err != nil {
+	if f, err := NewFile("config.json"); err != nil {
 		t.Errorf("failed to parse config")
+	} else {
+		// test provides config.Reader interface.
+		cfg := config.New()
+		cfg.AddReader(f)
 	}
 	if _, err := NewFile("malformed.json"); err == nil {
 		t.Errorf("parsed malformed config")
@@ -173,7 +182,7 @@ func TestNewFile(t *testing.T) {
 }
 
 func TestBytesReaderContains(t *testing.T) {
-	reader, err := NewBytes(config)
+	reader, err := NewBytes(validConfig)
 	if err != nil {
 		t.Fatalf("failed to parse config")
 	}
@@ -181,7 +190,7 @@ func TestBytesReaderContains(t *testing.T) {
 }
 
 func TestBytesReaderRead(t *testing.T) {
-	reader, err := NewBytes(config)
+	reader, err := NewBytes(validConfig)
 	if err != nil {
 		t.Fatalf("failed to parse config")
 	}

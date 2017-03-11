@@ -1,6 +1,7 @@
 package prefixer
 
 import (
+	"github.com/warthog618/config"
 	"testing"
 )
 
@@ -25,6 +26,9 @@ func TestNew(t *testing.T) {
 	if p == nil {
 		t.Fatalf("new returned nil")
 	}
+	// test provides config.Reader interface.
+	cfg := config.New()
+	cfg.AddReader(p)
 }
 
 func TestContains(t *testing.T) {
