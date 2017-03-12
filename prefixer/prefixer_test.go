@@ -28,7 +28,7 @@ func TestNew(t *testing.T) {
 	}
 	// test provides config.Reader interface.
 	cfg := config.New()
-	cfg.AddReader(p)
+	cfg.AppendReader(p)
 }
 
 func TestContains(t *testing.T) {

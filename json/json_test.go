@@ -161,7 +161,7 @@ func TestNewBytes(t *testing.T) {
 	} else {
 		// test provides config.Reader interface.
 		cfg := config.New()
-		cfg.AddReader(b)
+		cfg.AppendReader(b)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestNewFile(t *testing.T) {
 	} else {
 		// test provides config.Reader interface.
 		cfg := config.New()
-		cfg.AddReader(f)
+		cfg.AppendReader(f)
 	}
 	if _, err := NewFile("malformed.json"); err == nil {
 		t.Errorf("parsed malformed config")

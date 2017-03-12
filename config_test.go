@@ -48,7 +48,7 @@ func TestNew(t *testing.T) {
 func TestAddAlias(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	// alias maps newKey (requested) -> oldKey (in config)
 	mr.config["oldthing"] = "an old config string"
 	cfg.AddAlias("newthing", "oldthing")
@@ -95,7 +95,7 @@ func TestAddAlias(t *testing.T) {
 func TestAddAliasNested(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["a"] = "a"
 	mr.config["foo.a"] = "foo.a"
 	mr.config["foo.b"] = "foo.b"
@@ -128,32 +128,42 @@ func TestAddAliasNested(t *testing.T) {
 	refuteGet(t, cfg, "d", "sub-tree alias locality")
 }
 
-func TestAddReader(t *testing.T) {
+func TestAppendReader(t *testing.T) {
 	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
-	mr.config["something"] = "a test string"
+	mr1 := mapReader{map[string]interface{}{}}
+	cfg.InsertReader(&mr1)
+	mr1.config["something"] = "a test string"
 	if val, err := cfg.Get("something"); err != nil {
 		t.Errorf("couldn't get something - err '%v'", err)
 	} else if something, ok := val.(string); ok {
-		if something != mr.config["something"] {
-			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
+		if something != mr1.config["something"] {
+			t.Errorf("something mismatch - expected '%v' but got '%v'", mr1.config["something"], something)
 		}
 	} else {
 		t.Errorf("something is not a string")
 	}
-	// overlay a second reader
-	mr = mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
-	mr.config["something"] = "another test string"
+	// append a second reader
+	mr2 := mapReader{map[string]interface{}{}}
+	cfg.AppendReader(&mr2)
+	mr2.config["something"] = "another test string"
+	mr2.config["something else"] = "yet another test string"
 	if val, err := cfg.Get("something"); err != nil {
 		t.Errorf("couldn't get something - err '%v'", err)
 	} else if something, ok := val.(string); ok {
-		if something != mr.config["something"] {
-			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
+		if something != mr1.config["something"] {
+			t.Errorf("something mismatch - expected '%v' but got '%v'", mr1.config["something"], something)
 		}
 	} else {
 		t.Errorf("something is not a string")
+	}
+	if val, err := cfg.Get("something else"); err != nil {
+		t.Errorf("couldn't get something else - err '%v'", err)
+	} else if something, ok := val.(string); ok {
+		if something != mr2.config["something else"] {
+			t.Errorf("something else mismatch - expected '%v' but got '%v'", mr2.config["something else"], something)
+		}
+	} else {
+		t.Errorf("something else is not a string")
 	}
 }
 
@@ -163,10 +173,10 @@ func TestContains(t *testing.T) {
 		t.Errorf("Empty config contains something.")
 	}
 	mr1 := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr1)
+	cfg.InsertReader(&mr1)
 	mr1.config["something"] = "a test string"
 	mr2 := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr2)
+	cfg.InsertReader(&mr2)
 	mr2.config["oldthing"] = "an old test string"
 	// direct
 	if !cfg.Contains("something") {
@@ -196,6 +206,35 @@ func TestContains(t *testing.T) {
 	}
 	if cfg.Contains("nothing") {
 		t.Errorf("contains nothing via reverse alias")
+	}
+}
+
+func TestInsertReader(t *testing.T) {
+	cfg := New()
+	mr := mapReader{map[string]interface{}{}}
+	cfg.InsertReader(&mr)
+	mr.config["something"] = "a test string"
+	if val, err := cfg.Get("something"); err != nil {
+		t.Errorf("couldn't get something - err '%v'", err)
+	} else if something, ok := val.(string); ok {
+		if something != mr.config["something"] {
+			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
+		}
+	} else {
+		t.Errorf("something is not a string")
+	}
+	// overlay a second reader
+	mr = mapReader{map[string]interface{}{}}
+	cfg.InsertReader(&mr)
+	mr.config["something"] = "another test string"
+	if val, err := cfg.Get("something"); err != nil {
+		t.Errorf("couldn't get something - err '%v'", err)
+	} else if something, ok := val.(string); ok {
+		if something != mr.config["something"] {
+			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
+		}
+	} else {
+		t.Errorf("something is not a string")
 	}
 }
 
@@ -244,7 +283,7 @@ func TestGetOverlayed(t *testing.T) {
 	cfg := New()
 	// Single Reader
 	mr1 := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr1)
+	cfg.InsertReader(&mr1)
 	mr1.config["a"] = "a - tier 1"
 	mr1.config["b"] = "b - tier 1"
 	mr1.config["c"] = "c - tier 1"
@@ -256,7 +295,7 @@ func TestGetOverlayed(t *testing.T) {
 
 	// Two Readers
 	mr2 := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr2)
+	cfg.InsertReader(&mr2)
 	mr2.config["b"] = "b - tier 2"
 	mr2.config["d"] = "d - tier 2"
 	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
@@ -267,7 +306,7 @@ func TestGetOverlayed(t *testing.T) {
 
 	// Three Readers
 	mr3 := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr3)
+	cfg.InsertReader(&mr3)
 	mr3.config["c"] = "c - tier 3"
 	mr3.config["d"] = "d - tier 3"
 	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
@@ -281,7 +320,7 @@ func TestGetMasked(t *testing.T) {
 	cfg := New()
 	// Single Reader
 	mr1 := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr1)
+	cfg.InsertReader(&mr1)
 	mr1.config["a"] = "a - tier 1"
 	mr1.config["b"] = "b - tier 1"
 	mr1.config["c"] = "c - tier 1"
@@ -293,7 +332,7 @@ func TestGetMasked(t *testing.T) {
 
 	// Two Readers
 	mr2 := maskReader{mapReader{map[string]interface{}{}}, map[string]bool{}}
-	cfg.AddReader(&mr2)
+	cfg.InsertReader(&mr2)
 	mr2.config["b"] = "b - tier 2"
 	mr2.mask["c"] = true
 	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
@@ -304,7 +343,7 @@ func TestGetMasked(t *testing.T) {
 
 	// Three Readers
 	mr3 := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr3)
+	cfg.InsertReader(&mr3)
 	mr3.config["c"] = "c - tier 3"
 	mr3.config["d"] = "d - tier 3"
 	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
@@ -331,7 +370,7 @@ func TestGetMasked(t *testing.T) {
 func TestGetBool(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["bool"] = true
 	mr.config["boolstring"] = "true"
 	mr.config["boolint"] = 1
@@ -370,7 +409,7 @@ func TestGetBool(t *testing.T) {
 func TestGetFloat(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["float"] = 3.1415
 	mr.config["floatstring"] = "3.1415"
 	mr.config["floatint"] = 1
@@ -409,7 +448,7 @@ func TestGetFloat(t *testing.T) {
 func TestGetInt(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["int"] = 42
 	mr.config["intstring"] = "42"
 	mr.config["notaint"] = "bogus"
@@ -442,7 +481,7 @@ func TestGetInt(t *testing.T) {
 func TestGetString(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["string"] = "a string"
 	mr.config["stringint"] = 42
 	mr.config["notastring"] = struct{}{}
@@ -475,7 +514,7 @@ func TestGetString(t *testing.T) {
 func TestGetUint(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["uint"] = 42
 	mr.config["uintstring"] = "42"
 	mr.config["notauint"] = "bogus"
@@ -508,7 +547,7 @@ func TestGetUint(t *testing.T) {
 func TestGetSlice(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["slice"] = []interface{}{1, 2, 3, 4}
 	mr.config["casttoslice"] = "bogus"
 	mr.config["notaslice"] = struct{}{}
@@ -541,7 +580,7 @@ func TestGetSlice(t *testing.T) {
 func TestGetIntSlice(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["slice"] = []int64{1, 2, -3, 4}
 	mr.config["casttoslice"] = "42"
 	mr.config["stringslice"] = []string{"one", "two", "three"}
@@ -582,7 +621,7 @@ func TestGetIntSlice(t *testing.T) {
 func TestGetStringSlice(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["intslice"] = []int64{1, 2, -3, 4}
 	mr.config["stringslice"] = []string{"one", "two", "three"}
 	mr.config["uintslice"] = []uint64{1, 2, 3, 4}
@@ -638,7 +677,7 @@ func TestGetStringSlice(t *testing.T) {
 func TestGetUintSlice(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["slice"] = []uint64{1, 2, 3, 4}
 	mr.config["casttoslice"] = "42"
 	mr.config["intslice"] = []int64{1, 2, -3, 4}
@@ -688,7 +727,7 @@ func TestGetConfig(t *testing.T) {
 	cfg := New()
 	// Single Reader
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["foo.a"] = "foo.a"
 	mr.config["foo.b"] = "foo.b"
 	mr.config["bar.b"] = "bar.b"
@@ -765,7 +804,7 @@ func TestUnmarshal(t *testing.T) {
 	cfg := New()
 	// Root Reader
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["foo.a"] = 42
 	mr.config["foo.b"] = "foo.b"
 	mr.config["foo.c"] = []int{1, 2, 3, 4}
@@ -886,7 +925,7 @@ func TestUnmarshalToMap(t *testing.T) {
 	cfg := New()
 	// Root Reader
 	mr := mapReader{map[string]interface{}{}}
-	cfg.AddReader(&mr)
+	cfg.InsertReader(&mr)
 	mr.config["foo.a"] = 42
 	mr.config["foo.b"] = "foo.b"
 	mr.config["foo.c"] = []int{1, 2, 3, 4}

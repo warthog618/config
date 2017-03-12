@@ -10,8 +10,9 @@ import (
 
 type Config interface {
 	AddAlias(newKey string, oldKey string)
-	AddReader(reader Reader)
+	AppendReader(reader Reader)
 	Contains(key string) bool
+	InsertReader(reader Reader)
 	SetSeparator(separator string)
 	// Base get
 	Get(key string) (interface{}, error)
@@ -91,14 +92,28 @@ type config struct {
 	aliases map[string][]string
 }
 
-// Add a reader to the config node.
+// Append a reader to the set of readers for the config node.
+// This means this reader is only used as a last resort, relative to
+// the existing readers.
+//
 // This is generally applied to the root node.
 // When applied to a non-root node, the reader only applies to that node,
 // and any subsequently created children.
-func (c *config) AddReader(reader Reader) {
+func (c *config) AppendReader(reader Reader) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// prepended so readers are searched in LIFO order.
+	c.readers = append(c.readers,reader)
+}
+
+// Insert a reader to the set of readers for the config node.
+// This means this reader is used before the existing readers.
+//
+// This is generally applied to the root node.
+// When applied to a non-root node, the reader only applies to that node,
+// and any subsequently created children.
+func (c *config) InsertReader(reader Reader) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.readers = append([]Reader{reader}, c.readers...)
 }
 

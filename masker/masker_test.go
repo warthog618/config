@@ -28,7 +28,7 @@ func TestNew(t *testing.T) {
 	}
 	// test provides config.Reader interface.
 	cfg := config.New()
-	cfg.AddReader(m)
+	cfg.AppendReader(m)
 }
 
 func TestMaskUnconditional(t *testing.T) {
