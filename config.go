@@ -102,7 +102,7 @@ type config struct {
 func (c *config) AppendReader(reader Reader) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.readers = append(c.readers,reader)
+	c.readers = append(c.readers, reader)
 }
 
 // Insert a reader to the set of readers for the config node.
@@ -377,7 +377,7 @@ func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
 	nodeCfg, _ := c.GetConfig(node)
 	ov := reflect.Indirect(reflect.ValueOf(obj))
 	if ov.Kind() != reflect.Struct {
-		return fmt.Errorf("Unmarshal obj is not a struct -", obj)
+		return fmt.Errorf("Unmarshal: obj is not a struct -", obj)
 	}
 	for idx := 0; idx < ov.NumField(); idx++ {
 		fv := ov.Field(idx)

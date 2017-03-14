@@ -35,23 +35,23 @@ func TestNew(t *testing.T) {
 func TestReaderContains(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	c, err := New(prefix)
+	e, err := New(prefix)
 	if err != nil {
 		t.Fatalf("new returned error", err)
 	}
 	// leaf
-	if !c.Contains("leaf") {
+	if !e.Contains("leaf") {
 		t.Errorf("doesn't contain leaf")
 	}
-	if !c.Contains("nested.leaf") {
+	if !e.Contains("nested.leaf") {
 		t.Errorf("doesn't contain nested.leaf")
 	}
 	// node
-	if !c.Contains("nested") {
-		t.Errorf("doesn't contain nested.int")
+	if !e.Contains("nested") {
+		t.Errorf("doesn't contain nested")
 	}
 	// neither
-	if c.Contains("nonsense") {
+	if e.Contains("nonsense") {
 		t.Errorf("contains nonsense")
 	}
 }
@@ -59,45 +59,49 @@ func TestReaderContains(t *testing.T) {
 func TestReaderRead(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	c, err := New(prefix)
+	e, err := New(prefix)
 	if err != nil {
 		t.Fatalf("new returned error", err)
 	}
 	// leaf
-	if v, ok := c.Read("leaf"); ok {
-		if v != "42" {
-			t.Errorf("read leaf %v, expected %v", v, "42")
+	expected := "42"
+	if v, ok := e.Read("leaf"); ok {
+		if v != expected {
+			t.Errorf("read leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read leaf")
 	}
-	if v, ok := c.Read("slice"); ok {
-		if !reflect.DeepEqual(v, []string{"a", "b"}) {
-			t.Errorf("read slice %v, expected %v", v, []string{"a", "b"})
+	expectedSlice := []string{"a", "b"}
+	if v, ok := e.Read("slice"); ok {
+		if !reflect.DeepEqual(v, expectedSlice) {
+			t.Errorf("read slice %v, expected %v", v, expectedSlice)
 		}
 	} else {
 		t.Errorf("failed to read slice")
 	}
-	if v, ok := c.Read("nested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read nested.leaf %v, expected %v", v, "44")
+	expected = "44"
+	if v, ok := e.Read("nested.leaf"); ok {
+		if v != expected {
+			t.Errorf("read nested.leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nested.leaf")
 	}
-	if v, ok := c.Read("nested.slice"); ok {
-		if !reflect.DeepEqual(v, []string{"c", "d"}) {
-			t.Errorf("read slice %v, expected %v", v, []string{"c", "d"})
+	expectedSlice = []string{"c", "d"}
+	if v, ok := e.Read("nested.slice"); ok {
+		if !reflect.DeepEqual(v, expectedSlice) {
+			t.Errorf("read slice %v, expected %v", v, expectedSlice)
 		}
 	} else {
 		t.Errorf("failed to read slice")
 	}
 	// node
-	if v, ok := c.Read("nested"); ok {
+	if v, ok := e.Read("nested"); ok {
 		t.Errorf("contains nested - got %v", v)
 	}
 	// neither
-	if v, ok := c.Read("nonsense"); ok {
+	if v, ok := e.Read("nonsense"); ok {
 		t.Errorf("contains nonsense - got %v", v)
 	}
 }
@@ -105,33 +109,34 @@ func TestReaderRead(t *testing.T) {
 func TestReaderSetCfgSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	c, err := New(prefix)
+	e, err := New(prefix)
 	if err != nil {
 		t.Fatalf("new returned error", err)
 	}
 	// single
-	c.SetCfgSeparator("_")
-	if v, ok := c.Read("nested_leaf"); ok {
-		if v != "44" {
-			t.Errorf("read nested_leaf %v, expected %v", v, "44")
+	e.SetCfgSeparator("_")
+	expected := "44"
+	if v, ok := e.Read("nested_leaf"); ok {
+		if v != expected {
+			t.Errorf("read nested_leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nested_leaf")
 	}
 	// multi
-	c.SetCfgSeparator("_X_")
-	if v, ok := c.Read("nested_x_leaf"); ok {
-		if v != "44" {
-			t.Errorf("read nested_x_leaf %v, expected %v", v, "44")
+	e.SetCfgSeparator("_X_")
+	if v, ok := e.Read("nested_x_leaf"); ok {
+		if v != expected {
+			t.Errorf("read nested_x_leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nested_x_leaf")
 	}
 	// none
-	c.SetCfgSeparator("")
-	if v, ok := c.Read("nestedleaf"); ok {
-		if v != "44" {
-			t.Errorf("read nestedleaf %v, expected %v", v, "44")
+	e.SetCfgSeparator("")
+	if v, ok := e.Read("nestedleaf"); ok {
+		if v != expected {
+			t.Errorf("read nestedleaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nestedleaf")
@@ -140,33 +145,35 @@ func TestReaderSetCfgSeparator(t *testing.T) {
 func TestReaderSetEnvSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	c, err := New(prefix)
+	e, err := New(prefix)
 	if err != nil {
 		t.Fatalf("new returned error", err)
 	}
 	// single
-	c.SetEnvSeparator("_")
-	if v, ok := c.Read("nested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read nested.leaf %v, expected %v", v, "44")
+	e.SetEnvSeparator("_")
+	expected := "44"
+	if v, ok := e.Read("nested.leaf"); ok {
+		if v != expected {
+			t.Errorf("read nested.leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nested.leaf")
 	}
 	// multi
-	c.SetEnvSeparator("TED_")
-	if v, ok := c.Read("nes.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read nes.leaf %v, expected %v", v, "44")
+	e.SetEnvSeparator("TED_")
+	if v, ok := e.Read("nes.leaf"); ok {
+		if v != expected {
+			t.Errorf("read nes.leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nes.leaf")
 	}
 	// none
-	c.SetEnvSeparator("")
-	if v, ok := c.Read("l.e.a.f"); ok {
-		if v != "42" {
-			t.Errorf("read l.e.a.f %v, expected %v", v, "42")
+	e.SetEnvSeparator("")
+	expected = "42"
+	if v, ok := e.Read("l.e.a.f"); ok {
+		if v != expected {
+			t.Errorf("read l.e.a.f %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read l.e.a.f")
@@ -177,13 +184,13 @@ func TestReaderListSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	os.Setenv(prefix+"SLICE", "a:#b")
-	c, err := New(prefix)
+	e, err := New(prefix)
 	if err != nil {
 		t.Fatalf("new returned error", err)
 	}
 	// single
-	c.SetListSeparator(":")
-	if v, ok := c.Read("slice"); ok {
+	e.SetListSeparator(":")
+	if v, ok := e.Read("slice"); ok {
 		if !reflect.DeepEqual(v, []string{"a", "#b"}) {
 			t.Errorf("read slice %v, expected %v", v, []string{"a", "#b"})
 		}
@@ -191,17 +198,17 @@ func TestReaderListSeparator(t *testing.T) {
 		t.Errorf("failed to read slice")
 	}
 	// multi
-	c.SetListSeparator(":#")
-	if v, ok := c.Read("slice"); ok {
+	e.SetListSeparator(":#")
+	if v, ok := e.Read("slice"); ok {
 		if !reflect.DeepEqual(v, []string{"a", "b"}) {
-			t.Errorf("read slice %v, expected %v", v, []string{"a", "#b"})
+			t.Errorf("read slice %v, expected %v", v, []string{"a", "b"})
 		}
 	} else {
 		t.Errorf("failed to read slice")
 	}
 	// none
-	c.SetListSeparator("")
-	if v, ok := c.Read("slice"); ok {
+	e.SetListSeparator("")
+	if v, ok := e.Read("slice"); ok {
 		if v != "a:#b" {
 			t.Errorf("read slice %v, expected %v", v, "a:#b")
 		}
@@ -213,30 +220,31 @@ func TestReaderListSeparator(t *testing.T) {
 func TestReaderSetPrefix(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	c, err := New(prefix)
+	e, err := New(prefix)
 	if err != nil {
 		t.Fatalf("new returned error", err)
 	}
-	if v, ok := c.Read("nested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read nested.leaf %v, expected %v", v, "44")
+	expected := "44"
+	if v, ok := e.Read("nested.leaf"); ok {
+		if v != expected {
+			t.Errorf("read nested.leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nested.leaf")
 	}
-	c.SetEnvPrefix("CFG")
-	if v, ok := c.Read("env.nested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read env.nested.leaf %v, expected %v", v, "44")
+	e.SetEnvPrefix("CFG")
+	if v, ok := e.Read("env.nested.leaf"); ok {
+		if v != expected {
+			t.Errorf("read env.nested.leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read env.nested.leaf")
 	}
 	// none
-	c.SetEnvPrefix("")
-	if v, ok := c.Read("cfgenv.nested.leaf"); ok {
-		if v != "44" {
-			t.Errorf("read cfgenv.nested.leaf %v, expected %v", v, "44")
+	e.SetEnvPrefix("")
+	if v, ok := e.Read("cfgenv.nested.leaf"); ok {
+		if v != expected {
+			t.Errorf("read cfgenv.nested.leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read cfgenv.nested.leaf")
