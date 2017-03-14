@@ -1,0 +1,9 @@
+{
+  "module1": {
+    "string": "m1.s from custom.json",
+    "slice": [4,5,6,5]
+  },
+  "module2": {
+    "string": "m2.s from custom.json"
+  }
+}

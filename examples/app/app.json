@@ -1,0 +1,8 @@
+{
+  "module1": {
+    "slice": [45,55,65,75]
+  },
+  "module2": {
+    "string": "m2.s from app.json"
+  }
+}
