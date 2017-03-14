@@ -1,10 +1,16 @@
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 package env
 
 import (
-	"github.com/warthog618/config"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/warthog618/config"
 )
 
 func setup(prefix string) {
@@ -19,7 +25,7 @@ func TestNew(t *testing.T) {
 	setup("CFGENV_")
 	e, err := New("CFGENV_")
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	if len(e.nodes) != 1 {
 		t.Errorf("incorrect number of nodes, expected 1, got %v", len(e.nodes))
@@ -37,7 +43,7 @@ func TestReaderContains(t *testing.T) {
 	setup(prefix)
 	e, err := New(prefix)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// leaf
 	if !e.Contains("leaf") {
@@ -61,7 +67,7 @@ func TestReaderRead(t *testing.T) {
 	setup(prefix)
 	e, err := New(prefix)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// leaf
 	expected := "42"
@@ -111,7 +117,7 @@ func TestReaderSetCfgSeparator(t *testing.T) {
 	setup(prefix)
 	e, err := New(prefix)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// single
 	e.SetCfgSeparator("_")
@@ -147,7 +153,7 @@ func TestReaderSetEnvSeparator(t *testing.T) {
 	setup(prefix)
 	e, err := New(prefix)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// single
 	e.SetEnvSeparator("_")
@@ -186,7 +192,7 @@ func TestReaderListSeparator(t *testing.T) {
 	os.Setenv(prefix+"SLICE", "a:#b")
 	e, err := New(prefix)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// single
 	e.SetListSeparator(":")
@@ -222,7 +228,7 @@ func TestReaderSetPrefix(t *testing.T) {
 	setup(prefix)
 	e, err := New(prefix)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected := "44"
 	if v, ok := e.Read("nested.leaf"); ok {

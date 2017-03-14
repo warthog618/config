@@ -1,8 +1,14 @@
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 package prefixer
 
 import (
-	"github.com/warthog618/config"
 	"testing"
+
+	"github.com/warthog618/config"
 )
 
 // A simple mock reader wrapping an accessible map.

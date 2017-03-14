@@ -1,10 +1,16 @@
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 package flag
 
 import (
-	"github.com/warthog618/config"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/warthog618/config"
 )
 
 func TestNew(t *testing.T) {
@@ -16,7 +22,7 @@ func TestNew(t *testing.T) {
 	}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	if len(f.nodes) != 2 {
 		t.Errorf("incorrect number of nodes, expected 2, got %v", len(f.nodes))
@@ -43,7 +49,7 @@ func TestArgs(t *testing.T) {
 	}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	if len(f.Args()) != 0 {
 		t.Errorf("found args when none provided.")
@@ -51,7 +57,7 @@ func TestArgs(t *testing.T) {
 	args = append(args, "arg1")
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	fargs := f.Args()
 	expected := args[len(args)-1:]
@@ -61,7 +67,7 @@ func TestArgs(t *testing.T) {
 	args = append(args, "arg2")
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	fargs = f.Args()
 	expected = args[len(args)-2:]
@@ -80,7 +86,7 @@ func TestArgs(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	fargs = f.Args()
 	expected = args[5:]
@@ -91,7 +97,7 @@ func TestArgs(t *testing.T) {
 	os.Args = args
 	f, err = New([]string(nil), shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	fargs = f.Args()
 	expected = args[5:]
@@ -114,7 +120,7 @@ func TestNArg(t *testing.T) {
 	}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	if f.NArg() != 0 {
 		t.Errorf("found args when none provided.")
@@ -122,7 +128,7 @@ func TestNArg(t *testing.T) {
 	args = append(args, "arg1")
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected := 1
 	if f.NArg() != expected {
@@ -131,7 +137,7 @@ func TestNArg(t *testing.T) {
 	args = append(args, "arg2")
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected = 2
 	if f.NArg() != expected {
@@ -149,7 +155,7 @@ func TestNArg(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected = 4
 	if f.NArg() != expected {
@@ -171,7 +177,7 @@ func TestNFlag(t *testing.T) {
 	}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected := 5
 	if f.NFlag() != expected {
@@ -184,7 +190,7 @@ func TestNFlag(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected = 1
 	if f.NFlag() != expected {
@@ -201,7 +207,7 @@ func TestNFlag(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected = 3
 	if f.NFlag() != expected {
@@ -219,7 +225,7 @@ func TestSetShortFlag(t *testing.T) {
 	}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected := 1
 	if f.NFlag() != expected {
@@ -286,7 +292,7 @@ func TestReaderContains(t *testing.T) {
 	}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// leaf
 	if !f.Contains("leaf") {
@@ -323,7 +329,7 @@ func TestReaderRead(t *testing.T) {
 	}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// leaf
 	expected := "42"
@@ -383,7 +389,7 @@ func TestReaderRead(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expectedInt = 1
 	if v, ok := f.Read("addon"); ok {
@@ -408,7 +414,7 @@ func TestReaderRead(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expectedInt = 1
 	if v, ok := f.Read("addon"); ok {
@@ -432,7 +438,7 @@ func TestReaderRead(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected = "second string"
 	if v, ok := f.Read("addon"); ok {
@@ -459,7 +465,7 @@ func TestReaderRead(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expectedInt = 1
 	if v, ok := f.Read("addon"); ok {
@@ -485,7 +491,7 @@ func TestReaderRead(t *testing.T) {
 	}
 	f, err = New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	expected = "first string"
 	if v, ok := f.Read("addon"); ok {
@@ -505,7 +511,7 @@ func TestReaderSetCfgSeparator(t *testing.T) {
 	shorts := map[byte]string{'n': "nested-leaf"}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// single
 	f.SetCfgSeparator("_")
@@ -542,7 +548,7 @@ func TestReaderSetFlagSeparator(t *testing.T) {
 	shorts := map[byte]string{'n': "nested-leaf"}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// single
 	f.SetFlagSeparator("-")
@@ -580,7 +586,7 @@ func TestReaderSetListSeparator(t *testing.T) {
 	shorts := map[byte]string{'s': "slice"}
 	f, err := New(args, shorts)
 	if err != nil {
-		t.Fatalf("new returned error", err)
+		t.Fatalf("new returned error %v", err)
 	}
 	// single
 	f.SetListSeparator(",")

@@ -1,4 +1,9 @@
-// POSIX/GNU style style command line parser/config reader.
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
+// Package flag provides a POSIX/GNU style style command line parser/config reader.
 //
 // Parses command line flags and makes them available
 // through a config.Reader interface.
@@ -29,19 +34,28 @@ import (
 	"strings"
 )
 
-func New(cmdArgs []string, shortFlags map[byte]string) (*reader, error) {
+// New creates a new Reader.
+//
+// The command line to parse is provided by cmdArgs.
+// This does not include the name of the execuable, and defaults to os.Args[1:]
+// if an empty slice is passed.
+// The shortFlags defines the mapping from single character short flags to
+// long flag names.  Long names are within the flag naming space and so should
+// use the flagSeparator to separate tiers.
+func New(cmdArgs []string, shortFlags map[byte]string) (*Reader, error) {
 	if len(cmdArgs) == 0 {
 		cmdArgs = os.Args[1:]
 	}
 	args := []string{}
 	config := map[string]interface{}(nil)
 	nodes := map[string]bool(nil)
-	r := reader{cmdArgs, args, config, nodes, shortFlags, "-", ".", ","}
+	r := Reader{cmdArgs, args, config, nodes, shortFlags, "-", ".", ","}
 	r.parse()
 	return &r, nil
 }
 
-type reader struct {
+// Reader provides the mapping from command line arguments to a config.Reader.
+type Reader struct {
 	// The args to parse into config values.
 	cmdArgs []string
 	// residual args after flag parsing.
@@ -60,24 +74,36 @@ type reader struct {
 	listSeparator string
 }
 
-func (r *reader) Args() []string {
+// Args returns the trailing arguments from the command line that are not flags,
+// or flag values.
+func (r *Reader) Args() []string {
 	return r.args
 }
 
-func (r *reader) NArg() int {
+// NArg returns the number of trailing args in the command line.
+func (r *Reader) NArg() int {
 	return len(r.args)
 }
 
-func (r *reader) NFlag() int {
+// NFlag returns the number of flags detected in the command line.
+// Multiple instances of the same flag, in either short or long form, count
+// as a single flag.
+func (r *Reader) NFlag() int {
 	return len(r.config)
 }
 
-func (r *reader) SetShortFlag(shortFlag byte, longFlag string) {
+// SetShortFlag adds a mapping from a short flag character to the long flag
+// name, in the flag namespace.
+// Any existing mapping for the short flag is overwritten by this set.
+func (r *Reader) SetShortFlag(shortFlag byte, longFlag string) {
 	r.shortFlags[shortFlag] = longFlag
 	r.parse()
 }
 
-func (r *reader) Contains(key string) bool {
+// Contains returns true if the Reader contains a value corresponding to the
+// provided key.  For node keys it returns true if there is at least one value
+// available within that node's config tree.
+func (r *Reader) Contains(key string) bool {
 	if _, ok := r.config[key]; ok {
 		return true
 	}
@@ -87,7 +113,9 @@ func (r *reader) Contains(key string) bool {
 	return false
 }
 
-func (r *reader) Read(key string) (interface{}, bool) {
+// Read returns the value for a given key and true if found, or
+// nil and false if not.
+func (r *Reader) Read(key string) (interface{}, bool) {
 	v, ok := r.config[key]
 	if ok && len(r.listSeparator) > 0 {
 		if vstr, sok := v.(string); sok {
@@ -99,21 +127,27 @@ func (r *reader) Read(key string) (interface{}, bool) {
 	return v, ok
 }
 
-func (r *reader) SetCfgSeparator(separator string) {
+// SetCfgSeparator sets the separator between tiers in the config namespace.
+// The default separator is "."
+func (r *Reader) SetCfgSeparator(separator string) {
 	r.cfgSeparator = strings.ToLower(separator)
 	r.parse()
 }
 
-func (r *reader) SetFlagSeparator(separator string) {
+// SetFlagSeparator sets the separator between tiers in the flag namespace.
+// The default separator is "-"
+func (r *Reader) SetFlagSeparator(separator string) {
 	r.flagSeparator = separator
 	r.parse()
 }
 
-func (r *reader) SetListSeparator(separator string) {
+// SetListSeparator sets the separator between slice fields in the flag namespace.
+// The default separator is ","
+func (r *Reader) SetListSeparator(separator string) {
 	r.listSeparator = separator
 }
 
-func (r *reader) cfgKey(flag string) string {
+func (r *Reader) cfgKey(flag string) string {
 	path := strings.Split(flag, r.flagSeparator)
 	return strings.ToLower(strings.Join(path, r.cfgSeparator))
 }
@@ -128,7 +162,7 @@ func incrementFlag(config map[string]interface{}, key string) {
 	config[key] = 1
 }
 
-func (r *reader) parse() {
+func (r *Reader) parse() {
 	config := map[string]interface{}{}
 	for idx := 0; idx < len(r.cmdArgs); idx++ {
 		arg := r.cmdArgs[idx]
@@ -160,7 +194,7 @@ func (r *reader) parse() {
 			}
 		} else if strings.HasPrefix(arg, "-") {
 			// short form
-			arg := arg[1:]
+			arg = arg[1:]
 			if len(arg) > 1 && !strings.Contains(arg, "=") {
 				// grouped short flags
 				for sidx := 0; sidx < len(arg); sidx++ {

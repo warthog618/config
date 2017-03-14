@@ -1,13 +1,20 @@
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 package config
 
 import (
 	"fmt"
-	"github.com/warthog618/config/cfgconv"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/warthog618/config/cfgconv"
 )
 
+// Config defines the functions available to access the config.
 type Config interface {
 	AddAlias(newKey string, oldKey string)
 	AppendReader(reader Reader)
@@ -33,6 +40,7 @@ type Config interface {
 	UnmarshalToMap(key string, objmap map[string]interface{}) error
 }
 
+// New creates a new config with no initial state.
 func New() Config {
 	return &config{
 		separator: ".",
@@ -41,6 +49,7 @@ func New() Config {
 	}
 }
 
+// Reader provides the minimal interface for a configuration reader.
 type Reader interface {
 	// Indicate whether this Reader provides the named config key.
 	// Returns true of the key is contained in the config tree.
@@ -51,6 +60,7 @@ type Reader interface {
 	// and conditional maskers, so third party Readers can weaken this
 	// requirement if support for neither of those is required.
 	Contains(key string) bool
+
 	// Read and return the value of the named config leaf key.
 	// Also returns an ok, similar to a map read, to indicate if the value
 	// was found.
@@ -61,9 +71,10 @@ type Reader interface {
 	Read(key string) (interface{}, bool)
 }
 
-// Optional extension to Reader to provide masking capabilities.
+// Masker provides an optional extension to Reader to provide masking capabilities.
 type Masker interface {
 	Reader
+
 	// Indicates whether searching for a matching Reader should stop at this Reader.
 	// The key may be either a node of leaf in the config tree.
 	// A masked node implies masking of the sub-tree contained by the node.
@@ -340,6 +351,7 @@ func (c *config) GetUintSlice(key string) ([]uint64, error) {
 	return retval, nil
 }
 
+// NotFoundError indicates that the Key could not be found in the config tree.
 type NotFoundError struct {
 	Key string
 }
@@ -348,6 +360,9 @@ func (e NotFoundError) Error() string {
 	return "config: key '" + e.Key + "' not found"
 }
 
+// UnmarshalError indicates an error occured while unmarhalling config into
+// a struct or map.  The error indicates the problematic Key and the specific
+// error.
 type UnmarshalError struct {
 	Key string
 	Err error
@@ -377,7 +392,7 @@ func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
 	nodeCfg, _ := c.GetConfig(node)
 	ov := reflect.Indirect(reflect.ValueOf(obj))
 	if ov.Kind() != reflect.Struct {
-		return fmt.Errorf("Unmarshal: obj is not a struct -", obj)
+		return fmt.Errorf("Unmarshal: obj is not a struct - %v", obj)
 	}
 	for idx := 0; idx < ov.NumField(); idx++ {
 		fv := ov.Field(idx)

@@ -1,10 +1,16 @@
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 package json
 
 import (
-	"github.com/warthog618/config"
-	"github.com/warthog618/config/cfgconv"
 	"reflect"
 	"testing"
+
+	"github.com/warthog618/config"
+	"github.com/warthog618/config/cfgconv"
 )
 
 var validConfig = []byte(`{
@@ -41,7 +47,7 @@ var nestedIntSlice = []interface{}{float64(1), float64(2), float64(3), float64(4
 var stringSlice = []interface{}{"one", "two", "three", "four"}
 var nestedStringSlice = []interface{}{"one", "two", "three"}
 
-func testReaderContains(t *testing.T, reader *reader) {
+func testReaderContains(t *testing.T, reader *Reader) {
 	for _, key := range validKeys {
 		if ok := reader.Contains(key); !ok {
 			t.Errorf("doesn't contain %s", key)
@@ -55,7 +61,7 @@ func testReaderContains(t *testing.T, reader *reader) {
 }
 
 // Test that config fields can be read and converted to required types using cfgconv.
-func testReaderRead(t *testing.T, reader *reader) {
+func testReaderRead(t *testing.T, reader *Reader) {
 	for _, key := range validKeys {
 		if _, ok := reader.Read(key); !ok {
 			t.Errorf("couldn't read %s", key)

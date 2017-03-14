@@ -1,3 +1,8 @@
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 package config
 
 import (
@@ -271,10 +276,10 @@ func refuteGet(t *testing.T, cfg Config, key string, comment string) {
 		if nf, ok := err.(NotFoundError); ok {
 			nfstr := nf.Error()
 			if !strings.Contains(nfstr, key) {
-				t.Errorf("not found error does not identify key", key, nf)
+				t.Errorf("not found error does not identify key %s - %v", key, nf)
 			}
 		} else {
-			t.Errorf("get key (non existent) returned error other than NotFound:", err)
+			t.Errorf("get key (non existent) returned error other than NotFound:%v", err)
 		}
 	}
 }
@@ -836,7 +841,7 @@ func TestUnmarshal(t *testing.T) {
 	foo = fooConfig{}
 	if err := cfg.Unmarshal("foo", &foo); err != nil {
 		if !strings.Contains(err.Error(), "foo.a") {
-			t.Errorf("unmarshal error doesn't identify key 'foo.a'", err)
+			t.Errorf("unmarshal error doesn't identify key 'foo.a' - %v", err)
 		}
 		if foo.Atagged != 0 {
 			t.Errorf("set mistyped 'foo.a', expected 0, got %v", foo.Atagged)
@@ -883,7 +888,7 @@ func TestUnmarshal(t *testing.T) {
 	nc = nestedConfig{}
 	if err := cfg.Unmarshal("foo", &nc); err != nil {
 		if !strings.Contains(err.Error(), "foo.nested.a") {
-			t.Errorf("unmarshal error doesn't identify key 'foo.nested.a'", err)
+			t.Errorf("unmarshal error doesn't identify key 'foo.nested.a' - %v", err)
 		}
 		if nc.Atagged != mr.config["foo.a"] {
 			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], nc.Atagged)
@@ -977,7 +982,7 @@ func TestUnmarshalToMap(t *testing.T) {
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
 		t.Errorf("successfully unmarshalled foo.a - %v", obj["a"])
 	} else if !strings.Contains(err.Error(), "foo.a") {
-		t.Errorf("unmarshal error doesn't identify key 'foo.a'", err)
+		t.Errorf("unmarshal error doesn't identify key 'foo.a' - %v", err)
 	}
 	obj = map[string]interface{}{"b": 44}
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
@@ -1022,7 +1027,7 @@ func TestUnmarshalToMap(t *testing.T) {
 	n1 = obj["nested"].(map[string]interface{})
 	if err := cfg.UnmarshalToMap("foo", obj); err != nil {
 		if !strings.Contains(err.Error(), "foo.nested.a") {
-			t.Errorf("unmarshal error doesn't identify key 'foo.nested.a'", err)
+			t.Errorf("unmarshal error doesn't identify key 'foo.nested.a' - %v", err)
 		}
 		if obj["a"] != mr.config["foo.a"] {
 			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], obj["a"])

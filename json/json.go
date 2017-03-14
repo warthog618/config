@@ -1,4 +1,9 @@
-// JSON format reader for config.
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
+// Package json provides a JSON format reader for config.
 package json
 
 import (
@@ -8,36 +13,43 @@ import (
 	"strings"
 )
 
-type reader struct {
+// Reader provides the mapping from JSON to a config.Reader.
+type Reader struct {
 	config map[string]interface{}
 }
 
-func (r *reader) Contains(key string) bool {
+// Contains returns true if the Reader contains a value corresponding to the
+// provided key.  For node keys it returns true if there is at least one value
+// available within that node's config tree.
+func (r *Reader) Contains(key string) bool {
 	_, ok := r.Read(key)
 	return ok
 }
 
-func (r *reader) Read(key string) (interface{}, bool) {
+// Read returns the value for a given key and true if found, or
+// nil and false if not.
+func (r *Reader) Read(key string) (interface{}, bool) {
 	if val, err := getFromMapTree(r.config, key, "."); err == nil {
 		return val, true
-	} else {
-		return nil, false
 	}
+	return nil, false
 }
 
-func NewBytes(cfg []byte) (*reader, error) {
+// NewBytes returns a JSON reader that reads config from a []byte.
+func NewBytes(cfg []byte) (*Reader, error) {
 	var config map[string]interface{}
 	err := json.Unmarshal(cfg, &config)
 	if err != nil {
-		return &reader{}, err
+		return &Reader{}, err
 	}
-	return &reader{config}, nil
+	return &Reader{config}, nil
 }
 
-func NewFile(filename string) (*reader, error) {
+// NewFile returns a JSON reader that reads config from a named file.
+func NewFile(filename string) (*Reader, error) {
 	cfg, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return &reader{}, err
+		return &Reader{}, err
 	}
 	return NewBytes(cfg)
 }

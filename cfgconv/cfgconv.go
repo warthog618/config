@@ -1,5 +1,11 @@
-// Performs type conversions from incoming configuration types to expected
-// internal type.
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
+// Package cfgconv provides type conversions from incoming configuration types
+// to requested internal types.
+//
 // The type conversions are flexible, and include automatic conversion
 // from string to numeric,
 // from string to bool,
@@ -30,7 +36,7 @@ func int2bool(val int) bool {
 	return true
 }
 
-// Convert generic object into an bool, if possible.
+// Bool converts a generic object into an bool, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Bool(v interface{}) (bool, error) {
 	switch vt := v.(type) {
@@ -64,7 +70,7 @@ func Bool(v interface{}) (bool, error) {
 	return false, TypeError{Value: v, Kind: reflect.Bool}
 }
 
-// Converts the value v to the requested type rt, if possible.
+// Convert converts the value v to the requested type rt, if possible.
 // If not possible then returns a zeroed instance and an error.
 // Returned errors are typically TypeErrors or OverflowErrors,
 // but can also be errors from underlying type converters.
@@ -79,9 +85,8 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 		}
 		if rv.OverflowInt(cv) {
 			return ri, OverflowError{Value: v, Kind: rv.Kind()}
-		} else {
-			rv.SetInt(cv)
 		}
+		rv.SetInt(cv)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		cv, err := Uint(v)
 		if err != nil {
@@ -89,9 +94,8 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 		}
 		if rv.OverflowUint(cv) {
 			return ri, OverflowError{Value: v, Kind: rv.Kind()}
-		} else {
-			rv.SetUint(cv)
 		}
+		rv.SetUint(cv)
 	case reflect.Float32, reflect.Float64:
 		cv, err := Float(v)
 		if err != nil {
@@ -99,9 +103,8 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 		}
 		if rv.OverflowFloat(cv) {
 			return ri, OverflowError{Value: v, Kind: rv.Kind()}
-		} else {
-			rv.SetFloat(cv)
 		}
+		rv.SetFloat(cv)
 	case reflect.String:
 		cv, err := String(v)
 		if err != nil {
@@ -145,7 +148,7 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 	return rv.Interface(), nil
 }
 
-// Convert generic object into an float64, if possible.
+// Float converts a generic object into an float64, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Float(v interface{}) (float64, error) {
 	switch vt := v.(type) {
@@ -186,7 +189,7 @@ func Float(v interface{}) (float64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Float64}
 }
 
-// Convert generic object into an int64, if possible.
+// Int converts a generic object into an int64, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Int(v interface{}) (int64, error) {
 	switch vt := v.(type) {
@@ -229,7 +232,7 @@ func Int(v interface{}) (int64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Int}
 }
 
-// Convert a slice of something into a []interface{}
+// Slice converts a slice of something into a []interface{}
 //
 // Also interprets strings as a single element slice,
 // to handle the case where a Reader cannot distinguish
@@ -257,7 +260,7 @@ func Slice(v interface{}) ([]interface{}, error) {
 	return []interface{}{}, TypeError{Value: v, Kind: reflect.Slice}
 }
 
-// Convert generic object into an string, if possible.
+// String converts a generic object into an string, if possible.
 // Returns 0 and an error if conversion is not possible.
 func String(v interface{}) (string, error) {
 	switch vt := v.(type) {
@@ -273,7 +276,7 @@ func String(v interface{}) (string, error) {
 	return "", TypeError{Value: v, Kind: reflect.String}
 }
 
-// Convert generic object into an uint64, if possible.
+// Uint converts a generic object into an uint64, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Uint(v interface{}) (uint64, error) {
 	switch vt := v.(type) {
@@ -328,7 +331,7 @@ func Uint(v interface{}) (uint64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Uint}
 }
 
-// Error indicating type conversion was not possible.
+// TypeError indicates a type conversion was not possible.
 // Identifies the value being converted and the kind it
 // couldn't be converted into.
 type TypeError struct {
@@ -340,7 +343,7 @@ func (e TypeError) Error() string {
 	return fmt.Sprintf("cfgconv: cannot convert '%#v'(%T) to %s", e.Value, e.Value, e.Kind)
 }
 
-// Error indicating type conversion would lose precision.
+// OverflowError indicates type conversion would lose precision.
 // Identifies the value being converted and the kind it
 // couldn't be converted into without loss of precision.
 type OverflowError struct {

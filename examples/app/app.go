@@ -1,3 +1,8 @@
+// Copyright © 2017 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 // A simple app using a variety of config sources.
 //
 // This example app demonstrates the overlaying of four config sources:
@@ -18,12 +23,13 @@
 package main
 
 import (
+	"log"
+	"os"
+
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/env"
 	"github.com/warthog618/config/flag"
 	"github.com/warthog618/config/json"
-	"log"
-	"os"
 )
 
 var defaultConfig = []byte(`{
@@ -92,7 +98,7 @@ func main() {
 	log.Println("config.file", configFile)
 	modules := []string{"module1", "module2"}
 	for _, module := range modules {
-		mCfg,_ := config.GetConfig(module)
+		mCfg, _ := config.GetConfig(module)
 		ints := []string{
 			"int",
 			"bool",
@@ -101,13 +107,13 @@ func main() {
 			cint, _ := mCfg.GetInt(v)
 			log.Printf("%s.%s %v\n", module, v, cint)
 		}
-    v := "string"
+		v := "string"
 		cstr, _ := mCfg.GetString(v)
 		log.Printf("%s.%s %v\n", module, v, cstr)
-    v = "bool"
+		v = "bool"
 		cbool, _ := mCfg.GetBool(v)
 		log.Printf("%s.%s %v\n", module, v, cbool)
-    v = "slice"
+		v = "slice"
 		cslice, _ := config.GetSlice(v)
 		log.Printf("%s.%s %v\n", module, v, cslice)
 	}
