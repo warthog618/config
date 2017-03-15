@@ -14,8 +14,7 @@
 // The sources are overlayed in decreasing order of importance, as per the
 // order above.
 //
-// The app can be build on any plaform and allows you to play with the input
-// sources and view the results.
+// The app allows you to play with the input sources and view the results.
 //
 // This is only an example of one particular precedence ordering and with
 // one set of sources, but is probably a reasonably common one.
@@ -32,6 +31,17 @@ import (
 	"github.com/warthog618/config/json"
 )
 
+func main() {
+	log.SetFlags(0)
+
+	cfg := loadConfig()
+	if v, _ := cfg.GetBool("unmarshal"); v {
+		dumpConfigU(cfg)
+	} else {
+		dumpConfig(cfg)
+	}
+}
+
 var defaultConfig = []byte(`{
 	"module1": {
 		"int": 27,
@@ -47,38 +57,41 @@ var defaultConfig = []byte(`{
 	}
 }`)
 
-func main() {
-	log.SetFlags(0)
-
-	config := config.New()
+func loadConfig() config.Config {
+	cfg := config.New()
 
 	// highest priority first - flags override environment
-	if reader, err := flag.New([]string(nil), map[byte]string{'c': "config-file"}); err != nil {
+	shortFlags := map[byte]string{
+		'b': "module2.bool",
+		'c': "config-file",
+		'u': "unmarshal",
+	}
+	if reader, err := flag.New([]string(nil), shortFlags); err != nil {
 		panic(err)
 	} else {
-		config.AppendReader(reader)
+		cfg.AppendReader(reader)
 	}
 
 	// environment next
 	if reader, err := env.New("APP_"); err != nil {
 		panic(err)
 	} else {
-		config.AppendReader(reader)
+		cfg.AppendReader(reader)
 	}
 
 	// config file may be specified via flag or env, so check for it
 	// and if present add it with lower priority than flag and env.
-	if configFile, err := config.GetString("config.file"); err == nil {
+	if configFile, err := cfg.GetString("config.file"); err == nil {
 		// explicitly specified config file - must be there
 		if reader, err := json.NewFile(configFile); err != nil {
 			panic(err)
 		} else {
-			config.AppendReader(reader)
+			cfg.AppendReader(reader)
 		}
 	} else {
 		// implicit and optional default config file
 		if reader, err := json.NewFile("app.json"); err == nil {
-			config.AppendReader(reader)
+			cfg.AppendReader(reader)
 		} else {
 			if _, ok := err.(*os.PathError); !ok {
 				panic(err)
@@ -90,15 +103,19 @@ func main() {
 	if reader, err := json.NewBytes(defaultConfig); err != nil {
 		panic(err)
 	} else {
-		config.AppendReader(reader)
+		cfg.AppendReader(reader)
 	}
+	return cfg
+}
 
-	// Dump config
-	configFile, _ := config.GetString("config.file")
+func dumpConfig(cfg config.Config) {
+	configFile, _ := cfg.GetString("config.file")
 	log.Println("config.file", configFile)
+	unmarshal, _ := cfg.GetBool("unmarshal")
+	log.Println("unmarshal", unmarshal)
 	modules := []string{"module1", "module2"}
 	for _, module := range modules {
-		mCfg, _ := config.GetConfig(module)
+		mCfg, _ := cfg.GetConfig(module)
 		ints := []string{
 			"int",
 			"bool",
@@ -114,7 +131,36 @@ func main() {
 		cbool, _ := mCfg.GetBool(v)
 		log.Printf("%s.%s %v\n", module, v, cbool)
 		v = "slice"
-		cslice, _ := config.GetSlice(v)
+		cslice, _ := mCfg.GetSlice(v)
 		log.Printf("%s.%s %v\n", module, v, cslice)
+	}
+}
+
+type module struct {
+	A  int    `config:"int"`
+	B1 int    `config:"bool"`
+	B2 bool   `config:"bool"`
+	C  string `config:"string"`
+	D  []int  `config:"slice"`
+}
+
+// Unmarshalling version of dumpConfig
+func dumpConfigU(cfg config.Config) {
+	configFile, _ := cfg.GetString("config.file")
+	log.Println("config.file", configFile)
+	unmarshal, _ := cfg.GetBool("unmarshal")
+	log.Println("unmarshal", unmarshal)
+	modules := []string{"module1", "module2"}
+	for _, mname := range modules {
+		m := module{}
+		if err := cfg.Unmarshal(mname, &m); err != nil {
+			log.Printf("%s unmarshal error: %v", mname, err)
+			continue
+		}
+		log.Printf("%s.int %v\n", mname, m.A)
+		log.Printf("%s.bool %v\n", mname, m.B1)
+		log.Printf("%s.string %v\n", mname, m.C)
+		log.Printf("%s.bool %v\n", mname, m.B2)
+		log.Printf("%s.slice %v\n", mname, m.D)
 	}
 }
