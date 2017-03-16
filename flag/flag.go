@@ -48,8 +48,7 @@ func New(cmdArgs []string, shortFlags map[byte]string) (*Reader, error) {
 	}
 	args := []string{}
 	config := map[string]interface{}(nil)
-	nodes := map[string]bool(nil)
-	r := Reader{cmdArgs, args, config, nodes, shortFlags, "-", ".", ","}
+	r := Reader{cmdArgs, args, config, shortFlags, "-", ".", ","}
 	r.parse()
 	return &r, nil
 }
@@ -62,8 +61,6 @@ type Reader struct {
 	args []string
 	// config key=value
 	config map[string]interface{}
-	// set of nodes contained in config
-	nodes map[string]bool
 	// map of short flag characters to long form flag name
 	shortFlags map[byte]string
 	// separator between key tiers in flag space.
@@ -98,19 +95,6 @@ func (r *Reader) NFlag() int {
 func (r *Reader) SetShortFlag(shortFlag byte, longFlag string) {
 	r.shortFlags[shortFlag] = longFlag
 	r.parse()
-}
-
-// Contains returns true if the Reader contains a value corresponding to the
-// provided key.  For node keys it returns true if there is at least one value
-// available within that node's config tree.
-func (r *Reader) Contains(key string) bool {
-	if _, ok := r.config[key]; ok {
-		return true
-	}
-	if _, ok := r.nodes[key]; ok {
-		return true
-	}
-	return false
 }
 
 // Read returns the value for a given key and true if found, or
@@ -233,14 +217,5 @@ func (r *Reader) parse() {
 			break
 		}
 	}
-	nodes := map[string]bool{}
-	for key := range config {
-		path := strings.Split(key, r.cfgSeparator)
-		nodePath := path[0]
-		for idx := 1; idx < len(path); idx++ {
-			nodes[nodePath] = true
-			nodePath = nodePath + r.cfgSeparator + path[idx]
-		}
-	}
-	r.config, r.nodes = config, nodes
+	r.config = config
 }

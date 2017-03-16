@@ -24,9 +24,6 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new returned error %v", err)
 	}
-	if len(f.nodes) != 2 {
-		t.Errorf("incorrect number of nodes, expected 2, got %v", len(f.nodes))
-	}
 	if len(f.config) != 3 {
 		t.Errorf("incorrect number of leaves, expected 3, got %v", len(f.config))
 	}
@@ -275,42 +272,6 @@ func TestSetShortFlag(t *testing.T) {
 		t.Errorf("couldn't read nested.leaf")
 	} else if v != expected {
 		t.Errorf("incorrect value for bonus, got %v, expected %v", v, expected)
-	}
-}
-
-func TestReaderContains(t *testing.T) {
-	args := []string{
-		"-v",
-		"-n=44",
-		"--leaf", "42",
-		"--slice=a,b",
-		"--nested-slice", "c,d",
-	}
-	shorts := map[byte]string{
-		'n': "nested-leaf",
-		'v': "logging-verbosity",
-	}
-	f, err := New(args, shorts)
-	if err != nil {
-		t.Fatalf("new returned error %v", err)
-	}
-	// leaf
-	if !f.Contains("leaf") {
-		t.Errorf("doesn't contain leaf")
-	}
-	if !f.Contains("nested.leaf") {
-		t.Errorf("doesn't contain nested.leaf")
-	}
-	if !f.Contains("logging.verbosity") {
-		t.Errorf("doesn't contain logging.verbosity")
-	}
-	// node
-	if !f.Contains("nested") {
-		t.Errorf("doesn't contain nested")
-	}
-	// neither
-	if f.Contains("nonsense") {
-		t.Errorf("contains nonsense")
 	}
 }
 

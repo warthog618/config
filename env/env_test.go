@@ -27,39 +27,12 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new returned error %v", err)
 	}
-	if len(e.nodes) != 1 {
-		t.Errorf("incorrect number of nodes, expected 1, got %v", len(e.nodes))
-	}
 	if len(e.config) != 4 {
 		t.Errorf("incorrect number of leaves, expected 4, got %v", len(e.config))
 	}
 	// test provides config.Reader interface.
 	cfg := config.New()
 	cfg.AppendReader(e)
-}
-
-func TestReaderContains(t *testing.T) {
-	prefix := "CFGENV_"
-	setup(prefix)
-	e, err := New(prefix)
-	if err != nil {
-		t.Fatalf("new returned error %v", err)
-	}
-	// leaf
-	if !e.Contains("leaf") {
-		t.Errorf("doesn't contain leaf")
-	}
-	if !e.Contains("nested.leaf") {
-		t.Errorf("doesn't contain nested.leaf")
-	}
-	// node
-	if !e.Contains("nested") {
-		t.Errorf("doesn't contain nested")
-	}
-	// neither
-	if e.Contains("nonsense") {
-		t.Errorf("contains nonsense")
-	}
 }
 
 func TestReaderRead(t *testing.T) {

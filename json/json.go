@@ -18,14 +18,6 @@ type Reader struct {
 	config map[string]interface{}
 }
 
-// Contains returns true if the Reader contains a value corresponding to the
-// provided key.  For node keys it returns true if there is at least one value
-// available within that node's config tree.
-func (r *Reader) Contains(key string) bool {
-	_, ok := r.Read(key)
-	return ok
-}
-
 // Read returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Reader) Read(key string) (interface{}, bool) {

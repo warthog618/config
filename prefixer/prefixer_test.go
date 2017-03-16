@@ -16,11 +16,6 @@ type mockReader struct {
 	Config map[string]string
 }
 
-func (m *mockReader) Contains(key string) bool {
-	_, ok := m.Config[key]
-	return ok
-}
-
 func (m *mockReader) Read(key string) (interface{}, bool) {
 	v, ok := m.Config[key]
 	return v, ok
@@ -35,29 +30,6 @@ func TestNew(t *testing.T) {
 	// test provides config.Reader interface.
 	cfg := config.New()
 	cfg.AppendReader(p)
-}
-
-func TestContains(t *testing.T) {
-	m := mockReader{map[string]string{"a": "a", "foo.b": "foo.b"}}
-	p := New("blah.", &m)
-	if !p.Contains("blah.a") {
-		t.Errorf("reader doesn't contain 'blah.a'")
-	}
-	if !p.Contains("blah.foo.b") {
-		t.Errorf("reader doesn't contain 'blah.foo.a'")
-	}
-	if p.Contains("notblah.a") {
-		t.Errorf("reader contains 'notblah.a'")
-	}
-	if p.Contains("notblah.foo.a") {
-		t.Errorf("reader contains 'notblah.foo.a'")
-	}
-	if p.Contains("") {
-		t.Errorf("reader contains nothing")
-	}
-	if p.Contains("a") {
-		t.Errorf("reader contains 'a'")
-	}
 }
 
 func TestRead(t *testing.T) {

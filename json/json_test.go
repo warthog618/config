@@ -47,19 +47,6 @@ var nestedIntSlice = []interface{}{float64(1), float64(2), float64(3), float64(4
 var stringSlice = []interface{}{"one", "two", "three", "four"}
 var nestedStringSlice = []interface{}{"one", "two", "three"}
 
-func testReaderContains(t *testing.T, reader *Reader) {
-	for _, key := range validKeys {
-		if ok := reader.Contains(key); !ok {
-			t.Errorf("doesn't contain %s", key)
-		}
-	}
-	for _, key := range bogusKeys {
-		if reader.Contains(key) {
-			t.Errorf("does contain %s", key)
-		}
-	}
-}
-
 // Test that config fields can be read and converted to required types using cfgconv.
 func testReaderRead(t *testing.T, reader *Reader) {
 	for _, key := range validKeys {
@@ -187,28 +174,12 @@ func TestNewFile(t *testing.T) {
 	}
 }
 
-func TestBytesReaderContains(t *testing.T) {
-	reader, err := NewBytes(validConfig)
-	if err != nil {
-		t.Fatalf("failed to parse config")
-	}
-	testReaderContains(t, reader)
-}
-
 func TestBytesReaderRead(t *testing.T) {
 	reader, err := NewBytes(validConfig)
 	if err != nil {
 		t.Fatalf("failed to parse config")
 	}
 	testReaderRead(t, reader)
-}
-
-func TestFileReaderContains(t *testing.T) {
-	reader, err := NewFile("config.json")
-	if err != nil {
-		t.Fatalf("failed to parse config")
-	}
-	testReaderContains(t, reader)
 }
 
 func TestFileReaderRead(t *testing.T) {

@@ -27,25 +27,10 @@ func (mr *mapReader) Read(key string) (interface{}, bool) {
 	return val, ok
 }
 
-// Simple masking reader that extends mapReader to provide masking capabilities.
-type maskReader struct {
-	mapReader
-	mask map[string]bool
-}
-
-func (mr *maskReader) Mask(key string) bool {
-	if val, ok := mr.mask[key]; ok {
-		if val {
-			return true
-		}
-	}
-	return false
-}
-
 func TestNew(t *testing.T) {
 	cfg := New()
 	// just do something with it...
-	if cfg.Contains("") {
+	if _, err := cfg.Get(""); err == nil {
 		t.Errorf("Empty config contains something.")
 	}
 }
@@ -172,48 +157,6 @@ func TestAppendReader(t *testing.T) {
 	}
 }
 
-func TestContains(t *testing.T) {
-	cfg := New()
-	if cfg.Contains("something") {
-		t.Errorf("Empty config contains something.")
-	}
-	mr1 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr1)
-	mr1.config["something"] = "a test string"
-	mr2 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr2)
-	mr2.config["oldthing"] = "an old test string"
-	// direct
-	if !cfg.Contains("something") {
-		t.Errorf("doesn't contain something")
-	}
-	if !cfg.Contains("oldthing") {
-		t.Errorf("doesn't contain oldthing")
-	}
-	if cfg.Contains("newthing") {
-		t.Errorf("contains newthing")
-	}
-	// via alias
-	cfg.AddAlias("newthing", "oldthing")
-	if !cfg.Contains("something") {
-		t.Errorf("doesn't contain something")
-	}
-	if !cfg.Contains("oldthing") {
-		t.Errorf("doesn't contain oldthing")
-	}
-	if !cfg.Contains("newthing") {
-		t.Errorf("doesn't contain newthing")
-	}
-	// reverse alias - doesn't add oldKey -> newKey mapping
-	cfg.AddAlias("something", "nothing")
-	if !cfg.Contains("something") {
-		t.Errorf("something hidden by alias")
-	}
-	if cfg.Contains("nothing") {
-		t.Errorf("contains nothing via reverse alias")
-	}
-}
-
 func TestInsertReader(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
@@ -292,84 +235,33 @@ func TestGetOverlayed(t *testing.T) {
 	mr1.config["a"] = "a - tier 1"
 	mr1.config["b"] = "b - tier 1"
 	mr1.config["c"] = "c - tier 1"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
-	assertGet(t, cfg, "b", mr1.config["b"].(string), "single reader get")
-	assertGet(t, cfg, "c", mr1.config["c"].(string), "single reader get")
-	refuteGet(t, cfg, "d", "single reader get")
-	refuteGet(t, cfg, "e", "single reader get")
+	assertGet(t, cfg, "a", mr1.config["a"].(string), "one reader get")
+	assertGet(t, cfg, "b", mr1.config["b"].(string), "one reader get")
+	assertGet(t, cfg, "c", mr1.config["c"].(string), "one reader get")
+	refuteGet(t, cfg, "d", "one reader get")
+	refuteGet(t, cfg, "e", "one reader get")
 
 	// Two Readers
 	mr2 := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr2)
 	mr2.config["b"] = "b - tier 2"
 	mr2.config["d"] = "d - tier 2"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
-	assertGet(t, cfg, "b", mr2.config["b"].(string), "single reader get")
-	assertGet(t, cfg, "c", mr1.config["c"].(string), "single reader get")
-	assertGet(t, cfg, "d", mr2.config["d"].(string), "single reader get")
-	refuteGet(t, cfg, "e", "single reader get")
+	assertGet(t, cfg, "a", mr1.config["a"].(string), "two reader get")
+	assertGet(t, cfg, "b", mr2.config["b"].(string), "two reader get")
+	assertGet(t, cfg, "c", mr1.config["c"].(string), "two reader get")
+	assertGet(t, cfg, "d", mr2.config["d"].(string), "two reader get")
+	refuteGet(t, cfg, "e", "two reader get")
 
 	// Three Readers
 	mr3 := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr3)
 	mr3.config["c"] = "c - tier 3"
 	mr3.config["d"] = "d - tier 3"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
-	assertGet(t, cfg, "b", mr2.config["b"].(string), "single reader get")
-	assertGet(t, cfg, "c", mr3.config["c"].(string), "single reader get")
-	assertGet(t, cfg, "d", mr3.config["d"].(string), "single reader get")
-	refuteGet(t, cfg, "e", "single reader get")
-}
-
-func TestGetMasked(t *testing.T) {
-	cfg := New()
-	// Single Reader
-	mr1 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr1)
-	mr1.config["a"] = "a - tier 1"
-	mr1.config["b"] = "b - tier 1"
-	mr1.config["c"] = "c - tier 1"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
-	assertGet(t, cfg, "b", mr1.config["b"].(string), "single reader get")
-	assertGet(t, cfg, "c", mr1.config["c"].(string), "single reader get")
-	refuteGet(t, cfg, "d", "single reader get")
-	refuteGet(t, cfg, "e", "single reader get")
-
-	// Two Readers
-	mr2 := maskReader{mapReader{map[string]interface{}{}}, map[string]bool{}}
-	cfg.InsertReader(&mr2)
-	mr2.config["b"] = "b - tier 2"
-	mr2.mask["c"] = true
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
-	assertGet(t, cfg, "b", mr2.config["b"].(string), "single reader get")
-	refuteGet(t, cfg, "c", "single reader get")
-	refuteGet(t, cfg, "d", "single reader get")
-	refuteGet(t, cfg, "e", "single reader get")
-
-	// Three Readers
-	mr3 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr3)
-	mr3.config["c"] = "c - tier 3"
-	mr3.config["d"] = "d - tier 3"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "single reader get")
-	assertGet(t, cfg, "b", mr2.config["b"].(string), "single reader get")
-	assertGet(t, cfg, "c", mr3.config["c"].(string), "single reader get")
-	assertGet(t, cfg, "d", mr3.config["d"].(string), "single reader get")
-	refuteGet(t, cfg, "e", "single reader get")
-
-	// Nested
-	mr1.config["d.a"] = "d.a"
-	mr1.config["e.a"] = "e.a"
-	assertGet(t, cfg, "d.a", mr1.config["d.a"].(string), "nested reader get")
-	assertGet(t, cfg, "e.a", mr1.config["e.a"].(string), "nested reader get")
-	// leaf
-	mr2.mask["d.a"] = true
-	refuteGet(t, cfg, "d.a", "single reader get")
-	assertGet(t, cfg, "e.a", mr1.config["e.a"].(string), "nested reader get")
-	// node
-	mr2.mask["e"] = true
-	refuteGet(t, cfg, "d.a", "single reader get")
-	refuteGet(t, cfg, "e.a", "single reader get")
+	assertGet(t, cfg, "a", mr1.config["a"].(string), "three reader get")
+	assertGet(t, cfg, "b", mr2.config["b"].(string), "three reader get")
+	assertGet(t, cfg, "c", mr3.config["c"].(string), "three reader get")
+	assertGet(t, cfg, "d", mr3.config["d"].(string), "three reader get")
+	refuteGet(t, cfg, "e", "three reader get")
 }
 
 func TestGetBool(t *testing.T) {

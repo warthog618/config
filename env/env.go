@@ -19,8 +19,7 @@ import (
 // determined by the prefix and separator fields of the Reader.
 func New(prefix string) (*Reader, error) {
 	config := map[string]string(nil)
-	nodes := map[string]bool(nil)
-	r := Reader{config, nodes, prefix, "_", ".", ":"}
+	r := Reader{config, prefix, "_", ".", ":"}
 	r.load()
 	return &r, nil
 }
@@ -29,8 +28,6 @@ func New(prefix string) (*Reader, error) {
 type Reader struct {
 	// config key=value
 	config map[string]string
-	// set of nodes contained in config
-	nodes map[string]bool
 	// prefix in ENV space.
 	// This must include any separator - the envSeparator does not separate the
 	// prefix from the remainder of the key.
@@ -41,19 +38,6 @@ type Reader struct {
 	cfgSeparator string
 	// The separator for slices stored in string values.
 	listSeparator string
-}
-
-// Contains returns true if the Reader contains a value corresponding to the
-// provided key.  For node keys it returns true if there is at least one value
-// available within that node's config tree.
-func (r *Reader) Contains(key string) bool {
-	if _, ok := r.config[key]; ok {
-		return true
-	}
-	if _, ok := r.nodes[key]; ok {
-		return true
-	}
-	return false
 }
 
 // Read returns the value for a given key and true if found, or
@@ -97,7 +81,6 @@ func (r *Reader) SetListSeparator(separator string) {
 
 func (r *Reader) load() {
 	config := map[string]string{}
-	nodes := map[string]bool{}
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, r.envPrefix) {
 			keyValue := strings.SplitN(env, "=", 2)
@@ -106,13 +89,8 @@ func (r *Reader) load() {
 				path := strings.Split(envKey, r.envSeparator)
 				cfgKey := strings.ToLower(strings.Join(path, r.cfgSeparator))
 				config[cfgKey] = keyValue[1]
-				nodePath := path[0]
-				for idx := 1; idx < len(path); idx++ {
-					nodes[strings.ToLower(nodePath)] = true
-					nodePath = nodePath + r.cfgSeparator + path[idx]
-				}
 			}
 		}
 	}
-	r.config, r.nodes = config, nodes
+	r.config = config
 }

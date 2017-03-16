@@ -18,7 +18,6 @@ import (
 type Config interface {
 	AddAlias(newKey string, oldKey string)
 	AppendReader(reader Reader)
-	Contains(key string) bool
 	InsertReader(reader Reader)
 	SetSeparator(separator string)
 	// Base get
@@ -51,16 +50,6 @@ func New() Config {
 
 // Reader provides the minimal interface for a configuration reader.
 type Reader interface {
-	// Indicate whether this Reader provides the named config key.
-	// Returns true of the key is contained in the config tree.
-	// Key may be a leaf or a node.
-	// If key is a node, then should return true if any leaves
-	// are present within the node.
-	// This function is currently only used by config.Contains,
-	// and conditional maskers, so third party Readers can weaken this
-	// requirement if support for neither of those is required.
-	Contains(key string) bool
-
 	// Read and return the value of the named config leaf key.
 	// Also returns an ok, similar to a map read, to indicate if the value
 	// was found.
@@ -69,19 +58,6 @@ type Reader interface {
 	// Read is not expected to be performed on node keys, and its behaviour
 	// in that case is not defined.
 	Read(key string) (interface{}, bool)
-}
-
-// Masker provides an optional extension to Reader to provide masking capabilities.
-type Masker interface {
-	Reader
-
-	// Indicates whether searching for a matching Reader should stop at this Reader.
-	// The key may be either a node of leaf in the config tree.
-	// A masked node implies masking of the sub-tree contained by the node.
-	// The function only needs to consider the particular key, not parent nodes.
-	// The config module will walk down the config tree, checking that the leaf and
-	// ALL parents are not masked.
-	Mask(key string) bool
 }
 
 type config struct {
@@ -158,26 +134,6 @@ func (c *config) AddAlias(newKey string, oldKey string) {
 	c.aliases[lNewKey] = append([]string{lOldKey}, aliases...)
 }
 
-// Returns true of the key is contained in the config tree.
-func (c *config) Contains(key string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	fullKey := c.prefixedKey(strings.ToLower(key))
-	for _, reader := range c.readers {
-		if reader.Contains(fullKey) {
-			return true
-		}
-		if aliases, ok := c.aliases[fullKey]; ok {
-			for _, alias := range aliases {
-				if reader.Contains(alias) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 func (c *config) SetSeparator(separator string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -222,16 +178,6 @@ func (c *config) Get(key string) (interface{}, error) {
 							return v, nil
 						}
 					}
-				}
-			}
-		}
-		// masking
-		if masker, ok := reader.(Masker); ok {
-			path := strings.Split(fullKey, c.separator)
-			for plen := 1; plen <= len(path); plen++ {
-				pathKey := strings.Join(path[:plen], c.separator)
-				if masker.Mask(pathKey) {
-					return "", NotFoundError{Key: fullKey}
 				}
 			}
 		}
