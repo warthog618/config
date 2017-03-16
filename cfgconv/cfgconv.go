@@ -29,8 +29,8 @@ const maxUint = ^uint64(0)
 const minUint = 0
 const maxInt = int64(maxUint >> 1)
 
-func int2bool(val int) bool {
-	if val == 0 {
+func int2bool(v int) bool {
+	if v == 0 {
 		return false
 	}
 	return true
@@ -132,12 +132,11 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 				rv.Index(idx).Set(reflect.ValueOf(sv))
 			}
 		case reflect.String:
-			rv = reflect.MakeSlice(rv.Type(), 1, 1)
 			sv, err := Convert(vv.Interface(), et)
 			if err != nil {
-				rv = reflect.Indirect(reflect.New(rt))
 				return rv.Interface(), err
 			}
+			rv = reflect.MakeSlice(rv.Type(), 1, 1)
 			rv.Index(0).Set(reflect.ValueOf(sv))
 		default:
 			return ri, TypeError{Value: v, Kind: reflect.Slice}
@@ -238,8 +237,6 @@ func Int(v interface{}) (int64, error) {
 // to handle the case where a Reader cannot distinguish
 // between a single entry slice and a literal,
 // e.g. the env reader.
-// !!! Currently only convert string literals.
-// Should also handle other literals??
 func Slice(v interface{}) ([]interface{}, error) {
 	if slice, ok := v.([]interface{}); ok {
 		return slice, nil
@@ -253,9 +250,11 @@ func Slice(v interface{}) ([]interface{}, error) {
 		}
 		return slice, nil
 	case reflect.String:
-		slice := make([]interface{}, 1, 1)
-		slice[0] = v
-		return slice, nil
+		if len(v.(string)) != 0 {
+			slice := make([]interface{}, 1, 1)
+			slice[0] = v
+			return slice, nil
+		}
 	}
 	return []interface{}{}, TypeError{Value: v, Kind: reflect.Slice}
 }

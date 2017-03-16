@@ -11,8 +11,8 @@ import (
 	"testing"
 )
 
-func assertBool(t *testing.T, val interface{}, expected bool, comment string) {
-	if result, err := Bool(val); err != nil {
+func assertBool(t *testing.T, v interface{}, expected bool, comment string) {
+	if result, err := Bool(v); err != nil {
 		t.Errorf("conversion failed for %s with error %v", comment, err)
 	} else {
 		if result != expected {
@@ -21,8 +21,8 @@ func assertBool(t *testing.T, val interface{}, expected bool, comment string) {
 	}
 }
 
-func refuteBool(t *testing.T, val interface{}, comment string) {
-	if result, err := Bool(val); err == nil {
+func refuteBool(t *testing.T, v interface{}, comment string) {
+	if result, err := Bool(v); err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
 	}
 }
@@ -65,6 +65,7 @@ func TestBool(t *testing.T) {
 	refuteBool(t, float32(0), "float32 0")
 	refuteBool(t, float32(1), "float32 1")
 	refuteBool(t, "junk", "string junk")
+	refuteBool(t, "", "empty string")
 }
 
 func TestConvert(t *testing.T) {
@@ -303,8 +304,8 @@ func TestConvert(t *testing.T) {
 	}
 }
 
-func assertFloat(t *testing.T, val interface{}, expected float64, comment string) {
-	if result, err := Float(val); err != nil {
+func assertFloat(t *testing.T, v interface{}, expected float64, comment string) {
+	if result, err := Float(v); err != nil {
 		t.Errorf("conversion failed for %s with error %v", comment, err)
 	} else {
 		if result != expected {
@@ -313,8 +314,8 @@ func assertFloat(t *testing.T, val interface{}, expected float64, comment string
 	}
 }
 
-func refuteFloat(t *testing.T, val interface{}, comment string) {
-	if result, err := Float(val); err == nil {
+func refuteFloat(t *testing.T, v interface{}, comment string) {
+	if result, err := Float(v); err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
 	}
 }
@@ -348,11 +349,12 @@ func TestFloat(t *testing.T) {
 	assertFloat(t, nil, 0, "nil")
 	// failure cases
 	refuteFloat(t, "junk", "string junk")
+	refuteFloat(t, "", "empty string")
 	refuteFloat(t, []int{42}, "slice")
 }
 
-func assertInt(t *testing.T, val interface{}, expected int64, comment string) {
-	if result, err := Int(val); err != nil {
+func assertInt(t *testing.T, v interface{}, expected int64, comment string) {
+	if result, err := Int(v); err != nil {
 		t.Errorf("conversion failed for %s with error %v", comment, err)
 	} else {
 		if result != expected {
@@ -361,8 +363,8 @@ func assertInt(t *testing.T, val interface{}, expected int64, comment string) {
 	}
 }
 
-func refuteInt(t *testing.T, val interface{}, comment string) {
-	if result, err := Int(val); err == nil {
+func refuteInt(t *testing.T, v interface{}, comment string) {
+	if result, err := Int(v); err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
 	}
 }
@@ -399,13 +401,14 @@ func TestInt(t *testing.T) {
 	assertInt(t, float32(-42.6), -42, "float32 truncate negative")
 	assertInt(t, nil, 0, "nil")
 	// failure cases
-	refuteInt(t, "junk", "string junk")
 	refuteInt(t, "42.5", "string float")
+	refuteInt(t, "", "empty string")
+	refuteInt(t, "junk", "string junk")
 	refuteInt(t, []int{42}, "slice")
 }
 
-func assertSlice(t *testing.T, val interface{}, expected []interface{}, comment string) {
-	if result, err := Slice(val); err != nil {
+func assertSlice(t *testing.T, v interface{}, expected []interface{}, comment string) {
+	if result, err := Slice(v); err != nil {
 		t.Errorf("conversion failed for %s with error %v", comment, err)
 	} else {
 		if !reflect.DeepEqual(result, expected) {
@@ -414,8 +417,8 @@ func assertSlice(t *testing.T, val interface{}, expected []interface{}, comment 
 	}
 }
 
-func refuteSlice(t *testing.T, val interface{}, comment string) {
-	if result, err := Slice(val); err == nil {
+func refuteSlice(t *testing.T, v interface{}, comment string) {
+	if result, err := Slice(v); err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
 	}
 }
@@ -458,10 +461,11 @@ func TestSlice(t *testing.T) {
 	refuteSlice(t, float32(-42), "float32 negative")
 	refuteSlice(t, float32(42.6), "float32 truncate")
 	refuteSlice(t, float32(-42.6), "float32 truncate negative")
+	refuteSlice(t, "", "empty string")
 	refuteSlice(t, nil, "nil")
 }
-func assertString(t *testing.T, val interface{}, expected string, comment string) {
-	if result, err := String(val); err != nil {
+func assertString(t *testing.T, v interface{}, expected string, comment string) {
+	if result, err := String(v); err != nil {
 		t.Errorf("conversion failed for %s with error %v", comment, err)
 	} else {
 		if result != expected {
@@ -470,8 +474,8 @@ func assertString(t *testing.T, val interface{}, expected string, comment string
 	}
 }
 
-func refuteString(t *testing.T, val interface{}, comment string) {
-	if result, err := String(val); err == nil {
+func refuteString(t *testing.T, v interface{}, comment string) {
+	if result, err := String(v); err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
 	}
 }
@@ -481,6 +485,7 @@ func TestString(t *testing.T) {
 	assertString(t, false, "false", "bool false")
 	assertString(t, true, "true", "bool true")
 	assertString(t, "junk", "junk", "string junk")
+	assertString(t, "", "", "empty string")
 	assertString(t, "42", "42", "string int")
 	assertString(t, "-42", "-42", "string int negative")
 	assertString(t, "42.5", "42.5", "string float")
@@ -560,5 +565,6 @@ func TestUint(t *testing.T) {
 	refuteUint(t, float32(-42), "float32 negative")
 	refuteUint(t, "junk", "string junk")
 	refuteUint(t, "42.5", "string float")
+	refuteUint(t, "", "empty string")
 	refuteUint(t, []int{42}, "slice")
 }
