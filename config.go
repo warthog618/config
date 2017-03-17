@@ -55,8 +55,9 @@ type Reader interface {
 	// was found.
 	// The type underlying the returned interface{} must be convertable to
 	// the expected type by cfgconv.
-	// Read is not expected to be performed on node keys, and its behaviour
-	// in that case is not defined.
+	// Read is not expected to be performed on node keys, but in case it is
+	// the Read should return a nil interface{} and false, even if the node
+	// exists in the config tree.
 	Read(key string) (interface{}, bool)
 }
 
@@ -121,7 +122,7 @@ func (c *config) prefixedKey(key ...string) string {
 }
 
 // Add an alias from a newKey, which should be used by the code,
-// to an old key which may still be present in legacy config.
+// to an old key, which may still be present in legacy config.
 // As with readers, the aliases are local to the config node, and any
 // subsequently created children.
 func (c *config) AddAlias(newKey string, oldKey string) {
@@ -327,11 +328,9 @@ func (e UnmarshalError) Error() string {
 // Unmarshal a section of the config tree into a struct.
 //
 // The node identifies the section of the tree to unmarshal.
-// The obj is struct with fields corresponding to config values.
+// The obj is a struct with fields corresponding to config values.
 // The config values will be converted to the type defined in the corresponding
 // struct fields.
-// If non-nil, the config values will be converted to the type already contained in the map.
-// If nil then the value is set to the raw value returned by the Reader.
 //
 // By default the config field names are drawn from the struct field, lower cased.
 // This can be overridden using `config:"<name>"` tags.
