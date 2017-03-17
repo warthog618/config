@@ -121,6 +121,7 @@ func TestAddAliasNested(t *testing.T) {
 func TestAppendReader(t *testing.T) {
 	cfg := New()
 	mr1 := mapReader{map[string]interface{}{}}
+	cfg.AppendReader(nil) // should be ignored
 	cfg.InsertReader(&mr1)
 	mr1.config["something"] = "a test string"
 	if val, err := cfg.Get("something"); err != nil {
@@ -160,6 +161,7 @@ func TestAppendReader(t *testing.T) {
 func TestInsertReader(t *testing.T) {
 	cfg := New()
 	mr := mapReader{map[string]interface{}{}}
+	cfg.InsertReader(nil) // should be ignored
 	cfg.InsertReader(&mr)
 	mr.config["something"] = "a test string"
 	if val, err := cfg.Get("something"); err != nil {

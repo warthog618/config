@@ -87,6 +87,9 @@ type config struct {
 // When applied to a non-root node, the reader only applies to that node,
 // and any subsequently created children.
 func (c *config) AppendReader(reader Reader) {
+	if reader == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.readers = append(c.readers, reader)
@@ -99,6 +102,9 @@ func (c *config) AppendReader(reader Reader) {
 // When applied to a non-root node, the reader only applies to that node,
 // and any subsequently created children.
 func (c *config) InsertReader(reader Reader) {
+	if reader == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.readers = append([]Reader{reader}, c.readers...)
