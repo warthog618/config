@@ -13,7 +13,7 @@ import (
 	"github.com/warthog618/config/cfgconv"
 )
 
-var validConfig = `
+var validConfig = []byte(`
 bool = true
 int = 42
 float=  3.1415
@@ -28,12 +28,12 @@ float = 3.141
 string = "this is also a string"
 intSlice = [1,2,3,4,5,6]
 stringSlice = ["one","two","three"]
-`
+`)
 
-var malformedConfig = `
+var malformedConfig = []byte(`
 malformed
 bool: true
-`
+`)
 
 var validKeys = []string{"bool", "int", "float", "string", "intSlice", "stringSlice",
 	"nested.bool", "nested.int", "nested.float", "nested.string",
@@ -146,11 +146,11 @@ func testReaderRead(t *testing.T, reader *Reader) {
 	}
 }
 
-func TestNewString(t *testing.T) {
-	if _, err := NewString(malformedConfig); err == nil {
+func TestNewBytes(t *testing.T) {
+	if _, err := NewBytes(malformedConfig); err == nil {
 		t.Errorf("parsed malformed config")
 	}
-	if b, err := NewString(validConfig); err != nil {
+	if b, err := NewBytes(validConfig); err != nil {
 		t.Errorf("failed to parse validConfig")
 	} else {
 		// test provides config.Reader interface.
@@ -176,7 +176,7 @@ func TestNewFile(t *testing.T) {
 }
 
 func TestStringReaderRead(t *testing.T) {
-	reader, err := NewString(validConfig)
+	reader, err := NewBytes(validConfig)
 	if err != nil {
 		t.Fatalf("failed to parse config")
 	}

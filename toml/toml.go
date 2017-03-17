@@ -26,9 +26,9 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 	return nil, false
 }
 
-// NewString returns a TOML reader that reads config from a string.
-func NewString(cfg string) (*Reader, error) {
-	config, err := toml.Load(cfg)
+// NewBytes returns a TOML reader that reads config from []byte.
+func NewBytes(cfg []byte) (*Reader, error) {
+	config, err := toml.Load(string(cfg))
 	if err != nil {
 		return nil, err
 	}
