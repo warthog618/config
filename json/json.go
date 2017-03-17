@@ -32,7 +32,7 @@ func NewBytes(cfg []byte) (*Reader, error) {
 	var config map[string]interface{}
 	err := json.Unmarshal(cfg, &config)
 	if err != nil {
-		return &Reader{}, err
+		return nil, err
 	}
 	return &Reader{config}, nil
 }
@@ -41,7 +41,7 @@ func NewBytes(cfg []byte) (*Reader, error) {
 func NewFile(filename string) (*Reader, error) {
 	cfg, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return &Reader{}, err
+		return nil, err
 	}
 	return NewBytes(cfg)
 }

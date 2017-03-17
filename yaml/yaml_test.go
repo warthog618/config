@@ -161,8 +161,10 @@ func TestNewBytes(t *testing.T) {
 }
 
 func TestNewFile(t *testing.T) {
-	if _, err := NewFile("no_such.yaml"); err == nil {
+	if f, err := NewFile("no_such.yaml"); err == nil {
 		t.Errorf("parsed no such config")
+	} else if f != nil {
+		t.Errorf("returned non-nil reader, got %v", f)
 	}
 	if f, err := NewFile("config.yaml"); err != nil {
 		t.Errorf("failed to parse config")
