@@ -59,6 +59,11 @@ func TestReaderRead(t *testing.T) {
 	} else {
 		t.Errorf("failed to read slice")
 	}
+	if v, ok := e.Read("nested"); ok {
+		t.Errorf("read nested, got %v", v)
+	} else if v != nil {
+		t.Errorf("returned non-nil on failed read for nested, got %v", v)
+	}
 	expected = "44"
 	if v, ok := e.Read("nested.leaf"); ok {
 		if v != expected {

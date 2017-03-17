@@ -301,6 +301,12 @@ func TestReaderRead(t *testing.T) {
 	} else {
 		t.Errorf("failed to read leaf")
 	}
+	if v, ok := f.Read("nested"); ok {
+		t.Errorf("could read nested, got %v", v)
+	} else if v != nil {
+		t.Errorf("returned non-nil on failed read for nested, got %v", v)
+	}
+
 	expectedSlice := []string{"a", "b"}
 	if v, ok := f.Read("slice"); ok {
 		if !reflect.DeepEqual(v, expectedSlice) {

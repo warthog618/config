@@ -21,8 +21,8 @@ type Reader struct {
 // Read returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Reader) Read(key string) (interface{}, bool) {
-	if val, err := getFromMapTree(r.config, key, "."); err == nil {
-		return val, true
+	if v, err := getFromMapTree(r.config, key, "."); err == nil {
+		return v, true
 	}
 	return nil, false
 }
@@ -48,15 +48,17 @@ func NewFile(filename string) (*Reader, error) {
 
 func getFromMapTree(node map[string]interface{}, key string, pathSep string) (interface{}, error) {
 	// full key match - also handles leaves
-	if value, ok := node[key]; ok {
-		return value, nil
+	if v, ok := node[key]; ok {
+		if _, ok := v.(map[string]interface{}); !ok {
+			return v, nil
+		}
 	}
 	// nested path match
 	path := strings.Split(key, pathSep)
-	if value, ok := node[path[0]]; ok {
-		switch v := value.(type) {
+	if v, ok := node[path[0]]; ok {
+		switch vt := v.(type) {
 		case map[string]interface{}:
-			return getFromMapTree(v, strings.Join(path[1:], pathSep), pathSep)
+			return getFromMapTree(vt, strings.Join(path[1:], pathSep), pathSep)
 		}
 	}
 	// no match

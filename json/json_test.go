@@ -37,10 +37,10 @@ var malformedConfig = []byte(`malformed{
 }`)
 
 var validKeys = []string{"bool", "int", "float", "string", "intSlice", "stringSlice",
-	"nested", "nested.bool", "nested.int", "nested.float", "nested.string",
+	"nested.bool", "nested.int", "nested.float", "nested.string",
 	"nested.intSlice", "nested.stringSlice"}
 
-var bogusKeys = []string{"bogus", "nested.bogus"}
+var bogusKeys = []string{"bogus", "nested", "nested.bogus"}
 
 var intSlice = []interface{}{float64(1), float64(2), float64(3), float64(4)}
 var nestedIntSlice = []interface{}{float64(1), float64(2), float64(3), float64(4), float64(5), float64(6)}
@@ -55,92 +55,94 @@ func testReaderRead(t *testing.T, reader *Reader) {
 		}
 	}
 	for _, key := range bogusKeys {
-		if _, ok := reader.Read(key); ok {
-			t.Errorf("could read %s", key)
+		if v, ok := reader.Read(key); ok {
+			t.Errorf("could read %s, got %v %T", key, v, v)
+		} else if v != nil {
+			t.Errorf("returned non-nil on failed read for %s, got %v", key, v)
 		}
 	}
-	if val, ok := reader.Read("bool"); ok {
-		if v, err := cfgconv.Bool(val); err != nil {
+	if v, ok := reader.Read("bool"); ok {
+		if cv, err := cfgconv.Bool(v); err != nil {
 			t.Errorf("failed to convert bool")
-		} else if v == false {
+		} else if cv == false {
 			t.Errorf("expected bool true, got false")
 		}
 	}
-	if val, ok := reader.Read("int"); ok {
-		if v, err := cfgconv.Int(val); err != nil {
+	if v, ok := reader.Read("int"); ok {
+		if cv, err := cfgconv.Int(v); err != nil {
 			t.Errorf("failed to convert int")
-		} else if v != 42 {
-			t.Errorf("expected int 42, got %v", v)
+		} else if cv != 42 {
+			t.Errorf("expected int 42, got %v", cv)
 		}
 	}
-	if val, ok := reader.Read("float"); ok {
-		if v, err := cfgconv.Float(val); err != nil {
+	if v, ok := reader.Read("float"); ok {
+		if cv, err := cfgconv.Float(v); err != nil {
 			t.Errorf("failed to convert float")
-		} else if v != 3.1415 {
-			t.Errorf("expected float 3.1415, got %v", v)
+		} else if cv != 3.1415 {
+			t.Errorf("expected float 3.1415, got %v", cv)
 		}
 	}
-	if val, ok := reader.Read("string"); ok {
-		if v, err := cfgconv.String(val); err != nil {
+	if v, ok := reader.Read("string"); ok {
+		if cv, err := cfgconv.String(v); err != nil {
 			t.Errorf("failed to convert string")
-		} else if v != "this is a string" {
-			t.Errorf("expected string 'this is a string', got %v", v)
+		} else if cv != "this is a string" {
+			t.Errorf("expected string 'this is a string', got %v", cv)
 		}
 	}
-	if val, ok := reader.Read("intSlice"); ok {
-		if v, err := cfgconv.Slice(val); err != nil {
+	if v, ok := reader.Read("intSlice"); ok {
+		if cv, err := cfgconv.Slice(v); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if !reflect.DeepEqual(v, intSlice) {
-			t.Errorf("expected int slice %v, got %v", intSlice, v)
+		} else if !reflect.DeepEqual(cv, intSlice) {
+			t.Errorf("expected int slice %v, got %v", intSlice, cv)
 		}
 	}
-	if val, ok := reader.Read("stringSlice"); ok {
-		if v, err := cfgconv.Slice(val); err != nil {
+	if v, ok := reader.Read("stringSlice"); ok {
+		if cv, err := cfgconv.Slice(v); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if !reflect.DeepEqual(v, stringSlice) {
-			t.Errorf("expected string slice %v, got %v", stringSlice, v)
+		} else if !reflect.DeepEqual(cv, stringSlice) {
+			t.Errorf("expected string slice %v, got %v", stringSlice, cv)
 		}
 	}
-	if val, ok := reader.Read("nested.bool"); ok {
-		if v, err := cfgconv.Bool(val); err != nil {
+	if v, ok := reader.Read("nested.bool"); ok {
+		if cv, err := cfgconv.Bool(v); err != nil {
 			t.Errorf("failed to convert bool")
-		} else if v == true {
+		} else if cv == true {
 			t.Errorf("expected nested.bool false, got true")
 		}
 	}
-	if val, ok := reader.Read("nested.int"); ok {
-		if v, err := cfgconv.Int(val); err != nil {
+	if v, ok := reader.Read("nested.int"); ok {
+		if cv, err := cfgconv.Int(v); err != nil {
 			t.Errorf("failed to convert int")
-		} else if v != 18 {
-			t.Errorf("expected nested.int 18, got %v", v)
+		} else if cv != 18 {
+			t.Errorf("expected nested.int 18, got %v", cv)
 		}
 	}
-	if val, ok := reader.Read("nested.float"); ok {
-		if v, err := cfgconv.Float(val); err != nil {
+	if v, ok := reader.Read("nested.float"); ok {
+		if cv, err := cfgconv.Float(v); err != nil {
 			t.Errorf("failed to convert float")
-		} else if v != 3.141 {
-			t.Errorf("expected nested.float 3.141, got %v", v)
+		} else if cv != 3.141 {
+			t.Errorf("expected nested.float 3.141, got %v", cv)
 		}
 	}
-	if val, ok := reader.Read("nested.string"); ok {
-		if v, err := cfgconv.String(val); err != nil {
+	if v, ok := reader.Read("nested.string"); ok {
+		if cv, err := cfgconv.String(v); err != nil {
 			t.Errorf("failed to convert string")
-		} else if v != "this is also a string" {
-			t.Errorf("expected nested.string 'this is also a string', got %v", v)
+		} else if cv != "this is also a string" {
+			t.Errorf("expected nested.string 'this is also a string', got %v", cv)
 		}
 	}
-	if val, ok := reader.Read("nested.intSlice"); ok {
-		if v, err := cfgconv.Slice(val); err != nil {
+	if v, ok := reader.Read("nested.intSlice"); ok {
+		if cv, err := cfgconv.Slice(v); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if !reflect.DeepEqual(v, nestedIntSlice) {
-			t.Errorf("expected int slice %v, got %v", nestedIntSlice, v)
+		} else if !reflect.DeepEqual(cv, nestedIntSlice) {
+			t.Errorf("expected int slice %v, got %v", nestedIntSlice, cv)
 		}
 	}
-	if val, ok := reader.Read("nested.stringSlice"); ok {
-		if v, err := cfgconv.Slice(val); err != nil {
+	if v, ok := reader.Read("nested.stringSlice"); ok {
+		if cv, err := cfgconv.Slice(v); err != nil {
 			t.Errorf("failed to convert slice")
-		} else if !reflect.DeepEqual(v, nestedStringSlice) {
-			t.Errorf("expected string slice %v, got %v", nestedStringSlice, v)
+		} else if !reflect.DeepEqual(cv, nestedStringSlice) {
+			t.Errorf("expected string slice %v, got %v", nestedStringSlice, cv)
 		}
 	}
 }

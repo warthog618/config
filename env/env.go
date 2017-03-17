@@ -47,7 +47,10 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 	if ok && len(r.listSeparator) > 0 && strings.Contains(v, r.listSeparator) {
 		return strings.Split(v, r.listSeparator), ok
 	}
-	return v, ok
+	if ok {
+		return v, ok
+	}
+	return nil, false
 }
 
 // SetCfgSeparator sets the separator between tiers in the config namespace.
