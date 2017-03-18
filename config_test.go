@@ -271,8 +271,8 @@ func TestGetBool(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr)
 	mr.config["bool"] = true
-	mr.config["boolstring"] = "true"
-	mr.config["boolint"] = 1
+	mr.config["boolString"] = "true"
+	mr.config["boolInt"] = 1
 	mr.config["notabool"] = "bogus"
 	if val, err := cfg.GetBool("bool"); err != nil {
 		t.Errorf("couldn't read bool - %v", err)
@@ -280,24 +280,24 @@ func TestGetBool(t *testing.T) {
 		t.Errorf("read bool %v, expected true", val)
 	}
 	if val, err := cfg.GetBool("boolString"); err != nil {
-		t.Errorf("couldn't read bool - %v", err)
+		t.Errorf("couldn't read boolString - %v", err)
 	} else if val != true {
-		t.Errorf("read bool %v, expected true", val)
+		t.Errorf("read boolString %v, expected true", val)
 	}
 	if val, err := cfg.GetBool("boolInt"); err != nil {
-		t.Errorf("couldn't read bool - %v", err)
+		t.Errorf("couldn't read boolInt - %v", err)
 	} else if val != true {
-		t.Errorf("read bool %v, expected true", val)
+		t.Errorf("read boolInt %v, expected true", val)
 	}
 	if val, err := cfg.GetBool("notabool"); err == nil {
-		t.Errorf("could read bool - notabool -%v", val)
+		t.Errorf("could read notabool -%v", val)
 	} else {
 		if val != false {
 			t.Errorf("didn't return false -%v", val)
 		}
 	}
 	if val, err := cfg.GetBool("nosuchbool"); err == nil {
-		t.Errorf("could read bool - nosuchbool -%v", val)
+		t.Errorf("could read nosuchbool -%v", val)
 	} else {
 		if val != false {
 			t.Errorf("didn't return false -%v", val)
@@ -310,8 +310,8 @@ func TestGetFloat(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr)
 	mr.config["float"] = 3.1415
-	mr.config["floatstring"] = "3.1415"
-	mr.config["floatint"] = 1
+	mr.config["floatString"] = "3.1415"
+	mr.config["floatInt"] = 1
 	mr.config["notafloat"] = "bogus"
 	if val, err := cfg.GetFloat("float"); err != nil {
 		t.Errorf("couldn't read float - %v", err)
@@ -319,14 +319,14 @@ func TestGetFloat(t *testing.T) {
 		t.Errorf("read float %v, expected 3.1415", val)
 	}
 	if val, err := cfg.GetFloat("floatString"); err != nil {
-		t.Errorf("couldn't read float - %v", err)
+		t.Errorf("couldn't read floatString - %v", err)
 	} else if val != 3.1415 {
-		t.Errorf("read float %v, expected 3.1415", val)
+		t.Errorf("read floatString %v, expected 3.1415", val)
 	}
 	if val, err := cfg.GetFloat("floatInt"); err != nil {
-		t.Errorf("couldn't read float - %v", err)
+		t.Errorf("couldn't read floatInt - %v", err)
 	} else if val != 1 {
-		t.Errorf("read float %v, expected 1", val)
+		t.Errorf("read floatInt %v, expected 1", val)
 	}
 	if val, err := cfg.GetFloat("notafloat"); err == nil {
 		t.Errorf("could read float - notafloat -%v", val)
@@ -349,7 +349,7 @@ func TestGetInt(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr)
 	mr.config["int"] = 42
-	mr.config["intstring"] = "42"
+	mr.config["intString"] = "42"
 	mr.config["notaint"] = "bogus"
 	if val, err := cfg.GetInt("int"); err != nil {
 		t.Errorf("couldn't read int - %v", err)
@@ -357,9 +357,9 @@ func TestGetInt(t *testing.T) {
 		t.Errorf("read int %v, expected 3.1415", val)
 	}
 	if val, err := cfg.GetInt("intString"); err != nil {
-		t.Errorf("couldn't read int - %v", err)
+		t.Errorf("couldn't read intString - %v", err)
 	} else if val != 42 {
-		t.Errorf("read int %v, expected 3.1415", val)
+		t.Errorf("read intString %v, expected 3.1415", val)
 	}
 	if val, err := cfg.GetInt("notaint"); err == nil {
 		t.Errorf("could read int - notaint -%v", val)
@@ -382,7 +382,7 @@ func TestGetString(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr)
 	mr.config["string"] = "a string"
-	mr.config["stringint"] = 42
+	mr.config["stringInt"] = 42
 	mr.config["notastring"] = struct{}{}
 	if val, err := cfg.GetString("string"); err != nil {
 		t.Errorf("couldn't read string - %v", err)
@@ -390,9 +390,9 @@ func TestGetString(t *testing.T) {
 		t.Errorf("read string %v, expected 3.1415", val)
 	}
 	if val, err := cfg.GetString("stringInt"); err != nil {
-		t.Errorf("couldn't read string - %v", err)
+		t.Errorf("couldn't read stringInt - %v", err)
 	} else if val != "42" {
-		t.Errorf("read string %v, expected 3.1415", val)
+		t.Errorf("read stringInt %v, expected 3.1415", val)
 	}
 	if val, err := cfg.GetString("notastring"); err == nil {
 		t.Errorf("could read string - notastring -%v", val)
@@ -415,8 +415,8 @@ func TestGetUint(t *testing.T) {
 	mr := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr)
 	mr.config["uint"] = 42
-	mr.config["uintstring"] = "42"
-	mr.config["notauint"] = "bogus"
+	mr.config["uintString"] = "42"
+	mr.config["notaUint"] = "bogus"
 	if val, err := cfg.GetUint("uint"); err != nil {
 		t.Errorf("couldn't read uint - %v", err)
 	} else if val != 42 {
@@ -427,15 +427,15 @@ func TestGetUint(t *testing.T) {
 	} else if val != 42 {
 		t.Errorf("read uint %v, expected 3.1415", val)
 	}
-	if val, err := cfg.GetUint("notauint"); err == nil {
-		t.Errorf("could read uint - notauint -%v", val)
+	if val, err := cfg.GetUint("notaUint"); err == nil {
+		t.Errorf("could read notaUint -%v", val)
 	} else {
 		if val != 0 {
 			t.Errorf("didn't return 0 -%v", val)
 		}
 	}
-	if val, err := cfg.GetUint("nosuchuint"); err == nil {
-		t.Errorf("could read uint - nosuchuint -%v", val)
+	if val, err := cfg.GetUint("nosuchUint"); err == nil {
+		t.Errorf("could read nosuchUint -%v", val)
 	} else {
 		if val != 0 {
 			t.Errorf("didn't return 0 -%v", val)

@@ -35,11 +35,16 @@ malformed
 bool: true
 `)
 
-var validKeys = []string{"bool", "int", "float", "string", "intSlice", "stringSlice",
+var validKeys = []string{
+	"bool", "int", "float", "string", "intSlice", "stringSlice",
 	"nested.bool", "nested.int", "nested.float", "nested.string",
-	"nested.intSlice", "nested.stringSlice"}
+	"nested.intSlice", "nested.stringSlice",
+}
 
-var bogusKeys = []string{"bogus", "nested", "nested.bogus"}
+var bogusKeys = []string{
+	"intslice", "stringslice", "bogus",
+	"nested", "nested.bogus", "nested.stringslice",
+}
 
 var intSlice = []interface{}{int64(1), int64(2), int64(3), int64(4)}
 var nestedIntSlice = []interface{}{int64(1), int64(2), int64(3), int64(4), int64(5), int64(6)}

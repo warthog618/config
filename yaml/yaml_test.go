@@ -36,11 +36,16 @@ int: 42
 float: 3.1415
 `)
 
-var validKeys = []string{"bool", "int", "float", "string", "intSlice", "stringSlice",
+var validKeys = []string{
+	"bool", "int", "float", "string", "intSlice", "stringSlice",
 	"nested.bool", "nested.int", "nested.float", "nested.string",
-	"nested.intSlice", "nested.stringSlice"}
+	"nested.intSlice", "nested.stringSlice",
+}
 
-var bogusKeys = []string{"bogus", "nested", "nested.bogus"}
+var bogusKeys = []string{
+	"intslice", "stringslice", "bogus",
+	"nested", "nested.bogus", "nested.stringslice",
+}
 
 var intSlice = []interface{}{int(1), int(2), int(3), int(4)}
 var nestedIntSlice = []interface{}{int(1), int(2), int(3), int(4), int(5), int(6)}

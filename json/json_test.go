@@ -36,11 +36,16 @@ var malformedConfig = []byte(`malformed{
   "float": 3.1415
 }`)
 
-var validKeys = []string{"bool", "int", "float", "string", "intSlice", "stringSlice",
+var validKeys = []string{
+	"bool", "int", "float", "string", "intSlice", "stringSlice",
 	"nested.bool", "nested.int", "nested.float", "nested.string",
-	"nested.intSlice", "nested.stringSlice"}
+	"nested.intSlice", "nested.stringSlice",
+}
 
-var bogusKeys = []string{"bogus", "nested", "nested.bogus"}
+var bogusKeys = []string{
+	"intslice", "stringslice", "bogus",
+	"nested", "nested.bogus", "nested.stringslice",
+}
 
 var intSlice = []interface{}{float64(1), float64(2), float64(3), float64(4)}
 var nestedIntSlice = []interface{}{float64(1), float64(2), float64(3), float64(4), float64(5), float64(6)}

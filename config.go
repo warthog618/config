@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/warthog618/config/cfgconv"
 )
@@ -128,8 +130,8 @@ func (c *config) prefixedKey(key ...string) string {
 func (c *config) AddAlias(newKey string, oldKey string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	lNewKey := c.prefixedKey(strings.ToLower(newKey))
-	lOldKey := c.prefixedKey(strings.ToLower(oldKey))
+	lNewKey := c.prefixedKey(newKey)
+	lOldKey := c.prefixedKey(oldKey)
 	if lNewKey == lOldKey {
 		return
 	}
@@ -153,7 +155,7 @@ func (c *config) SetSeparator(separator string) {
 func (c *config) Get(key string) (interface{}, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	fullKey := c.prefixedKey(strings.ToLower(key))
+	fullKey := c.prefixedKey(key)
 	for _, reader := range c.readers {
 		if v, ok := reader.Read(fullKey); ok {
 			return v, nil
@@ -325,6 +327,11 @@ func (e UnmarshalError) Error() string {
 	return "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
 }
 
+func lowerCamelCase(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+	return string(unicode.ToLower(r)) + s[n:]
+}
+
 // Unmarshal a section of the config tree into a struct.
 //
 // The node identifies the section of the tree to unmarshal.
@@ -332,7 +339,8 @@ func (e UnmarshalError) Error() string {
 // The config values will be converted to the type defined in the corresponding
 // struct fields.
 //
-// By default the config field names are drawn from the struct field, lower cased.
+// By default the config field names are drawn from the struct field, converted to
+// lowerCamelCase.
 // This can be overridden using `config:"<name>"` tags.
 //
 // Struct fields which do not have corresponding config fields are ignored,
@@ -350,7 +358,7 @@ func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
 		ft := ov.Type().Field(idx)
 		key := ft.Tag.Get("config")
 		if len(key) == 0 {
-			key = ft.Name
+			key = lowerCamelCase(ft.Name)
 		}
 		if fv.Kind() == reflect.Struct {
 			// nested struct
@@ -364,7 +372,7 @@ func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
 				if cv, err := cfgconv.Convert(v, fv.Type()); err == nil {
 					fv.Set(reflect.ValueOf(cv))
 				} else if rerr == nil {
-					rerr = UnmarshalError{c.prefixedKey(node, strings.ToLower(key)), err}
+					rerr = UnmarshalError{c.prefixedKey(node, key), err}
 				}
 			}
 		}
