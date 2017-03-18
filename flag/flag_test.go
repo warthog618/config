@@ -8,6 +8,7 @@ package flag
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/warthog618/config"
@@ -473,15 +474,15 @@ func TestReaderRead(t *testing.T) {
 	}
 }
 
-func TestReaderSetCfgSeparator(t *testing.T) {
-	args := []string{"-n=44"}
+func TestReaderSetCfgKeyReplacer(t *testing.T) {
+	args := []string{"-n=44", "--leaf", "42"}
 	shorts := map[byte]string{'n': "nested-leaf"}
 	f, err := New(args, shorts)
 	if err != nil {
 		t.Fatalf("new returned error %v", err)
 	}
-	// single
-	f.SetCfgSeparator("_")
+	// standard
+	f.SetCfgKeyReplacer(strings.NewReplacer("-", "_"))
 	expected := "44"
 	if v, ok := f.Read("nested_leaf"); ok {
 		if v != expected {
@@ -490,17 +491,17 @@ func TestReaderSetCfgSeparator(t *testing.T) {
 	} else {
 		t.Errorf("failed to read nested_leaf")
 	}
-	// multi
-	f.SetCfgSeparator("_X_")
-	if v, ok := f.Read("nested_x_leaf"); ok {
+	// multicharacter new
+	f.SetCfgKeyReplacer(strings.NewReplacer("-", "_X_"))
+	if v, ok := f.Read("nested_X_leaf"); ok {
 		if v != expected {
-			t.Errorf("read nested_x_leaf %v, expected %v", v, expected)
+			t.Errorf("read nested_X_leaf %v, expected %v", v, expected)
 		}
 	} else {
-		t.Errorf("failed to read nested_x_leaf")
+		t.Errorf("failed to read nested_X_leaf")
 	}
 	// none
-	f.SetCfgSeparator("")
+	f.SetCfgKeyReplacer(strings.NewReplacer("-", ""))
 	if v, ok := f.Read("nestedleaf"); ok {
 		if v != expected {
 			t.Errorf("read nestedleaf %v, expected %v", v, expected)
@@ -508,43 +509,14 @@ func TestReaderSetCfgSeparator(t *testing.T) {
 	} else {
 		t.Errorf("failed to read nestedleaf")
 	}
-}
-
-func TestReaderSetFlagSeparator(t *testing.T) {
-	args := []string{"-n=44", "--leaf", "42"}
-	shorts := map[byte]string{'n': "nested-leaf"}
-	f, err := New(args, shorts)
-	if err != nil {
-		t.Fatalf("new returned error %v", err)
-	}
-	// single
-	f.SetFlagSeparator("-")
-	expected := "44"
-	if v, ok := f.Read("nested.leaf"); ok {
-		if v != expected {
-			t.Errorf("read nested.leaf %v, expected %v", v, expected)
-		}
-	} else {
-		t.Errorf("failed to read nested.leaf")
-	}
-	// multi
-	f.SetFlagSeparator("ted-")
+	// multicharacter old
+	f.SetCfgKeyReplacer(strings.NewReplacer("ted-", "."))
 	if v, ok := f.Read("nes.leaf"); ok {
 		if v != expected {
 			t.Errorf("read nes.leaf %v, expected %v", v, expected)
 		}
 	} else {
 		t.Errorf("failed to read nes.leaf")
-	}
-	// none
-	f.SetFlagSeparator("")
-	expected = "42"
-	if v, ok := f.Read("l.e.a.f"); ok {
-		if v != expected {
-			t.Errorf("read l.e.a.f %v, expected %v", v, expected)
-		}
-	} else {
-		t.Errorf("failed to read l.e.a.f")
 	}
 }
 

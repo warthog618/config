@@ -9,6 +9,8 @@ package env
 import (
 	"os"
 	"strings"
+
+	"github.com/warthog618/config/keys"
 )
 
 // New creates an enviroment variable reader.
@@ -19,7 +21,7 @@ import (
 // determined by the prefix and separator fields of the Reader.
 func New(prefix string) (*Reader, error) {
 	config := map[string]string(nil)
-	r := Reader{config, prefix, "_", ".", ":"}
+	r := Reader{config, prefix, keys.NewReplacer("_", ".", keys.LowerCase), ":"}
 	r.load()
 	return &r, nil
 }
@@ -32,10 +34,9 @@ type Reader struct {
 	// This must include any separator - the envSeparator does not separate the
 	// prefix from the remainder of the key.
 	envPrefix string
-	// separator between key tiers in ENV space.
-	envSeparator string
-	// separator between key tiers in config space.
-	cfgSeparator string
+	// A replacer that maps from env space to config space.
+	// The replacer is applied AFTER the prefix has been removed.
+	cfgKeyReplacer keys.Replacer
 	// The separator for slices stored in string values.
 	listSeparator string
 }
@@ -53,13 +54,6 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 	return nil, false
 }
 
-// SetCfgSeparator sets the separator between tiers in the config namespace.
-// The default separator is "."
-func (r *Reader) SetCfgSeparator(separator string) {
-	r.cfgSeparator = strings.ToLower(separator)
-	r.load()
-}
-
 // SetEnvPrefix sets the prefix for environment variables included in this reader's config.
 // The prefix is stripped from the environment variable name during mapping to
 // the config namespace and so should include any separator between it and the
@@ -69,10 +63,10 @@ func (r *Reader) SetEnvPrefix(prefix string) {
 	r.load()
 }
 
-// SetEnvSeparator sets the separator between tiers in the env namespace.
-// The default separator is "_"
-func (r *Reader) SetEnvSeparator(separator string) {
-	r.envSeparator = separator
+// SetCfgKeyReplacer sets the replacer used to map from env space to config space.
+// The default is to replace "_" with "." and convert to lowercase.
+func (r *Reader) SetCfgKeyReplacer(keyReplacer keys.Replacer) {
+	r.cfgKeyReplacer = keyReplacer
 	r.load()
 }
 
@@ -89,8 +83,7 @@ func (r *Reader) load() {
 			keyValue := strings.SplitN(env, "=", 2)
 			if len(keyValue) == 2 {
 				envKey := keyValue[0][len(r.envPrefix):]
-				path := strings.Split(envKey, r.envSeparator)
-				cfgKey := strings.ToLower(strings.Join(path, r.cfgSeparator))
+				cfgKey := r.cfgKeyReplacer.Replace(envKey)
 				config[cfgKey] = keyValue[1]
 			}
 		}

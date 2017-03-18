@@ -8,9 +8,11 @@ package env
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/warthog618/config"
+	"github.com/warthog618/config/keys"
 )
 
 func setup(prefix string) {
@@ -90,25 +92,25 @@ func TestReaderRead(t *testing.T) {
 	}
 }
 
-func TestReaderSetCfgSeparator(t *testing.T) {
+func TestReaderSetCfgKeyReplacer(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	e, err := New(prefix)
 	if err != nil {
 		t.Fatalf("new returned error %v", err)
 	}
-	// single
-	e.SetCfgSeparator("_")
+	// null - leaves case untouched
+	e.SetCfgKeyReplacer(keys.NewReplacer("_", "_", keys.Unchanged))
 	expected := "44"
-	if v, ok := e.Read("nested_leaf"); ok {
+	if v, ok := e.Read("NESTED_LEAF"); ok {
 		if v != expected {
-			t.Errorf("read nested_leaf %v, expected %v", v, expected)
+			t.Errorf("read NESTED_LEAF %v, expected %v", v, expected)
 		}
 	} else {
-		t.Errorf("failed to read nested_leaf")
+		t.Errorf("failed to read NESTED_LEAF")
 	}
 	// multi
-	e.SetCfgSeparator("_X_")
+	e.SetCfgKeyReplacer(keys.NewReplacer("_", "_X_", keys.LowerCase))
 	if v, ok := e.Read("nested_x_leaf"); ok {
 		if v != expected {
 			t.Errorf("read nested_x_leaf %v, expected %v", v, expected)
@@ -117,7 +119,7 @@ func TestReaderSetCfgSeparator(t *testing.T) {
 		t.Errorf("failed to read nested_x_leaf")
 	}
 	// none
-	e.SetCfgSeparator("")
+	e.SetCfgKeyReplacer(keys.NewReplacer("_", "", keys.LowerCase))
 	if v, ok := e.Read("nestedleaf"); ok {
 		if v != expected {
 			t.Errorf("read nestedleaf %v, expected %v", v, expected)
@@ -125,17 +127,9 @@ func TestReaderSetCfgSeparator(t *testing.T) {
 	} else {
 		t.Errorf("failed to read nestedleaf")
 	}
-}
-func TestReaderSetEnvSeparator(t *testing.T) {
-	prefix := "CFGENV_"
-	setup(prefix)
-	e, err := New(prefix)
-	if err != nil {
-		t.Fatalf("new returned error %v", err)
-	}
-	// single
-	e.SetEnvSeparator("_")
-	expected := "44"
+	// standard
+	e.SetCfgKeyReplacer(keys.NewReplacer("_", ".", keys.LowerCase))
+	expected = "44"
 	if v, ok := e.Read("nested.leaf"); ok {
 		if v != expected {
 			t.Errorf("read nested.leaf %v, expected %v", v, expected)
@@ -144,23 +138,13 @@ func TestReaderSetEnvSeparator(t *testing.T) {
 		t.Errorf("failed to read nested.leaf")
 	}
 	// multi
-	e.SetEnvSeparator("TED_")
-	if v, ok := e.Read("nes.leaf"); ok {
+	e.SetCfgKeyReplacer(strings.NewReplacer("TED_", "."))
+	if v, ok := e.Read("NES.LEAF"); ok {
 		if v != expected {
-			t.Errorf("read nes.leaf %v, expected %v", v, expected)
+			t.Errorf("read NES.LEAF %v, expected %v", v, expected)
 		}
 	} else {
-		t.Errorf("failed to read nes.leaf")
-	}
-	// none
-	e.SetEnvSeparator("")
-	expected = "42"
-	if v, ok := e.Read("l.e.a.f"); ok {
-		if v != expected {
-			t.Errorf("read l.e.a.f %v, expected %v", v, expected)
-		}
-	} else {
-		t.Errorf("failed to read l.e.a.f")
+		t.Errorf("failed to read NES.LEAF")
 	}
 }
 

@@ -12,7 +12,7 @@
 // - short form (-h)
 // - long form (--help)
 // - bool flags accessible as bool or int (the latter giving a count of the times the flag occurs)
-// - -- terminator to foriclby terminate flag parsing before remaining args.
+// - -- terminator to forcilby terminate flag parsing before remaining args.
 // - returning remaining args after parsing.
 //
 // Flags are assumed bool unless followed by a non-flag.
@@ -32,12 +32,14 @@ package flag
 import (
 	"os"
 	"strings"
+
+	"github.com/warthog618/config/keys"
 )
 
 // New creates a new Reader.
 //
 // The command line to parse is provided by cmdArgs.
-// This does not include the name of the execuable, and defaults to os.Args[1:]
+// This does not include the name of the executable, and defaults to os.Args[1:]
 // if an empty slice is passed.
 // The shortFlags defines the mapping from single character short flags to
 // long flag names.  Long names are within the flag naming space and so should
@@ -48,7 +50,7 @@ func New(cmdArgs []string, shortFlags map[byte]string) (*Reader, error) {
 	}
 	args := []string{}
 	config := map[string]interface{}(nil)
-	r := Reader{cmdArgs, args, config, shortFlags, "-", ".", ","}
+	r := Reader{cmdArgs, args, config, shortFlags, keys.NewReplacer("-", ".", keys.Unchanged), ","}
 	r.parse()
 	return &r, nil
 }
@@ -63,10 +65,8 @@ type Reader struct {
 	config map[string]interface{}
 	// map of short flag characters to long form flag name
 	shortFlags map[byte]string
-	// separator between key tiers in flag space.
-	flagSeparator string
-	// separator between key tiers in config space.
-	cfgSeparator string
+	// A replacer that maps from flag space to config space.
+	cfgKeyReplacer keys.Replacer
 	// The separator for slices stored in string values.
 	listSeparator string
 }
@@ -111,17 +111,10 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 	return v, ok
 }
 
-// SetCfgSeparator sets the separator between tiers in the config namespace.
+// SetCfgKeyReplacer sets the replacer used to map from flag space to config space.
 // The default separator is "."
-func (r *Reader) SetCfgSeparator(separator string) {
-	r.cfgSeparator = strings.ToLower(separator)
-	r.parse()
-}
-
-// SetFlagSeparator sets the separator between tiers in the flag namespace.
-// The default separator is "-"
-func (r *Reader) SetFlagSeparator(separator string) {
-	r.flagSeparator = separator
+func (r *Reader) SetCfgKeyReplacer(keyReplacer *strings.Replacer) {
+	r.cfgKeyReplacer = keyReplacer
 	r.parse()
 }
 
@@ -129,11 +122,6 @@ func (r *Reader) SetFlagSeparator(separator string) {
 // The default separator is ","
 func (r *Reader) SetListSeparator(separator string) {
 	r.listSeparator = separator
-}
-
-func (r *Reader) cfgKey(flag string) string {
-	path := strings.Split(flag, r.flagSeparator)
-	return strings.ToLower(strings.Join(path, r.cfgSeparator))
 }
 
 func incrementFlag(config map[string]interface{}, key string) {
@@ -161,9 +149,9 @@ func (r *Reader) parse() {
 			if strings.Contains(arg, "=") {
 				// split on = and process complete in place
 				s := strings.SplitN(arg, "=", 2)
-				config[r.cfgKey(s[0])] = s[1]
+				config[r.cfgKeyReplacer.Replace(s[0])] = s[1]
 			} else {
-				key := r.cfgKey(arg)
+				key := r.cfgKeyReplacer.Replace(arg)
 				if idx < len(r.cmdArgs)-1 {
 					val := r.cmdArgs[idx+1]
 					if strings.HasPrefix(val, "-") {
@@ -183,7 +171,7 @@ func (r *Reader) parse() {
 				// grouped short flags
 				for sidx := 0; sidx < len(arg); sidx++ {
 					if flag, ok := r.shortFlags[arg[sidx]]; ok {
-						incrementFlag(config, r.cfgKey(flag))
+						incrementFlag(config, r.cfgKeyReplacer.Replace(flag))
 					}
 				}
 				continue
@@ -204,7 +192,7 @@ func (r *Reader) parse() {
 				}
 			}
 			if flag, ok := r.shortFlags[arg[0]]; ok {
-				key := r.cfgKey(flag)
+				key := r.cfgKeyReplacer.Replace(flag)
 				if val == "" {
 					incrementFlag(config, key)
 				} else {
