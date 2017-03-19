@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -26,9 +27,11 @@ type Config interface {
 	Get(key string) (interface{}, error)
 	// Type gets
 	GetBool(key string) (bool, error)
+	GetDuration(key string) (time.Duration, error)
 	GetFloat(key string) (float64, error)
 	GetInt(key string) (int64, error)
 	GetString(key string) (string, error)
+	GetTime(key string) (time.Time, error)
 	GetUint(key string) (uint64, error)
 	// Slice gets
 	GetSlice(key string) ([]interface{}, error)
@@ -218,6 +221,14 @@ func (c *config) GetConfig(key string) (Config, error) {
 	}, nil
 }
 
+func (c *config) GetDuration(key string) (time.Duration, error) {
+	v, err := c.Get(key)
+	if err != nil {
+		return 0, err
+	}
+	return cfgconv.Duration(v)
+}
+
 func (c *config) GetFloat(key string) (float64, error) {
 	v, err := c.Get(key)
 	if err != nil {
@@ -280,6 +291,14 @@ func (c *config) GetStringSlice(key string) ([]string, error) {
 		retval = append(retval, cv)
 	}
 	return retval, nil
+}
+
+func (c *config) GetTime(key string) (time.Time, error) {
+	v, err := c.Get(key)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return cfgconv.Time(v)
 }
 
 func (c *config) GetUint(key string) (uint64, error) {

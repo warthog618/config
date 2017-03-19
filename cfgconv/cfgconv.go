@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 )
 
 const maxUint = ^uint64(0)
@@ -77,6 +78,24 @@ func Bool(v interface{}) (bool, error) {
 func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 	rv := reflect.Indirect(reflect.New(rt))
 	ri := rv.Interface()
+	// First handle specific types.
+	switch rt {
+	case reflect.TypeOf(time.Duration(0)):
+		cv, err := Duration(v)
+		if err != nil {
+			return ri, err
+		}
+		rv.SetInt(int64(cv))
+		return rv.Interface(), nil
+	case reflect.TypeOf(time.Time{}):
+		cv, err := Time(v)
+		if err != nil {
+			return ri, err
+		}
+		rv.Set(reflect.ValueOf(cv))
+		return rv.Interface(), nil
+	}
+	// Then generic types.
 	switch rv.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		cv, err := Int(v)
@@ -141,10 +160,28 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 		default:
 			return ri, TypeError{Value: v, Kind: reflect.Slice}
 		}
-		if vv.Kind() != reflect.Slice {
-		}
 	}
 	return rv.Interface(), nil
+}
+
+// Duration converts a string to a duration, if possible.
+// Returns 0 and an error if conversion is not possible.
+func Duration(v interface{}) (time.Duration, error) {
+	switch vt := v.(type) {
+	case string:
+		cv, err := time.ParseDuration(vt)
+		if err == nil {
+			return cv, nil
+		}
+		return time.Duration(0), err
+	case []byte:
+		cv, err := time.ParseDuration(string(vt))
+		if err == nil {
+			return cv, nil
+		}
+		return time.Duration(0), err
+	}
+	return time.Duration(0), TypeError{Value: v, Kind: reflect.Int64}
 }
 
 // Float converts a generic object into an float64, if possible.
@@ -273,6 +310,26 @@ func String(v interface{}) (string, error) {
 		return "", nil
 	}
 	return "", TypeError{Value: v, Kind: reflect.String}
+}
+
+// Time converts a string to a duration, if possible.
+// Returns 0 and an error if conversion is not possible.
+func Time(v interface{}) (time.Time, error) {
+	switch vt := v.(type) {
+	case string:
+		cv, err := time.Parse(time.RFC3339, vt)
+		if err == nil {
+			return cv, nil
+		}
+		return time.Time{}, err
+	case []byte:
+		cv, err := time.Parse(time.RFC3339, string(vt))
+		if err == nil {
+			return cv, nil
+		}
+		return time.Time{}, err
+	}
+	return time.Time{}, TypeError{Value: v, Kind: reflect.Int64}
 }
 
 // Uint converts a generic object into an uint64, if possible.

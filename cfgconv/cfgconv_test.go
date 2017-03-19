@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func assertBool(t *testing.T, v interface{}, expected bool, comment string) {
@@ -22,8 +23,12 @@ func assertBool(t *testing.T, v interface{}, expected bool, comment string) {
 }
 
 func refuteBool(t *testing.T, v interface{}, comment string) {
-	if result, err := Bool(v); err == nil {
+	result, err := Bool(v)
+	if err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
+	}
+	if result != false {
+		t.Errorf("failed conversion for %s didn't return false, got %v", comment, result)
 	}
 }
 
@@ -302,6 +307,92 @@ func TestConvert(t *testing.T) {
 	} else if !reflect.DeepEqual(cv, []int(nil)) {
 		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
 	}
+
+	// time.Duration
+	// good
+	ct = reflect.TypeOf(time.Duration(0))
+	cin = "250ms"
+	if cv, err := Convert(cin, ct); err == nil {
+		if cv != time.Duration(250000000) {
+			t.Errorf("failed to convert '%v' to time.Duration, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to time.Duration, got %v", cin, err)
+	}
+	// bad type
+	cin = []string{"1", "2", "3"}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to time.Duration, got %v", cin, cv)
+	} else if cv != time.Duration(0) {
+		t.Errorf("didn't return 0 duration on conversion to time.Duration, got %v %T", cv, cv)
+	}
+	// bad parse
+	cin = "glob"
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to time.Duration, got %v", cin, cv)
+	} else if cv != time.Duration(0) {
+		t.Errorf("didn't return 0 duration on conversion to time.Duration, got %v %T", cv, cv)
+	}
+
+	// time.Time
+	// good
+	ct = reflect.TypeOf(time.Time{})
+	cin = "2017-03-01T01:02:03Z"
+	if cv, err := Convert(cin, ct); err == nil {
+		if cv != time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC) {
+			t.Errorf("failed to convert '%v' to time.Time, got %v", cin, cv)
+		}
+	} else {
+		t.Errorf("failed to convert '%v' to time.Time, got %v", cin, err)
+	}
+	// bad type
+	cin = []string{"1", "2", "3"}
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to time.Time, got %v", cin, cv)
+	} else if !reflect.DeepEqual(cv, time.Time{}) {
+		t.Errorf("didn't return 0 duration on conversion to time.Time, got %v %T", cv, cv)
+	}
+	// bad parse
+	cin = "2017"
+	if cv, err := Convert(cin, ct); err == nil {
+		t.Errorf("converted '%v' to time.Duration, got %v", cin, cv)
+	} else if !reflect.DeepEqual(cv, time.Time{}) {
+		t.Errorf("didn't return 0 duration on conversion to time.Time, got %v %T", cv, cv)
+	}
+}
+
+func assertDuration(t *testing.T, v interface{}, expected time.Duration, comment string) {
+	if result, err := Duration(v); err != nil {
+		t.Errorf("conversion failed for %s with error %v", comment, err)
+	} else {
+		if result != expected {
+			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+		}
+	}
+}
+
+func refuteDuration(t *testing.T, v interface{}, comment string) {
+	result, err := Duration(v)
+	if err == nil {
+		t.Errorf("conversion succeeded for %s , got %v", comment, result)
+	}
+	if result != time.Duration(0) {
+		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+	}
+}
+
+func TestDuration(t *testing.T) {
+	// success cases
+	assertDuration(t, "250ms", time.Duration(250000000), "250ms duration")
+	assertDuration(t, []byte("12ms"), time.Duration(12000000), "250ms duration")
+	// failure cases
+	refuteDuration(t, "", "empty string")
+	refuteDuration(t, "250", "no units string")
+	refuteDuration(t, "foo", "bad format string")
+	refuteDuration(t, []byte{}, "empty bytes")
+	refuteDuration(t, []byte("12"), "no units bytes")
+	refuteDuration(t, []byte("glob"), "bad format bytes")
+	refuteDuration(t, 34, "bad type int")
 }
 
 func assertFloat(t *testing.T, v interface{}, expected float64, comment string) {
@@ -315,8 +406,12 @@ func assertFloat(t *testing.T, v interface{}, expected float64, comment string) 
 }
 
 func refuteFloat(t *testing.T, v interface{}, comment string) {
-	if result, err := Float(v); err == nil {
+	result, err := Float(v)
+	if err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
+	}
+	if result != 0 {
+		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
 	}
 }
 
@@ -364,8 +459,12 @@ func assertInt(t *testing.T, v interface{}, expected int64, comment string) {
 }
 
 func refuteInt(t *testing.T, v interface{}, comment string) {
-	if result, err := Int(v); err == nil {
+	result, err := Int(v)
+	if err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
+	}
+	if result != 0 {
+		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
 	}
 }
 
@@ -418,8 +517,12 @@ func assertSlice(t *testing.T, v interface{}, expected []interface{}, comment st
 }
 
 func refuteSlice(t *testing.T, v interface{}, comment string) {
-	if result, err := Slice(v); err == nil {
+	result, err := Slice(v)
+	if err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
+	}
+	if len(result) != 0 {
+		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
 	}
 }
 
@@ -475,9 +578,14 @@ func assertString(t *testing.T, v interface{}, expected string, comment string) 
 }
 
 func refuteString(t *testing.T, v interface{}, comment string) {
-	if result, err := String(v); err == nil {
+	result, err := String(v)
+	if err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
 	}
+	if result != "" {
+		t.Errorf("failed conversion for %s didn't return empty, got %v", comment, result)
+	}
+
 }
 
 func TestString(t *testing.T) {
@@ -489,7 +597,7 @@ func TestString(t *testing.T) {
 	assertString(t, "42", "42", "string int")
 	assertString(t, "-42", "-42", "string int negative")
 	assertString(t, "42.5", "42.5", "string float")
-	assertString(t, []byte{0x31, 0x32, 0x33, 0x34}, "1234", "byte slice")
+	assertString(t, []byte("1234"), "1234", "byte slice")
 	assertString(t, int(42), "42", "int")
 	assertString(t, int(-42), "-42", "int negative")
 	assertString(t, uint(42), "42", "uint")
@@ -517,6 +625,40 @@ func TestString(t *testing.T) {
 	refuteString(t, []int{42}, "slice")
 }
 
+func assertTime(t *testing.T, v interface{}, expected time.Time, comment string) {
+	if result, err := Time(v); err != nil {
+		t.Errorf("conversion failed for %s with error %v", comment, err)
+	} else {
+		if result != expected {
+			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+		}
+	}
+}
+
+func refuteTime(t *testing.T, v interface{}, comment string) {
+	result, err := Time(v)
+	if err == nil {
+		t.Errorf("conversion succeeded for %s , got %v", comment, result)
+	}
+	if !reflect.DeepEqual(result, time.Time{}) {
+		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+	}
+}
+
+func TestTime(t *testing.T) {
+	// success cases
+	assertTime(t, "2017-03-01T01:02:03Z", time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), "full datetime")
+	assertTime(t, []byte("2017-03-01T01:02:03Z"), time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), "full datetime")
+	// failure cases
+	refuteTime(t, "", "empty string")
+	refuteTime(t, "2017", "year string")
+	refuteTime(t, "2017-03-01", "date string")
+	refuteTime(t, []byte{}, "empty bytes")
+	refuteTime(t, []byte("2017"), "year bytes")
+	refuteTime(t, []byte("2017-03-01"), "date bytes")
+	refuteTime(t, 34, "bad type int")
+}
+
 func assertUint(t *testing.T, val interface{}, expected uint64, comment string) {
 	if result, err := Uint(val); err != nil {
 		t.Errorf("conversion failed for %s with error %v", comment, err)
@@ -528,8 +670,12 @@ func assertUint(t *testing.T, val interface{}, expected uint64, comment string) 
 }
 
 func refuteUint(t *testing.T, val interface{}, comment string) {
-	if result, err := Uint(val); err == nil {
+	result, err := Uint(val)
+	if err == nil {
 		t.Errorf("conversion succeeded for %s , got %v", comment, result)
+	}
+	if result != 0 {
+		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
 	}
 }
 

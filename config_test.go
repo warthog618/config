@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 type mapReader struct {
@@ -23,8 +24,8 @@ func (mr *mapReader) Contains(key string) bool {
 }
 
 func (mr *mapReader) Read(key string) (interface{}, bool) {
-	val, ok := mr.config[key]
-	return val, ok
+	v, ok := mr.config[key]
+	return v, ok
 }
 
 func TestNew(t *testing.T) {
@@ -42,18 +43,18 @@ func TestAddAlias(t *testing.T) {
 	// alias maps newKey (requested) -> oldKey (in config)
 	mr.config["oldthing"] = "an old config string"
 	cfg.AddAlias("newthing", "oldthing")
-	if val, err := cfg.Get("oldthing"); err != nil {
+	if v, err := cfg.Get("oldthing"); err != nil {
 		t.Errorf("couldn't get oldthing - err '%v'", err)
-	} else if oldthing, ok := val.(string); ok {
+	} else if oldthing, ok := v.(string); ok {
 		if oldthing != mr.config["oldthing"] {
 			t.Errorf("oldthing mismatch - expected '%v' but got '%v'", mr.config["oldthing"], oldthing)
 		}
 	} else {
 		t.Errorf("oldthing is not a string")
 	}
-	if val, err := cfg.Get("newthing"); err != nil {
+	if v, err := cfg.Get("newthing"); err != nil {
 		t.Errorf("couldn't get newthing - err '%v'", err)
-	} else if newthing, ok := val.(string); ok {
+	} else if newthing, ok := v.(string); ok {
 		if newthing != mr.config["oldthing"] {
 			t.Errorf("newthing mismatch - expected '%v' but got '%v'", mr.config["oldthing"], newthing)
 		}
@@ -62,18 +63,18 @@ func TestAddAlias(t *testing.T) {
 	}
 	// alias ignored if newKey exists
 	mr.config["newthing"] = "a new config string"
-	if val, err := cfg.Get("oldthing"); err != nil {
+	if v, err := cfg.Get("oldthing"); err != nil {
 		t.Errorf("couldn't get oldthing - err '%v'", err)
-	} else if oldthing, ok := val.(string); ok {
+	} else if oldthing, ok := v.(string); ok {
 		if oldthing != mr.config["oldthing"] {
 			t.Errorf("oldthing mismatch - expected '%v' but got '%v'", mr.config["oldthing"], oldthing)
 		}
 	} else {
 		t.Errorf("oldthing is not a string")
 	}
-	if val, err := cfg.Get("newthing"); err != nil {
+	if v, err := cfg.Get("newthing"); err != nil {
 		t.Errorf("couldn't get newthing - err '%v'", err)
-	} else if newthing, ok := val.(string); ok {
+	} else if newthing, ok := v.(string); ok {
 		if newthing != mr.config["newthing"] {
 			t.Errorf("newthing mismatch - expected '%v' but got '%v'", mr.config["newthing"], newthing)
 		}
@@ -124,9 +125,9 @@ func TestAppendReader(t *testing.T) {
 	cfg.AppendReader(nil) // should be ignored
 	cfg.InsertReader(&mr1)
 	mr1.config["something"] = "a test string"
-	if val, err := cfg.Get("something"); err != nil {
+	if v, err := cfg.Get("something"); err != nil {
 		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := val.(string); ok {
+	} else if something, ok := v.(string); ok {
 		if something != mr1.config["something"] {
 			t.Errorf("something mismatch - expected '%v' but got '%v'", mr1.config["something"], something)
 		}
@@ -138,18 +139,18 @@ func TestAppendReader(t *testing.T) {
 	cfg.AppendReader(&mr2)
 	mr2.config["something"] = "another test string"
 	mr2.config["something else"] = "yet another test string"
-	if val, err := cfg.Get("something"); err != nil {
+	if v, err := cfg.Get("something"); err != nil {
 		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := val.(string); ok {
+	} else if something, ok := v.(string); ok {
 		if something != mr1.config["something"] {
 			t.Errorf("something mismatch - expected '%v' but got '%v'", mr1.config["something"], something)
 		}
 	} else {
 		t.Errorf("something is not a string")
 	}
-	if val, err := cfg.Get("something else"); err != nil {
+	if v, err := cfg.Get("something else"); err != nil {
 		t.Errorf("couldn't get something else - err '%v'", err)
-	} else if something, ok := val.(string); ok {
+	} else if something, ok := v.(string); ok {
 		if something != mr2.config["something else"] {
 			t.Errorf("something else mismatch - expected '%v' but got '%v'", mr2.config["something else"], something)
 		}
@@ -164,9 +165,9 @@ func TestInsertReader(t *testing.T) {
 	cfg.InsertReader(nil) // should be ignored
 	cfg.InsertReader(&mr)
 	mr.config["something"] = "a test string"
-	if val, err := cfg.Get("something"); err != nil {
+	if v, err := cfg.Get("something"); err != nil {
 		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := val.(string); ok {
+	} else if something, ok := v.(string); ok {
 		if something != mr.config["something"] {
 			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
 		}
@@ -177,9 +178,9 @@ func TestInsertReader(t *testing.T) {
 	mr = mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr)
 	mr.config["something"] = "another test string"
-	if val, err := cfg.Get("something"); err != nil {
+	if v, err := cfg.Get("something"); err != nil {
 		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := val.(string); ok {
+	} else if something, ok := v.(string); ok {
 		if something != mr.config["something"] {
 			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
 		}
@@ -201,22 +202,22 @@ func TestSetSeparator(t *testing.T) {
 }
 
 func assertGet(t *testing.T, cfg Config, key string, expected string, comment string) {
-	if val, err := cfg.Get(key); err != nil {
+	if v, err := cfg.Get(key); err != nil {
 		t.Errorf("%s - failed to get '%s'", comment, key)
 	} else {
-		if valstr, ok := val.(string); ok {
-			if valstr != expected {
-				t.Errorf("%s - didn't get '%s' - expected '%s', got '%v'", comment, key, expected, val)
+		if vstr, ok := v.(string); ok {
+			if vstr != expected {
+				t.Errorf("%s - didn't get '%s' - expected '%s', got '%v'", comment, key, expected, v)
 			}
 		} else {
-			t.Errorf("%s - didn't get '%s' - expected '%s', got %v", comment, key, expected, val)
+			t.Errorf("%s - didn't get '%s' - expected '%s', got %v", comment, key, expected, v)
 		}
 	}
 }
 
 func refuteGet(t *testing.T, cfg Config, key string, comment string) {
-	if val, err := cfg.Get(key); err == nil {
-		t.Errorf("%s - succeeded to get '%s' - got '%v'", comment, key, val)
+	if v, err := cfg.Get(key); err == nil {
+		t.Errorf("%s - succeeded to get '%s' - got '%v'", comment, key, v)
 	} else {
 		if nf, ok := err.(NotFoundError); ok {
 			nfstr := nf.Error()
@@ -274,33 +275,60 @@ func TestGetBool(t *testing.T) {
 	mr.config["boolString"] = "true"
 	mr.config["boolInt"] = 1
 	mr.config["notabool"] = "bogus"
-	if val, err := cfg.GetBool("bool"); err != nil {
+	if v, err := cfg.GetBool("bool"); err != nil {
 		t.Errorf("couldn't read bool - %v", err)
-	} else if val != true {
-		t.Errorf("read bool %v, expected true", val)
+	} else if v != true {
+		t.Errorf("read bool %v, expected true", v)
 	}
-	if val, err := cfg.GetBool("boolString"); err != nil {
+	if v, err := cfg.GetBool("boolString"); err != nil {
 		t.Errorf("couldn't read boolString - %v", err)
-	} else if val != true {
-		t.Errorf("read boolString %v, expected true", val)
+	} else if v != true {
+		t.Errorf("read boolString %v, expected true", v)
 	}
-	if val, err := cfg.GetBool("boolInt"); err != nil {
+	if v, err := cfg.GetBool("boolInt"); err != nil {
 		t.Errorf("couldn't read boolInt - %v", err)
-	} else if val != true {
-		t.Errorf("read boolInt %v, expected true", val)
+	} else if v != true {
+		t.Errorf("read boolInt %v, expected true", v)
 	}
-	if val, err := cfg.GetBool("notabool"); err == nil {
-		t.Errorf("could read notabool -%v", val)
+	if v, err := cfg.GetBool("notabool"); err == nil {
+		t.Errorf("could read notabool -%v", v)
 	} else {
-		if val != false {
-			t.Errorf("didn't return false -%v", val)
+		if v != false {
+			t.Errorf("didn't return false -%v", v)
 		}
 	}
-	if val, err := cfg.GetBool("nosuchbool"); err == nil {
-		t.Errorf("could read nosuchbool -%v", val)
+	if v, err := cfg.GetBool("nosuchbool"); err == nil {
+		t.Errorf("could read nosuchbool -%v", v)
 	} else {
-		if val != false {
-			t.Errorf("didn't return false -%v", val)
+		if v != false {
+			t.Errorf("didn't return false -%v", v)
+		}
+	}
+}
+
+func TestGetDuration(t *testing.T) {
+	cfg := New()
+	mr := mapReader{map[string]interface{}{}}
+	cfg.InsertReader(&mr)
+	mr.config["duration"] = "123ms"
+	mr.config["notaduration"] = "bogus"
+	if v, err := cfg.GetDuration("duration"); err != nil {
+		t.Errorf("couldn't read duration - %v", err)
+	} else if v != time.Duration(123000000) {
+		t.Errorf("read duration %v, expected 123ms", v)
+	}
+	if v, err := cfg.GetDuration("notaduration"); err == nil {
+		t.Errorf("could read duration - notaduration -%v", v)
+	} else {
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
+		}
+	}
+	if v, err := cfg.GetDuration("nosuchduration"); err == nil {
+		t.Errorf("could read duration - nosuchduration -%v", v)
+	} else {
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
 }
@@ -313,33 +341,33 @@ func TestGetFloat(t *testing.T) {
 	mr.config["floatString"] = "3.1415"
 	mr.config["floatInt"] = 1
 	mr.config["notafloat"] = "bogus"
-	if val, err := cfg.GetFloat("float"); err != nil {
+	if v, err := cfg.GetFloat("float"); err != nil {
 		t.Errorf("couldn't read float - %v", err)
-	} else if val != 3.1415 {
-		t.Errorf("read float %v, expected 3.1415", val)
+	} else if v != 3.1415 {
+		t.Errorf("read float %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetFloat("floatString"); err != nil {
+	if v, err := cfg.GetFloat("floatString"); err != nil {
 		t.Errorf("couldn't read floatString - %v", err)
-	} else if val != 3.1415 {
-		t.Errorf("read floatString %v, expected 3.1415", val)
+	} else if v != 3.1415 {
+		t.Errorf("read floatString %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetFloat("floatInt"); err != nil {
+	if v, err := cfg.GetFloat("floatInt"); err != nil {
 		t.Errorf("couldn't read floatInt - %v", err)
-	} else if val != 1 {
-		t.Errorf("read floatInt %v, expected 1", val)
+	} else if v != 1 {
+		t.Errorf("read floatInt %v, expected 1", v)
 	}
-	if val, err := cfg.GetFloat("notafloat"); err == nil {
-		t.Errorf("could read float - notafloat -%v", val)
+	if v, err := cfg.GetFloat("notafloat"); err == nil {
+		t.Errorf("could read float - notafloat -%v", v)
 	} else {
-		if val != 0 {
-			t.Errorf("didn't return 0 -%v", val)
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
-	if val, err := cfg.GetFloat("nosuchfloat"); err == nil {
-		t.Errorf("could read float - nosuchfloat -%v", val)
+	if v, err := cfg.GetFloat("nosuchfloat"); err == nil {
+		t.Errorf("could read float - nosuchfloat -%v", v)
 	} else {
-		if val != 0 {
-			t.Errorf("didn't return 0 -%v", val)
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
 }
@@ -351,28 +379,28 @@ func TestGetInt(t *testing.T) {
 	mr.config["int"] = 42
 	mr.config["intString"] = "42"
 	mr.config["notaint"] = "bogus"
-	if val, err := cfg.GetInt("int"); err != nil {
+	if v, err := cfg.GetInt("int"); err != nil {
 		t.Errorf("couldn't read int - %v", err)
-	} else if val != 42 {
-		t.Errorf("read int %v, expected 3.1415", val)
+	} else if v != 42 {
+		t.Errorf("read int %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetInt("intString"); err != nil {
+	if v, err := cfg.GetInt("intString"); err != nil {
 		t.Errorf("couldn't read intString - %v", err)
-	} else if val != 42 {
-		t.Errorf("read intString %v, expected 3.1415", val)
+	} else if v != 42 {
+		t.Errorf("read intString %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetInt("notaint"); err == nil {
-		t.Errorf("could read int - notaint -%v", val)
+	if v, err := cfg.GetInt("notaint"); err == nil {
+		t.Errorf("could read int - notaint -%v", v)
 	} else {
-		if val != 0 {
-			t.Errorf("didn't return 0 -%v", val)
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
-	if val, err := cfg.GetInt("nosuchint"); err == nil {
-		t.Errorf("could read int - nosuchint -%v", val)
+	if v, err := cfg.GetInt("nosuchint"); err == nil {
+		t.Errorf("could read int - nosuchint -%v", v)
 	} else {
-		if val != 0 {
-			t.Errorf("didn't return 0 -%v", val)
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
 }
@@ -384,28 +412,55 @@ func TestGetString(t *testing.T) {
 	mr.config["string"] = "a string"
 	mr.config["stringInt"] = 42
 	mr.config["notastring"] = struct{}{}
-	if val, err := cfg.GetString("string"); err != nil {
+	if v, err := cfg.GetString("string"); err != nil {
 		t.Errorf("couldn't read string - %v", err)
-	} else if val != "a string" {
-		t.Errorf("read string %v, expected 3.1415", val)
+	} else if v != "a string" {
+		t.Errorf("read string %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetString("stringInt"); err != nil {
+	if v, err := cfg.GetString("stringInt"); err != nil {
 		t.Errorf("couldn't read stringInt - %v", err)
-	} else if val != "42" {
-		t.Errorf("read stringInt %v, expected 3.1415", val)
+	} else if v != "42" {
+		t.Errorf("read stringInt %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetString("notastring"); err == nil {
-		t.Errorf("could read string - notastring -%v", val)
+	if v, err := cfg.GetString("notastring"); err == nil {
+		t.Errorf("could read string - notastring -%v", v)
 	} else {
-		if val != "" {
-			t.Errorf("didn't return empty -%v", val)
+		if v != "" {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetString("nosuchstring"); err == nil {
-		t.Errorf("could read string - nosuchstring -%v", val)
+	if v, err := cfg.GetString("nosuchstring"); err == nil {
+		t.Errorf("could read string - nosuchstring -%v", v)
 	} else {
-		if val != "" {
-			t.Errorf("didn't return empty -%v", val)
+		if v != "" {
+			t.Errorf("didn't return empty -%v", v)
+		}
+	}
+}
+
+func TestGetTime(t *testing.T) {
+	cfg := New()
+	mr := mapReader{map[string]interface{}{}}
+	cfg.InsertReader(&mr)
+	mr.config["time"] = "2017-03-01T01:02:03Z"
+	mr.config["notatime"] = "bogus"
+	if v, err := cfg.GetTime("time"); err != nil {
+		t.Errorf("couldn't read time - %v", err)
+	} else if v != time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC) {
+		t.Errorf("read time %v, expected 123ms", v)
+	}
+	if v, err := cfg.GetTime("notatime"); err == nil {
+		t.Errorf("could read time - notatime -%v", v)
+	} else {
+		if !reflect.DeepEqual(v, time.Time{}) {
+			t.Errorf("didn't return 0 -%v", v)
+		}
+	}
+	if v, err := cfg.GetTime("nosuchtime"); err == nil {
+		t.Errorf("could read time - nosuchtime -%v", v)
+	} else {
+		if !reflect.DeepEqual(v, time.Time{}) {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
 }
@@ -417,28 +472,28 @@ func TestGetUint(t *testing.T) {
 	mr.config["uint"] = 42
 	mr.config["uintString"] = "42"
 	mr.config["notaUint"] = "bogus"
-	if val, err := cfg.GetUint("uint"); err != nil {
+	if v, err := cfg.GetUint("uint"); err != nil {
 		t.Errorf("couldn't read uint - %v", err)
-	} else if val != 42 {
-		t.Errorf("read uint %v, expected 3.1415", val)
+	} else if v != 42 {
+		t.Errorf("read uint %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetUint("uintString"); err != nil {
+	if v, err := cfg.GetUint("uintString"); err != nil {
 		t.Errorf("couldn't read uint - %v", err)
-	} else if val != 42 {
-		t.Errorf("read uint %v, expected 3.1415", val)
+	} else if v != 42 {
+		t.Errorf("read uint %v, expected 3.1415", v)
 	}
-	if val, err := cfg.GetUint("notaUint"); err == nil {
-		t.Errorf("could read notaUint -%v", val)
+	if v, err := cfg.GetUint("notaUint"); err == nil {
+		t.Errorf("could read notaUint -%v", v)
 	} else {
-		if val != 0 {
-			t.Errorf("didn't return 0 -%v", val)
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
-	if val, err := cfg.GetUint("nosuchUint"); err == nil {
-		t.Errorf("could read nosuchUint -%v", val)
+	if v, err := cfg.GetUint("nosuchUint"); err == nil {
+		t.Errorf("could read nosuchUint -%v", v)
 	} else {
-		if val != 0 {
-			t.Errorf("didn't return 0 -%v", val)
+		if v != 0 {
+			t.Errorf("didn't return 0 -%v", v)
 		}
 	}
 }
@@ -450,28 +505,28 @@ func TestGetSlice(t *testing.T) {
 	mr.config["slice"] = []interface{}{1, 2, 3, 4}
 	mr.config["casttoslice"] = "bogus"
 	mr.config["notaslice"] = struct{}{}
-	if val, err := cfg.GetSlice("slice"); err != nil {
+	if v, err := cfg.GetSlice("slice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, []interface{}{1, 2, 3, 4}) {
-		t.Errorf("read slice %v, expected %v", val, mr.config["slice"])
+	} else if !reflect.DeepEqual(v, []interface{}{1, 2, 3, 4}) {
+		t.Errorf("read slice %v, expected %v", v, mr.config["slice"])
 	}
-	if val, err := cfg.GetSlice("casttoslice"); err != nil {
+	if v, err := cfg.GetSlice("casttoslice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, []interface{}{"bogus"}) {
-		t.Errorf("read slice %v, expected %v", val, mr.config["casttoslice"])
+	} else if !reflect.DeepEqual(v, []interface{}{"bogus"}) {
+		t.Errorf("read slice %v, expected %v", v, mr.config["casttoslice"])
 	}
-	if val, err := cfg.GetSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", val)
+	if v, err := cfg.GetSlice("notaslice"); err == nil {
+		t.Errorf("could read slice - notaslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", val)
+	if v, err := cfg.GetSlice("nosuchslice"); err == nil {
+		t.Errorf("could read slice - nosuchslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
 }
@@ -484,35 +539,35 @@ func TestGetIntSlice(t *testing.T) {
 	mr.config["casttoslice"] = "42"
 	mr.config["stringslice"] = []string{"one", "two", "three"}
 	mr.config["notaslice"] = "bogus"
-	if val, err := cfg.GetIntSlice("slice"); err != nil {
+	if v, err := cfg.GetIntSlice("slice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, mr.config["slice"]) {
-		t.Errorf("read slice %v, expected %v", val, mr.config["slice"])
+	} else if !reflect.DeepEqual(v, mr.config["slice"]) {
+		t.Errorf("read slice %v, expected %v", v, mr.config["slice"])
 	}
-	if val, err := cfg.GetIntSlice("casttoslice"); err != nil {
+	if v, err := cfg.GetIntSlice("casttoslice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, []int64{42}) {
-		t.Errorf("read slice %v, expected %v", val, []int64{42})
+	} else if !reflect.DeepEqual(v, []int64{42}) {
+		t.Errorf("read slice %v, expected %v", v, []int64{42})
 	}
-	if val, err := cfg.GetIntSlice("stringslice"); err == nil {
-		t.Errorf("could read slice - stringslice -%v", val)
+	if v, err := cfg.GetIntSlice("stringslice"); err == nil {
+		t.Errorf("could read slice - stringslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetIntSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", val)
+	if v, err := cfg.GetIntSlice("notaslice"); err == nil {
+		t.Errorf("could read slice - notaslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetIntSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", val)
+	if v, err := cfg.GetIntSlice("nosuchslice"); err == nil {
+		t.Errorf("could read slice - nosuchslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
 }
@@ -530,45 +585,45 @@ func TestGetStringSlice(t *testing.T) {
 	expectedIntSlice := []string{"1", "2", "-3", "4"}
 	expectedUintSlice := []string{"1", "2", "3", "4"}
 	expectedCastToSlice := []string{"bogus"}
-	if val, err := cfg.GetStringSlice("stringslice"); err != nil {
+	if v, err := cfg.GetStringSlice("stringslice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, mr.config["stringslice"]) {
-		t.Errorf("read slice %v, expected %v", val, mr.config["stringslice"])
+	} else if !reflect.DeepEqual(v, mr.config["stringslice"]) {
+		t.Errorf("read slice %v, expected %v", v, mr.config["stringslice"])
 	}
-	if val, err := cfg.GetStringSlice("casttoslice"); err != nil {
+	if v, err := cfg.GetStringSlice("casttoslice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, expectedCastToSlice) {
-		t.Errorf("read slice %v, expected %v", val, expectedCastToSlice)
+	} else if !reflect.DeepEqual(v, expectedCastToSlice) {
+		t.Errorf("read slice %v, expected %v", v, expectedCastToSlice)
 	}
-	if val, err := cfg.GetStringSlice("intslice"); err != nil {
-		t.Errorf("couldn't read slice - intslice -%v", val)
-	} else if !reflect.DeepEqual(val, expectedIntSlice) {
-		t.Errorf("read slice %v, expected %v", val, expectedIntSlice)
+	if v, err := cfg.GetStringSlice("intslice"); err != nil {
+		t.Errorf("couldn't read slice - intslice -%v", v)
+	} else if !reflect.DeepEqual(v, expectedIntSlice) {
+		t.Errorf("read slice %v, expected %v", v, expectedIntSlice)
 	}
-	if val, err := cfg.GetStringSlice("uintslice"); err != nil {
-		t.Errorf("couldn't read slice - uintslice -%v", val)
-	} else if !reflect.DeepEqual(val, expectedUintSlice) {
-		t.Errorf("read slice %v, expected %v", val, expectedUintSlice)
+	if v, err := cfg.GetStringSlice("uintslice"); err != nil {
+		t.Errorf("couldn't read slice - uintslice -%v", v)
+	} else if !reflect.DeepEqual(v, expectedUintSlice) {
+		t.Errorf("read slice %v, expected %v", v, expectedUintSlice)
 	}
-	if val, err := cfg.GetStringSlice("notastringslice"); err == nil {
-		t.Errorf("could read slice - notastringslice -%v", val)
+	if v, err := cfg.GetStringSlice("notastringslice"); err == nil {
+		t.Errorf("could read slice - notastringslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetStringSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", val)
+	if v, err := cfg.GetStringSlice("notaslice"); err == nil {
+		t.Errorf("could read slice - notaslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetStringSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", val)
+	if v, err := cfg.GetStringSlice("nosuchslice"); err == nil {
+		t.Errorf("could read slice - nosuchslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
 }
@@ -582,42 +637,42 @@ func TestGetUintSlice(t *testing.T) {
 	mr.config["intslice"] = []int64{1, 2, -3, 4}
 	mr.config["stringslice"] = []string{"one", "two", "three"}
 	mr.config["notaslice"] = "bogus"
-	if val, err := cfg.GetUintSlice("slice"); err != nil {
+	if v, err := cfg.GetUintSlice("slice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, mr.config["slice"]) {
-		t.Errorf("read slice %v, expected %v", val, mr.config["slice"])
+	} else if !reflect.DeepEqual(v, mr.config["slice"]) {
+		t.Errorf("read slice %v, expected %v", v, mr.config["slice"])
 	}
-	if val, err := cfg.GetUintSlice("casttoslice"); err != nil {
+	if v, err := cfg.GetUintSlice("casttoslice"); err != nil {
 		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(val, []uint64{42}) {
-		t.Errorf("read slice %v, expected %v", val, []uint64{42})
+	} else if !reflect.DeepEqual(v, []uint64{42}) {
+		t.Errorf("read slice %v, expected %v", v, []uint64{42})
 	}
-	if val, err := cfg.GetUintSlice("intslice"); err == nil {
-		t.Errorf("could read slice - intslice -%v", val)
+	if v, err := cfg.GetUintSlice("intslice"); err == nil {
+		t.Errorf("could read slice - intslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetUintSlice("stringslice"); err == nil {
-		t.Errorf("could read slice - stringslice -%v", val)
+	if v, err := cfg.GetUintSlice("stringslice"); err == nil {
+		t.Errorf("could read slice - stringslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetUintSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", val)
+	if v, err := cfg.GetUintSlice("notaslice"); err == nil {
+		t.Errorf("could read slice - notaslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
-	if val, err := cfg.GetUintSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", val)
+	if v, err := cfg.GetUintSlice("nosuchslice"); err == nil {
+		t.Errorf("could read slice - nosuchslice -%v", v)
 	} else {
-		if len(val) != 0 {
-			t.Errorf("didn't return empty -%v", val)
+		if len(v) != 0 {
+			t.Errorf("didn't return empty -%v", v)
 		}
 	}
 }
@@ -841,8 +896,8 @@ func TestUnmarshalToMap(t *testing.T) {
 		if !reflect.DeepEqual(obj["c"], mr.config["foo.c"]) {
 			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], obj["c"])
 		}
-		if val, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", val)
+		if v, ok := obj["d"]; ok {
+			t.Errorf("unmarshalled unrequested 'd', got %v", v)
 		}
 		if obj["e"] != nil {
 			t.Errorf("unmarshalled unconfigured 'e', expected %v, got %v", nil, obj["e"])
@@ -862,8 +917,8 @@ func TestUnmarshalToMap(t *testing.T) {
 		if !reflect.DeepEqual(obj["c"], mr.config["foo.c"]) {
 			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], obj["c"])
 		}
-		if val, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", val)
+		if v, ok := obj["d"]; ok {
+			t.Errorf("unmarshalled unrequested 'd', got %v", v)
 		}
 		if obj["e"] != "some useful default" {
 			t.Errorf("unmarshalled unconfigured 'e', expected %v, got %v", "some useful default", obj["e"])
@@ -906,8 +961,8 @@ func TestUnmarshalToMap(t *testing.T) {
 		if !reflect.DeepEqual(n1["c"], mr.config["foo.nested.c"]) {
 			t.Errorf("failed to unmarshal 'foo.nested.c', expected %v, got %v", mr.config["foo.c"], n1["c"])
 		}
-		if val, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", val)
+		if v, ok := obj["d"]; ok {
+			t.Errorf("unmarshalled unrequested 'd', got %v", v)
 		}
 	} else {
 		t.Errorf("failed to unmarshal foo")
@@ -935,8 +990,8 @@ func TestUnmarshalToMap(t *testing.T) {
 		if !reflect.DeepEqual(n1["c"], mr.config["foo.nested.c"]) {
 			t.Errorf("failed to unmarshal 'foo.nested.c', expected %v, got %v", mr.config["foo.c"], n1["c"])
 		}
-		if val, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", val)
+		if v, ok := obj["d"]; ok {
+			t.Errorf("unmarshalled unrequested 'd', got %v", v)
 		}
 	} else {
 		t.Errorf("failed to unmarshal foo")
