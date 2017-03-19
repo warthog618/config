@@ -44,11 +44,10 @@ type Reader struct {
 // Read returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Reader) Read(key string) (interface{}, bool) {
-	v, ok := r.config[key]
-	if ok && len(r.listSeparator) > 0 && strings.Contains(v, r.listSeparator) {
-		return strings.Split(v, r.listSeparator), ok
-	}
-	if ok {
+	if v, ok := r.config[key]; ok {
+		if len(r.listSeparator) > 0 && strings.Contains(v, r.listSeparator) {
+			return strings.Split(v, r.listSeparator), ok
+		}
 		return v, ok
 	}
 	return nil, false

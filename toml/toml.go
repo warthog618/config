@@ -8,7 +8,7 @@ package toml
 
 import "github.com/pelletier/go-toml"
 
-// Reader provides the mapping from JSON to a config.Reader.
+// Reader provides the mapping from TOML to a config.Reader.
 type Reader struct {
 	config *toml.TomlTree
 }
@@ -35,7 +35,7 @@ func NewBytes(cfg []byte) (*Reader, error) {
 	return &Reader{config}, nil
 }
 
-// NewFile returns a JSON reader that reads config from a named file.
+// NewFile returns a TOML reader that reads config from a named file.
 func NewFile(filename string) (*Reader, error) {
 	config, err := toml.LoadFile(filename)
 	if err != nil {

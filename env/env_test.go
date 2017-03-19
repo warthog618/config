@@ -148,7 +148,7 @@ func TestReaderSetCfgKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestReaderListSeparator(t *testing.T) {
+func TestReaderSetListSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	os.Setenv(prefix+"SLICE", "a:#b")
