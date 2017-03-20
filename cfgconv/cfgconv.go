@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -306,6 +307,13 @@ func String(v interface{}) (string, error) {
 		return string(vt), nil
 	case int, uint, int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64, bool:
 		return fmt.Sprintf("%v", v), nil
+	case []string:
+		// this case undoes accidental conversion of a string into a slice
+		// by a reader as the string contains a list separator character.
+		// Of course for the env reader the separator is ":", so in its case
+		// the resulting string will be wrong - with ":" replaced with ",".
+		// But it does fix the readers that use ",", such as flag and properties.
+		return strings.Join(vt, ","), nil
 	case nil:
 		return "", nil
 	}

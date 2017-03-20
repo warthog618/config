@@ -620,6 +620,7 @@ func TestString(t *testing.T) {
 	assertString(t, float32(42), "42", "float32")
 	assertString(t, float32(-42), "-42", "float32 negative")
 	assertString(t, float32(42.6), "42.6", "float32")
+	assertString(t, []string{"a", "b"}, "a,b", "string slice")
 	assertString(t, nil, "", "nil")
 	// failure cases
 	refuteString(t, []int{42}, "slice")
