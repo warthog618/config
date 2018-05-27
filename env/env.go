@@ -13,7 +13,7 @@ import (
 	"github.com/warthog618/config/keys"
 )
 
-// New creates an enviroment variable reader.
+// New creates an environment variable reader.
 //
 // The prefix determines the set of environment variables of interest to this reader.
 // Environment variables beginning with the prefix are loaded into the config.

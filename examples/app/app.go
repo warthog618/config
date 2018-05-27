@@ -66,32 +66,34 @@ func loadConfig() config.Config {
 		'c': "config-file",
 		'u': "unmarshal",
 	}
-	if reader, err := flag.New([]string(nil), shortFlags); err != nil {
+	reader, err := flag.New([]string(nil), shortFlags)
+	if err != nil {
 		panic(err)
-	} else {
-		cfg.AppendReader(reader)
 	}
+	cfg.AppendReader(reader)
 
 	// environment next
-	if reader, err := env.New("APP_"); err != nil {
+	ereader, err := env.New("APP_")
+	if err != nil {
 		panic(err)
-	} else {
-		cfg.AppendReader(reader)
 	}
+	cfg.AppendReader(ereader)
 
 	// config file may be specified via flag or env, so check for it
 	// and if present add it with lower priority than flag and env.
-	if configFile, err := cfg.GetString("config.file"); err == nil {
+	configFile, err := cfg.GetString("config.file")
+	if err == nil {
 		// explicitly specified config file - must be there
-		if reader, err := json.NewFile(configFile); err != nil {
+		jreader, err := json.NewFile(configFile)
+		if err != nil {
 			panic(err)
-		} else {
-			cfg.AppendReader(reader)
 		}
+		cfg.AppendReader(jreader)
 	} else {
 		// implicit and optional default config file
-		if reader, err := json.NewFile("app.json"); err == nil {
-			cfg.AppendReader(reader)
+		jreader, err := json.NewFile("app.json")
+		if err == nil {
+			cfg.AppendReader(jreader)
 		} else {
 			if _, ok := err.(*os.PathError); !ok {
 				panic(err)
@@ -100,11 +102,11 @@ func loadConfig() config.Config {
 	}
 	// finally add the defaults which have lowest priority and are only
 	// used if none of the other sources find a field.
-	if reader, err := json.NewBytes(defaultConfig); err != nil {
+	jreader, err := json.NewBytes(defaultConfig)
+	if err != nil {
 		panic(err)
-	} else {
-		cfg.AppendReader(reader)
 	}
+	cfg.AppendReader(jreader)
 	return cfg
 }
 

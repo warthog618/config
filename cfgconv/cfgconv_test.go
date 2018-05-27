@@ -3,526 +3,278 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-package cfgconv
+package cfgconv_test
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
-	"strings"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/warthog618/config/cfgconv"
 )
 
-func assertBool(t *testing.T, v interface{}, expected bool, comment string) {
-	if result, err := Bool(v); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if result != expected {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
-		}
-	}
-}
-
-func refuteBool(t *testing.T, v interface{}, comment string) {
-	result, err := Bool(v)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if result != false {
-		t.Errorf("failed conversion for %s didn't return false, got %v", comment, result)
-	}
-}
-
 func TestBool(t *testing.T) {
-	// success cases
-	assertBool(t, false, false, "bool false")
-	assertBool(t, true, true, "bool true")
-	assertBool(t, "false", false, "string false")
-	assertBool(t, "true", true, "string true")
-	assertBool(t, nil, false, "nil")
-	assertBool(t, "0", false, "string 0")
-	assertBool(t, "1", true, "string 1")
-	assertBool(t, int(0), false, "int 0")
-	assertBool(t, int(1), true, "int 1")
-	assertBool(t, int(42), true, "int positive")
-	assertBool(t, int(-42), true, "int negative")
-	assertBool(t, uint(0), false, "uint 0")
-	assertBool(t, uint(1), true, "uint 1")
-	assertBool(t, uint(42), true, "uint positive")
-	assertBool(t, int8(0), false, "int8 0")
-	assertBool(t, int8(1), true, "int8 1")
-	assertBool(t, uint8(0), false, "uint8 0")
-	assertBool(t, uint8(1), true, "uint8 1")
-	assertBool(t, int16(0), false, "int16 0")
-	assertBool(t, int16(1), true, "int16 1")
-	assertBool(t, uint16(0), false, "uint16 0")
-	assertBool(t, uint16(1), true, "uint16 1")
-	assertBool(t, int32(0), false, "int32 0")
-	assertBool(t, int32(1), true, "int32 1")
-	assertBool(t, uint32(0), false, "uint32 0")
-	assertBool(t, uint32(1), true, "uint32 1")
-	assertBool(t, int64(0), false, "int64 0")
-	assertBool(t, int64(1), true, "int64 1")
-	assertBool(t, uint64(0), false, "uint64 0")
-	assertBool(t, uint64(1), true, "uint64 1")
-	// failure cases
-	refuteBool(t, float64(0), "float64 0")
-	refuteBool(t, float64(1), "float64 1")
-	refuteBool(t, float32(0), "float32 0")
-	refuteBool(t, float32(1), "float32 1")
-	refuteBool(t, "junk", "string junk")
-	refuteBool(t, "", "empty string")
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    bool
+		err  error
+	}{
+		{"bool false", false, false, nil},
+		{"bool true", true, true, nil},
+		{"empty string", "", false, &strconv.NumError{}},
+		{"float32 0", float32(0), false, cfgconv.TypeError{}},
+		{"float32 1", float32(1), false, cfgconv.TypeError{}},
+		{"float64 0", float64(0), false, cfgconv.TypeError{}},
+		{"float64 1", float64(1), false, cfgconv.TypeError{}},
+		{"int 0", int(0), false, nil},
+		{"int 1", int(1), true, nil},
+		{"int negative", int(-42), true, nil},
+		{"int positive", int(42), true, nil},
+		{"int16 0", int16(0), false, nil},
+		{"int16 1", int16(1), true, nil},
+		{"int32 0", int32(0), false, nil},
+		{"int32 1", int32(1), true, nil},
+		{"int64 0", int64(0), false, nil},
+		{"int64 1", int64(1), true, nil},
+		{"int8 0", int8(0), false, nil},
+		{"int8 1", int8(1), true, nil},
+		{"nil", nil, false, nil},
+		{"string 0", "0", false, nil},
+		{"string 1", "1", true, nil},
+		{"string false", "false", false, nil},
+		{"string junk", "junk", false, &strconv.NumError{}},
+		{"string true", "true", true, nil},
+		{"uint 0", uint(0), false, nil},
+		{"uint 1", uint(1), true, nil},
+		{"uint positive", uint(42), true, nil},
+		{"uint16 0", uint16(0), false, nil},
+		{"uint16 1", uint16(1), true, nil},
+		{"uint32 0", uint32(0), false, nil},
+		{"uint32 1", uint32(1), true, nil},
+		{"uint64 0", uint64(0), false, nil},
+		{"uint64 1", uint64(1), true, nil},
+		{"uint8 0", uint8(0), false, nil},
+		{"uint8 1", uint8(1), true, nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Bool(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
 }
 
 func TestConvert(t *testing.T) {
-
-	// int
-	// good
-	ct := reflect.TypeOf(0)
-	var cin interface{}
-	cin = "42"
-	if cv, err := Convert(cin, ct); err == nil {
-		if cv != 42 {
-			t.Errorf("failed to convert '%v' to int, got %v", cin, cv)
+	patterns := []struct {
+		name string
+		t    interface{}
+		in   interface{}
+		v    interface{}
+		err  error
+	}{
+		{"bool bad type", true, []int{}, false, cfgconv.TypeError{}},
+		{"bool good", true, 42, true, nil},
+		{"bool parse error", true, "glob", false, &strconv.NumError{}},
+		{"duration bad type", time.Duration(0), []string{"1", "2", "3"}, time.Duration(0), cfgconv.TypeError{}},
+		{"duration good", time.Duration(0), "250ms", time.Duration(250000000), nil},
+		{"duration parse error", time.Duration(0), "glob", time.Duration(0), errors.New("")},
+		{"float32 bad", float32(0), []int{}, float32(0), cfgconv.TypeError{}},
+		{"float32 good", float32(0), "42", float32(42), nil},
+		{"float32 overflow", float32(0), float64(340282356779733642748073463979561713664), float32(0), cfgconv.OverflowError{}},
+		{"float32 parse error", float32(0), "glob", float32(0), &strconv.NumError{}},
+		{"float64 bad", float64(0), []int{}, float64(0), cfgconv.TypeError{}},
+		{"float64 good", float64(0), "42", float64(42), nil},
+		{"float64 parse error", float64(0), "glob", float64(0), &strconv.NumError{}},
+		{"int bad", 0, []int{}, 0, cfgconv.TypeError{}},
+		{"int good", 0, "42", 42, nil},
+		{"int overflow", 0, "123456789123456789123456789", 0, &strconv.NumError{}},
+		{"int parse error", 0, "glob", 0, &strconv.NumError{}},
+		{"int16 bad", int16(0), []int{}, int16(0), cfgconv.TypeError{}},
+		{"int16 good", int16(0), "42", int16(42), nil},
+		{"int16 overflow", int16(0), 32768, int16(0), cfgconv.OverflowError{}},
+		{"int16 parse error", int16(0), "glob", int16(0), &strconv.NumError{}},
+		{"int32 bad", int32(0), []int{}, int32(0), cfgconv.TypeError{}},
+		{"int32 good", int32(0), "42", int32(42), nil},
+		{"int32 overflow", int32(0), 2147483648, int32(0), cfgconv.OverflowError{}},
+		{"int32 parse error", int32(0), "glob", int32(0), &strconv.NumError{}},
+		{"int64 bad", int64(0), []int{}, int64(0), cfgconv.TypeError{}},
+		{"int64 good", int64(0), "42", int64(42), nil},
+		{"int64 overflow", int64(0), "123456789123456789123456789", int64(0), &strconv.NumError{}},
+		{"int64 parse error", int64(0), "glob", int64(0), &strconv.NumError{}},
+		{"int8 bad", int8(0), []int{}, int8(0), cfgconv.TypeError{}},
+		{"int8 good", int8(0), "42", int8(42), nil},
+		{"int8 overflow", int8(0), 137, int8(0), cfgconv.OverflowError{}},
+		{"int8 parse error", int8(0), "glob", int8(0), &strconv.NumError{}},
+		{"slice bad type", []int{}, 42, []int(nil), cfgconv.TypeError{}},
+		{"slice parse error string", []int{}, "glob", []int(nil), &strconv.NumError{}},
+		{"slice parse error", []int{}, []string{"1", "2", "3", "glob"}, []int(nil), &strconv.NumError{}},
+		{"slice slice", []int{}, []string{"1", "2", "3"}, []int{1, 2, 3}, nil},
+		{"slice string", []int{}, "42", []int{42}, nil},
+		{"string bad", "", []int{}, "", cfgconv.TypeError{}},
+		{"string good", "", 42, "42", nil},
+		{"time bad type", time.Time{}, []string{"1", "2", "3"}, time.Time{}, cfgconv.TypeError{}},
+		{"time good", time.Time{}, "2017-03-01T01:02:03Z", time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), nil},
+		{"time parse error", time.Time{}, "2017", time.Time{}, &time.ParseError{}},
+		{"uint bad", uint(0), []int{}, uint(0), cfgconv.TypeError{}},
+		{"uint good", uint(0), "42", uint(42), nil},
+		{"uint negative", uint(0), -1, uint(0), cfgconv.TypeError{}},
+		{"uint overflow", uint(0), "123456789123456789123456789", uint(0), &strconv.NumError{}},
+		{"uint parse error", uint(0), "glob", uint(0), &strconv.NumError{}},
+		{"uint16 bad", uint16(0), []int{}, uint16(0), cfgconv.TypeError{}},
+		{"uint16 good", uint16(0), "42", uint16(42), nil},
+		{"uint16 overflow", uint16(0), 65537, uint16(0), cfgconv.OverflowError{}},
+		{"uint16 parse error", uint16(0), "glob", uint16(0), &strconv.NumError{}},
+		{"uint32 bad", uint32(0), []int{}, uint32(0), cfgconv.TypeError{}},
+		{"uint32 good", uint32(0), "42", uint32(42), nil},
+		{"uint32 overflow", uint32(0), 4294967296, uint32(0), cfgconv.OverflowError{}},
+		{"uint32 parse error", uint32(0), "glob", uint32(0), &strconv.NumError{}},
+		{"uint64 bad", uint64(0), []int{}, uint64(0), cfgconv.TypeError{}},
+		{"uint64 good", uint64(0), "42", uint64(42), nil},
+		{"uint64 overflow", uint64(0), "123456789123456789123456789", uint64(0), &strconv.NumError{}},
+		{"uint64 parse error", uint64(0), "glob", uint64(0), &strconv.NumError{}},
+		{"uint8 bad", uint8(0), []int{}, uint8(0), cfgconv.TypeError{}},
+		{"uint8 good", uint8(0), "42", uint8(42), nil},
+		{"uint8 overflow", uint8(0), 257, uint8(0), cfgconv.OverflowError{}},
+		{"uint8 parse error", uint8(0), "glob", uint8(0), &strconv.NumError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Convert(p.in, reflect.TypeOf(p.t))
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
 		}
-	} else {
-		t.Errorf("failed to convert '%v' to int, got %v", cin, err)
-	}
-	// bad type
-	cin = []int{}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to int, got %v", cin, cv)
-	} else {
-		if !strings.Contains(err.Error(), "to int") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != 0 {
-			t.Errorf("didn't return zero on conversion to int, got %v", cv)
-		}
-	}
-	// bad parse
-	cin = "glob"
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to int, got %v", cin, cv)
-	} else if cv != 0 {
-		t.Errorf("didn't return zero on conversion to int, got %v", cv)
-	}
-	// overflow
-	ct = reflect.TypeOf(int8(0))
-	cin = 257
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to int, got %v", cin, cv)
-	} else {
-		if _, ok := err.(OverflowError); !ok {
-			t.Errorf("didn't return overflow error, got %v", err)
-		} else if !strings.Contains(err.Error(), "to int") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != int8(0) {
-			t.Errorf("didn't return zero on overflow to int, got %v", cv)
-		}
-	}
-
-	// uint
-	// good
-	ct = reflect.TypeOf(uint(0))
-	cin = "42"
-	if cv, err := Convert(cin, ct); err == nil {
-		if cv != uint(42) {
-			t.Errorf("failed to convert '%v' to uint, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to uint, got %v", cin, err)
-	}
-	// bad type
-	cin = []int{}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to uint, got %v", []int{}, cv)
-	} else {
-		if !strings.Contains(err.Error(), "to uint") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != uint(0) {
-			t.Errorf("didn't return zero on conversion to uint, got %v", cv)
-		}
-	}
-	// bad parse
-	cin = "glob"
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to uint, got %v", cin, cv)
-	} else if cv != uint(0) {
-		t.Errorf("didn't return zero on conversion to uint, got %v", cv)
-	}
-	// overflow
-	ct = reflect.TypeOf(uint8(0))
-	cin = 257
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to uint, got %v", cin, cv)
-	} else {
-		if _, ok := err.(OverflowError); !ok {
-			t.Errorf("didn't return overflow error, got %v", err)
-		} else if !strings.Contains(err.Error(), "to uint") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != uint8(0) {
-			t.Errorf("didn't return zero on overflow to uint, got %v", cv)
-		}
-	}
-
-	// float
-	// good
-	ct = reflect.TypeOf(float32(0))
-	cin = "42"
-	if cv, err := Convert(cin, ct); err == nil {
-		if cv != float32(42) {
-			t.Errorf("failed to convert '%v' to float, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to float, got %v", cin, err)
-	}
-	// bad type
-	cin = []int{}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to float, got %v", []int{}, cv)
-	} else {
-		if !strings.Contains(err.Error(), "to float") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != float32(0) {
-			t.Errorf("didn't return zero on conversion to float, got %v", cv)
-		}
-	}
-	// bad parse
-	cin = "glob"
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to float, got %v", cin, cv)
-	} else if cv != float32(0) {
-		t.Errorf("didn't return zero on conversion to float, got %v", cv)
-	}
-	// overflow
-	cin = float64(340282356779733642748073463979561713664)
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to float, got %v", cin, cv)
-	} else {
-		if _, ok := err.(OverflowError); !ok {
-			t.Errorf("didn't return overflow error, got %v", err)
-		} else if !strings.Contains(err.Error(), "to float32") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != float32(0) {
-			t.Errorf("didn't return zero on overflow to float, got %v", cv)
-		}
-	}
-
-	// string
-	// good
-	ct = reflect.TypeOf("")
-	cin = 42
-	if cv, err := Convert(cin, ct); err == nil {
-		if cv != "42" {
-			t.Errorf("failed to convert '%v' to string, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to string, got %v", cin, err)
-	}
-	// bad type
-	cin = []int{}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to string, got %v", []int{}, cv)
-	} else {
-		if !strings.Contains(err.Error(), "to string") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != "" {
-			t.Errorf("didn't return empty string on conversion to string, got %v", cv)
-		}
-	}
-
-	// bool
-	// good
-	ct = reflect.TypeOf(true)
-	cin = 42
-	if cv, err := Convert(cin, ct); err == nil {
-		if cv != true {
-			t.Errorf("failed to convert '%v' to bool, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to bool, got %v", cin, err)
-	}
-	// bad type
-	cin = []int{}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to bool, got %v", []int{}, cv)
-	} else {
-		if !strings.Contains(err.Error(), "to bool") {
-			t.Errorf("overflow error doesn't indicate target type")
-		}
-		if cv != false {
-			t.Errorf("didn't return false on conversion to bool, got %v", cv)
-		}
-	}
-	// bad parse
-	cin = "glob"
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to bool, got %v", cin, cv)
-	} else if cv != false {
-		t.Errorf("didn't return false on conversion to bool, got %v", cv)
-	}
-
-	// slice
-	// good
-	ct = reflect.TypeOf([]int{})
-	cin = []string{"1", "2", "3"}
-	if cv, err := Convert(cin, ct); err == nil {
-		if !reflect.DeepEqual(cv, []int{1, 2, 3}) {
-			t.Errorf("failed to convert '%v' to slice, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to slice, got %v", cin, err)
-	}
-	cin = "42"
-	if cv, err := Convert(cin, ct); err == nil {
-		if !reflect.DeepEqual(cv, []int{42}) {
-			t.Errorf("failed to convert '%v' to slice, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to slice, got %v", cin, err)
-	}
-	// bad type
-	cin = 3
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to slice, got %v", []int{}, cv)
-	} else if !reflect.DeepEqual(cv, []int(nil)) {
-		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
-	}
-	// bad parse
-	cin = []string{"1", "2", "3", "glob"}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to slice, got %v", cin, cv)
-	} else if !reflect.DeepEqual(cv, []int(nil)) {
-		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
-	}
-	cin = "glob"
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to slice, got %v", cin, cv)
-	} else if !reflect.DeepEqual(cv, []int(nil)) {
-		t.Errorf("didn't return nil slice on conversion to slice, got %v %T", cv, cv)
-	}
-
-	// time.Duration
-	// good
-	ct = reflect.TypeOf(time.Duration(0))
-	cin = "250ms"
-	if cv, err := Convert(cin, ct); err == nil {
-		if cv != time.Duration(250000000) {
-			t.Errorf("failed to convert '%v' to time.Duration, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to time.Duration, got %v", cin, err)
-	}
-	// bad type
-	cin = []string{"1", "2", "3"}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to time.Duration, got %v", cin, cv)
-	} else if cv != time.Duration(0) {
-		t.Errorf("didn't return 0 duration on conversion to time.Duration, got %v %T", cv, cv)
-	}
-	// bad parse
-	cin = "glob"
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to time.Duration, got %v", cin, cv)
-	} else if cv != time.Duration(0) {
-		t.Errorf("didn't return 0 duration on conversion to time.Duration, got %v %T", cv, cv)
-	}
-
-	// time.Time
-	// good
-	ct = reflect.TypeOf(time.Time{})
-	cin = "2017-03-01T01:02:03Z"
-	if cv, err := Convert(cin, ct); err == nil {
-		if cv != time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC) {
-			t.Errorf("failed to convert '%v' to time.Time, got %v", cin, cv)
-		}
-	} else {
-		t.Errorf("failed to convert '%v' to time.Time, got %v", cin, err)
-	}
-	// bad type
-	cin = []string{"1", "2", "3"}
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to time.Time, got %v", cin, cv)
-	} else if !reflect.DeepEqual(cv, time.Time{}) {
-		t.Errorf("didn't return 0 duration on conversion to time.Time, got %v %T", cv, cv)
-	}
-	// bad parse
-	cin = "2017"
-	if cv, err := Convert(cin, ct); err == nil {
-		t.Errorf("converted '%v' to time.Duration, got %v", cin, cv)
-	} else if !reflect.DeepEqual(cv, time.Time{}) {
-		t.Errorf("didn't return 0 duration on conversion to time.Time, got %v %T", cv, cv)
-	}
-}
-
-func assertDuration(t *testing.T, v interface{}, expected time.Duration, comment string) {
-	if result, err := Duration(v); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if result != expected {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
-		}
-	}
-}
-
-func refuteDuration(t *testing.T, v interface{}, comment string) {
-	result, err := Duration(v)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if result != time.Duration(0) {
-		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+		t.Run(p.name, f)
 	}
 }
 
 func TestDuration(t *testing.T) {
-	// success cases
-	assertDuration(t, "250ms", time.Duration(250000000), "250ms duration")
-	assertDuration(t, []byte("12ms"), time.Duration(12000000), "250ms duration")
-	// failure cases
-	refuteDuration(t, "", "empty string")
-	refuteDuration(t, "250", "no units string")
-	refuteDuration(t, "foo", "bad format string")
-	refuteDuration(t, []byte{}, "empty bytes")
-	refuteDuration(t, []byte("12"), "no units bytes")
-	refuteDuration(t, []byte("glob"), "bad format bytes")
-	refuteDuration(t, 34, "bad type int")
-}
-
-func assertFloat(t *testing.T, v interface{}, expected float64, comment string) {
-	if result, err := Float(v); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if result != expected {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    time.Duration
+		err  error
+	}{
+		{"12ms bytes", []byte("12ms"), time.Duration(12000000), nil},
+		{"250 no units", "250", 0, errors.New("")},
+		{"250ms string", "250ms", time.Duration(250000000), nil},
+		{"bad format bytes", []byte("glob"), 0, errors.New("")},
+		{"bad format string", "foo", 0, errors.New("")},
+		{"bad type int", 34, 0, cfgconv.TypeError{}},
+		{"empty bytes", []byte{}, 0, errors.New("")},
+		{"empty string", "", 0, errors.New("")},
+		{"no unit bytes", []byte("250"), 0, errors.New("")},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Duration(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
 		}
-	}
-}
-
-func refuteFloat(t *testing.T, v interface{}, comment string) {
-	result, err := Float(v)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if result != 0 {
-		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+		t.Run(p.name, f)
 	}
 }
 
 func TestFloat(t *testing.T) {
 	pi := float64(3.1415)
 	pi32 := float32(3.1415)
-	// success cases
-	assertFloat(t, pi, pi, "float64 pi")
-	assertFloat(t, pi32, float64(pi32), "float32 pi")
-	assertFloat(t, false, 0, "bool false")
-	assertFloat(t, true, 1, "bool true")
-	assertFloat(t, "3.1415", pi, "string pi")
-	assertFloat(t, "42", 42, "string int")
-	assertFloat(t, "-42", -42, "string int negative")
-	assertFloat(t, int(42), 42, "int")
-	assertFloat(t, int(-42), -42, "int negative")
-	assertFloat(t, uint(42), 42, "uint")
-	assertFloat(t, int8(42), 42, "int8")
-	assertFloat(t, int8(-42), -42, "int8 negative")
-	assertFloat(t, uint8(42), 42, "uint8")
-	assertFloat(t, int16(42), 42, "int16")
-	assertFloat(t, int16(-42), -42, "int16 negative")
-	assertFloat(t, uint16(42), 42, "uint16")
-	assertFloat(t, int32(42), 42, "int32")
-	assertFloat(t, int32(-42), -42, "int32 negative")
-	assertFloat(t, uint32(42), 42, "uint32")
-	assertFloat(t, int64(42), 42, "int64")
-	assertFloat(t, int64(-42), -42, "int64 negative")
-	assertFloat(t, uint64(42), 42, "uint64")
-	assertFloat(t, nil, 0, "nil")
-	// failure cases
-	refuteFloat(t, "junk", "string junk")
-	refuteFloat(t, "", "empty string")
-	refuteFloat(t, []int{42}, "slice")
-}
-
-func assertInt(t *testing.T, v interface{}, expected int64, comment string) {
-	if result, err := Int(v); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if result != expected {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    float64
+		err  error
+	}{
+		{"float64 pi", pi, pi, nil},
+		{"float32 pi", pi32, float64(pi32), nil},
+		{"bool false", false, 0, nil},
+		{"bool true", true, 1, nil},
+		{"string pi", "3.1415", pi, nil},
+		{"string int", "42", 42, nil},
+		{"string int negative", "-42", -42, nil},
+		{"int", int(42), 42, nil},
+		{"int negative", int(-42), -42, nil},
+		{"uint", uint(42), 42, nil},
+		{"int8", int8(42), 42, nil},
+		{"int8 negative", int8(-42), -42, nil},
+		{"uint8", uint8(42), 42, nil},
+		{"int16", int16(42), 42, nil},
+		{"int16 negative", int16(-42), -42, nil},
+		{"uint16", uint16(42), 42, nil},
+		{"int32", int32(42), 42, nil},
+		{"int32 negative", int32(-42), -42, nil},
+		{"uint32", uint32(42), 42, nil},
+		{"int64", int64(42), 42, nil},
+		{"int64 negative", int64(-42), -42, nil},
+		{"uint64", uint64(42), 42, nil},
+		{"nil", nil, 0, nil},
+		{"string junk", "junk", 0, &strconv.NumError{}},
+		{"empty", "", 0, &strconv.NumError{}},
+		{"slice", []int{42}, 0, cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Float(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
 		}
-	}
-}
-
-func refuteInt(t *testing.T, v interface{}, comment string) {
-	result, err := Int(v)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if result != 0 {
-		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+		t.Run(p.name, f)
 	}
 }
 
 func TestInt(t *testing.T) {
-	// success cases
-	assertInt(t, false, 0, "bool false")
-	assertInt(t, true, 1, "bool true")
-	assertInt(t, "42", 42, "string int")
-	assertInt(t, "-42", -42, "string int negative")
-	assertInt(t, int(42), 42, "int")
-	assertInt(t, int(-42), -42, "int negative")
-	assertInt(t, uint(42), 42, "uint")
-	assertInt(t, int8(42), 42, "int8")
-	assertInt(t, int8(-42), -42, "int8 negative")
-	assertInt(t, uint8(42), 42, "uint8")
-	assertInt(t, int16(42), 42, "int16")
-	assertInt(t, int16(-42), -42, "int16 negative")
-	assertInt(t, uint16(42), 42, "uint16")
-	assertInt(t, int32(42), 42, "int32")
-	assertInt(t, int32(-42), -42, "int32 negative")
-	assertInt(t, uint32(42), 42, "uint32")
-	assertInt(t, int64(42), 42, "int64")
-	assertInt(t, int64(-42), -42, "int64 negative")
-	assertInt(t, uint64(42), 42, "uint64")
-	assertInt(t, float64(42), 42, "float64")
-	assertInt(t, float64(0), 0, "float64 zero")
-	assertInt(t, float64(-42), -42, "float64 negative")
-	assertInt(t, float64(42.6), 42, "float64 truncate")
-	assertInt(t, float64(-42.6), -42, "float64 truncate negative")
-	assertInt(t, float32(42), 42, "float32")
-	assertInt(t, float32(-42), -42, "float32 negative")
-	assertInt(t, float32(42.6), 42, "float32 truncate")
-	assertInt(t, float32(-42.6), -42, "float32 truncate negative")
-	assertInt(t, nil, 0, "nil")
-	// failure cases
-	refuteInt(t, "42.5", "string float")
-	refuteInt(t, "", "empty string")
-	refuteInt(t, "junk", "string junk")
-	refuteInt(t, []int{42}, "slice")
-}
-
-func assertSlice(t *testing.T, v interface{}, expected []interface{}, comment string) {
-	if result, err := Slice(v); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if !reflect.DeepEqual(result, expected) {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    int64
+		err  error
+	}{
+		{"bool false", false, 0, nil},
+		{"bool true", true, 1, nil},
+		{"string int", "42", 42, nil},
+		{"string int negative", "-42", -42, nil},
+		{"int", int(42), 42, nil},
+		{"int negative", int(-42), -42, nil},
+		{"uint", uint(42), 42, nil},
+		{"int8", int8(42), 42, nil},
+		{"int8 negative", int8(-42), -42, nil},
+		{"uint8", uint8(42), 42, nil},
+		{"int16", int16(42), 42, nil},
+		{"int16 negative", int16(-42), -42, nil},
+		{"uint16", uint16(42), 42, nil},
+		{"int32", int32(42), 42, nil},
+		{"int32 negative", int32(-42), -42, nil},
+		{"uint32", uint32(42), 42, nil},
+		{"int64", int64(42), 42, nil},
+		{"int64 negative", int64(-42), -42, nil},
+		{"uint64", uint64(42), 42, nil},
+		{"float64", float64(42), 42, nil},
+		{"float64 zero", float64(0), 0, nil},
+		{"float64 negative", float64(-42), -42, nil},
+		{"float64 truncate", float64(42.6), 42, nil},
+		{"float64 truncate negative", float64(-42.6), -42, nil},
+		{"float32", float32(42), 42, nil},
+		{"float32 negative", float32(-42), -42, nil},
+		{"float32 truncate", float32(42.6), 42, nil},
+		{"float32 truncate negative", float32(-42.6), -42, nil},
+		{"nil", nil, 0, nil},
+		{"string float", "42.5", 0, &strconv.NumError{}},
+		{"empty string", "", 0, &strconv.NumError{}},
+		{"string junk", "junk", 0, &strconv.NumError{}},
+		{"slice", []int{42}, 0, cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Int(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
 		}
-	}
-}
-
-func refuteSlice(t *testing.T, v interface{}, comment string) {
-	result, err := Slice(v)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if len(result) != 0 {
-		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+		t.Run(p.name, f)
 	}
 }
 
@@ -531,187 +283,206 @@ func TestSlice(t *testing.T) {
 	intSlice := []int{1, 2, -3}
 	stringSlice := []string{"one", "two"}
 	uintSlice := []int{1, 2, 3}
-	// success cases
-	assertSlice(t, slice, slice, "slice")
-	assertSlice(t, intSlice, []interface{}{1, 2, -3}, "intSlice")
-	assertSlice(t, stringSlice, []interface{}{"one", "two"}, "stringSlice")
-	assertSlice(t, uintSlice, []interface{}{1, 2, 3}, "uintSlice")
-	assertSlice(t, "42", []interface{}{"42"}, "string int")
-	// failure cases
-	refuteSlice(t, true, "bool true")
-	refuteSlice(t, false, "bool false")
-	refuteSlice(t, int(42), "int")
-	refuteSlice(t, int(-42), "int negative")
-	refuteSlice(t, uint(42), "uint")
-	refuteSlice(t, int8(42), "int8")
-	refuteSlice(t, int8(-42), "int8 negative")
-	refuteSlice(t, uint8(42), "uint8")
-	refuteSlice(t, int16(42), "int16")
-	refuteSlice(t, int16(-42), "int16 negative")
-	refuteSlice(t, uint16(42), "uint16")
-	refuteSlice(t, int32(42), "int32")
-	refuteSlice(t, int32(-42), "int32 negative")
-	refuteSlice(t, uint32(42), "uint32")
-	refuteSlice(t, int64(42), "int64")
-	refuteSlice(t, int64(-42), "int64 negative")
-	refuteSlice(t, uint64(42), "uint64")
-	refuteSlice(t, float64(42), "float64")
-	refuteSlice(t, float64(0), "float64 zero")
-	refuteSlice(t, float64(-42), "float64 negative")
-	refuteSlice(t, float64(42.6), "float64 truncate")
-	refuteSlice(t, float64(-42.6), "float64 truncate negative")
-	refuteSlice(t, float32(42), "float32")
-	refuteSlice(t, float32(-42), "float32 negative")
-	refuteSlice(t, float32(42.6), "float32 truncate")
-	refuteSlice(t, float32(-42.6), "float32 truncate negative")
-	refuteSlice(t, "", "empty string")
-	refuteSlice(t, nil, "nil")
-}
-func assertString(t *testing.T, v interface{}, expected string, comment string) {
-	if result, err := String(v); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if result != expected {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    []interface{}
+		err  error
+	}{
+		{"slice", slice, slice, nil},
+		{"intSlice", intSlice, []interface{}{1, 2, -3}, nil},
+		{"stringSlice", stringSlice, []interface{}{"one", "two"}, nil},
+		{"uintSlice", uintSlice, []interface{}{1, 2, 3}, nil},
+		{"string int", "42", []interface{}{"42"}, nil},
+		{"bool true", true, nil, cfgconv.TypeError{}},
+		{"bool false", false, nil, cfgconv.TypeError{}},
+		{"int", int(42), nil, cfgconv.TypeError{}},
+		{"int negative", int(-42), nil, cfgconv.TypeError{}},
+		{"uint", uint(42), nil, cfgconv.TypeError{}},
+		{"int8", int8(42), nil, cfgconv.TypeError{}},
+		{"int8 negative", int8(-42), nil, cfgconv.TypeError{}},
+		{"uint8", uint8(42), nil, cfgconv.TypeError{}},
+		{"int16", int16(42), nil, cfgconv.TypeError{}},
+		{"int16 negative", int16(-42), nil, cfgconv.TypeError{}},
+		{"uint16", uint16(42), nil, cfgconv.TypeError{}},
+		{"int32", int32(42), nil, cfgconv.TypeError{}},
+		{"int32 negative", int32(-42), nil, cfgconv.TypeError{}},
+		{"uint32", uint32(42), nil, cfgconv.TypeError{}},
+		{"int64", int64(42), nil, cfgconv.TypeError{}},
+		{"int64 negative", int64(-42), nil, cfgconv.TypeError{}},
+		{"uint64", uint64(42), nil, cfgconv.TypeError{}},
+		{"float64", float64(42), nil, cfgconv.TypeError{}},
+		{"float64 zero", float64(0), nil, cfgconv.TypeError{}},
+		{"float64 negative", float64(-42), nil, cfgconv.TypeError{}},
+		{"float64 truncate", float64(42.6), nil, cfgconv.TypeError{}},
+		{"float64 truncate negative", float64(-42.6), nil, cfgconv.TypeError{}},
+		{"float32", float32(42), nil, cfgconv.TypeError{}},
+		{"float32 negative", float32(-42), nil, cfgconv.TypeError{}},
+		{"float32 truncate", float32(42.6), nil, cfgconv.TypeError{}},
+		{"float32 truncate negative", float32(-42.6), nil, cfgconv.TypeError{}},
+		{"empty string", "", nil, cfgconv.TypeError{}},
+		{"nil", nil, nil, cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Slice(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
 		}
+		t.Run(p.name, f)
 	}
-}
-
-func refuteString(t *testing.T, v interface{}, comment string) {
-	result, err := String(v)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if result != "" {
-		t.Errorf("failed conversion for %s didn't return empty, got %v", comment, result)
-	}
-
 }
 
 func TestString(t *testing.T) {
-	// success cases
-	assertString(t, false, "false", "bool false")
-	assertString(t, true, "true", "bool true")
-	assertString(t, "junk", "junk", "string junk")
-	assertString(t, "", "", "empty string")
-	assertString(t, "42", "42", "string int")
-	assertString(t, "-42", "-42", "string int negative")
-	assertString(t, "42.5", "42.5", "string float")
-	assertString(t, []byte("1234"), "1234", "byte slice")
-	assertString(t, int(42), "42", "int")
-	assertString(t, int(-42), "-42", "int negative")
-	assertString(t, uint(42), "42", "uint")
-	assertString(t, int8(42), "42", "int8")
-	assertString(t, int8(-42), "-42", "int8 negative")
-	assertString(t, uint8(42), "42", "uint8")
-	assertString(t, int16(42), "42", "int16")
-	assertString(t, int16(-42), "-42", "int16 negative")
-	assertString(t, uint16(42), "42", "uint16")
-	assertString(t, int32(42), "42", "int32")
-	assertString(t, int32(-42), "-42", "int32 negative")
-	assertString(t, uint32(42), "42", "uint32")
-	assertString(t, int64(42), "42", "int64")
-	assertString(t, int64(-42), "-42", "int64 negative")
-	assertString(t, uint64(42), "42", "uint64")
-	assertString(t, float64(42), "42", "float64")
-	assertString(t, float64(-42), "-42", "float64 negative")
-	assertString(t, float64(0), "0", "float64 zero")
-	assertString(t, float64(42.6), "42.6", "float64")
-	assertString(t, float32(42), "42", "float32")
-	assertString(t, float32(-42), "-42", "float32 negative")
-	assertString(t, float32(42.6), "42.6", "float32")
-	assertString(t, []string{"a", "b"}, "a,b", "string slice")
-	assertString(t, nil, "", "nil")
-	// failure cases
-	refuteString(t, []int{42}, "slice")
-}
-
-func assertTime(t *testing.T, v interface{}, expected time.Time, comment string) {
-	if result, err := Time(v); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if result != expected {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    string
+		err  error
+	}{
+		{"bool false", false, "false", nil},
+		{"bool true", true, "true", nil},
+		{"string junk", "junk", "junk", nil},
+		{"empty string", "", "", nil},
+		{"string int", "42", "42", nil},
+		{"string int negative", "-42", "-42", nil},
+		{"string float", "42.5", "42.5", nil},
+		{"byte slice", []byte("1234"), "1234", nil},
+		{"int", int(42), "42", nil},
+		{"int negative", int(-42), "-42", nil},
+		{"uint", uint(42), "42", nil},
+		{"int8", int8(42), "42", nil},
+		{"int8 negative", int8(-42), "-42", nil},
+		{"uint8", uint8(42), "42", nil},
+		{"int16", int16(42), "42", nil},
+		{"int16 negative", int16(-42), "-42", nil},
+		{"uint16", uint16(42), "42", nil},
+		{"int32", int32(42), "42", nil},
+		{"int32 negative", int32(-42), "-42", nil},
+		{"uint32", uint32(42), "42", nil},
+		{"int64", int64(42), "42", nil},
+		{"int64 negative", int64(-42), "-42", nil},
+		{"uint64", uint64(42), "42", nil},
+		{"float64", float64(42), "42", nil},
+		{"float64 negative", float64(-42), "-42", nil},
+		{"float64 zero", float64(0), "0", nil},
+		{"float64", float64(42.6), "42.6", nil},
+		{"float32", float32(42), "42", nil},
+		{"float32 negative", float32(-42), "-42", nil},
+		{"float32", float32(42.6), "42.6", nil},
+		{"string slice", []string{"a", "b"}, "a,b", nil},
+		{"nil", nil, "", nil},
+		{"slice", []int{42}, "", cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.String(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
 		}
-	}
-}
-
-func refuteTime(t *testing.T, v interface{}, comment string) {
-	result, err := Time(v)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if !reflect.DeepEqual(result, time.Time{}) {
-		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+		t.Run(p.name, f)
 	}
 }
 
 func TestTime(t *testing.T) {
-	// success cases
-	assertTime(t, "2017-03-01T01:02:03Z", time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), "full datetime")
-	assertTime(t, []byte("2017-03-01T01:02:03Z"), time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), "full datetime")
-	// failure cases
-	refuteTime(t, "", "empty string")
-	refuteTime(t, "2017", "year string")
-	refuteTime(t, "2017-03-01", "date string")
-	refuteTime(t, []byte{}, "empty bytes")
-	refuteTime(t, []byte("2017"), "year bytes")
-	refuteTime(t, []byte("2017-03-01"), "date bytes")
-	refuteTime(t, 34, "bad type int")
-}
-
-func assertUint(t *testing.T, val interface{}, expected uint64, comment string) {
-	if result, err := Uint(val); err != nil {
-		t.Errorf("conversion failed for %s with error %v", comment, err)
-	} else {
-		if result != expected {
-			t.Errorf("conversion failed for %s, expected %v got %v", comment, expected, result)
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    time.Time
+		err  error
+	}{
+		{"bad format bytes", []byte("glob"), time.Time{}, &time.ParseError{}},
+		{"bad format string", "foo", time.Time{}, &time.ParseError{}},
+		{"bad type int", 34, time.Time{}, cfgconv.TypeError{}},
+		{"date string", "2017-03-01", time.Time{}, &time.ParseError{}},
+		{"empty bytes", []byte{}, time.Time{}, &time.ParseError{}},
+		{"empty string", "", time.Time{}, &time.ParseError{}},
+		{"full datetime", "2017-03-01T01:02:03Z", time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), nil},
+		{"full datetime", []byte("2017-03-01T01:02:03Z"), time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), nil},
+		{"nil", nil, time.Time{}, cfgconv.TypeError{}},
+		{"year string", "2017", time.Time{}, &time.ParseError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Time(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
 		}
-	}
-}
-
-func refuteUint(t *testing.T, val interface{}, comment string) {
-	result, err := Uint(val)
-	if err == nil {
-		t.Errorf("conversion succeeded for %s , got %v", comment, result)
-	}
-	if result != 0 {
-		t.Errorf("failed conversion for %s didn't return 0, got %v", comment, result)
+		t.Run(p.name, f)
 	}
 }
 
 func TestUint(t *testing.T) {
-	// success cases
-	assertUint(t, false, 0, "bool false")
-	assertUint(t, true, 1, "bool true")
-	assertUint(t, "42", 42, "string int")
-	assertUint(t, int(42), 42, "int")
-	assertUint(t, uint(42), 42, "uint")
-	assertUint(t, int8(42), 42, "int8")
-	assertUint(t, uint8(42), 42, "uint8")
-	assertUint(t, int16(42), 42, "int16")
-	assertUint(t, uint16(42), 42, "uint16")
-	assertUint(t, int32(42), 42, "int32")
-	assertUint(t, uint32(42), 42, "uint32")
-	assertUint(t, int64(42), 42, "int64")
-	assertUint(t, uint64(42), 42, "uint64")
-	assertUint(t, float64(42), 42, "float64")
-	assertUint(t, float64(0), 0, "float64 zero")
-	assertUint(t, float64(42.6), 42, "float64 truncate")
-	assertUint(t, float32(42), 42, "float32")
-	assertUint(t, float32(42.6), 42, "float32 truncate")
-	assertUint(t, nil, 0, "nil")
-	// failure cases
-	refuteUint(t, "-42", "string int negative")
-	refuteUint(t, int(-42), "int negative")
-	refuteUint(t, int8(-42), "int8 negative")
-	refuteUint(t, int16(-42), "int16 negative")
-	refuteUint(t, int32(-42), "int32 negative")
-	refuteUint(t, int64(-42), "int64 negative")
-	refuteUint(t, float64(-42), "float64 negative")
-	refuteUint(t, float32(-42), "float32 negative")
-	refuteUint(t, "junk", "string junk")
-	refuteUint(t, "42.5", "string float")
-	refuteUint(t, "", "empty string")
-	refuteUint(t, []int{42}, "slice")
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    uint64
+		err  error
+	}{
+		{"bool false", false, 0, nil},
+		{"bool true", true, 1, nil},
+		{"empty string", "", 0, &strconv.NumError{}},
+		{"float32 negative", float32(-42), 0, cfgconv.TypeError{}},
+		{"float32 truncate negative", float32(-42.6), 0, cfgconv.TypeError{}},
+		{"float32 truncate", float32(42.6), 42, nil},
+		{"float32", float32(42), 42, nil},
+		{"float64 negative", float64(-42), 0, cfgconv.TypeError{}},
+		{"float64 truncate negative", float64(-42.6), 0, cfgconv.TypeError{}},
+		{"float64 truncate", float64(42.6), 42, nil},
+		{"float64 zero", float64(0), 0, nil},
+		{"float64", float64(42), 42, nil},
+		{"int negative", int(-42), 0, cfgconv.TypeError{}},
+		{"int", int(42), 42, nil},
+		{"int16 negative", int16(-42), 0, cfgconv.TypeError{}},
+		{"int16", int16(42), 42, nil},
+		{"int32 negative", int32(-42), 0, cfgconv.TypeError{}},
+		{"int32", int32(42), 42, nil},
+		{"int64 negative", int64(-42), 0, cfgconv.TypeError{}},
+		{"int64", int64(42), 42, nil},
+		{"int8 negative", int8(-42), 0, cfgconv.TypeError{}},
+		{"int8", int8(42), 42, nil},
+		{"nil", nil, 0, nil},
+		{"slice", []int{42}, 0, cfgconv.TypeError{}},
+		{"string float", "42.5", 0, &strconv.NumError{}},
+		{"string int negative", "-42", 0, &strconv.NumError{}},
+		{"string int", "42", 42, nil},
+		{"string junk", "junk", 0, &strconv.NumError{}},
+		{"uint", uint(42), 42, nil},
+		{"uint16", uint16(42), 42, nil},
+		{"uint32", uint32(42), 42, nil},
+		{"uint64", uint64(42), 42, nil},
+		{"uint8", uint8(42), 42, nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.Uint(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestTypeError(t *testing.T) {
+	patterns := []byte{0x00, 0xa0, 0x0a, 0x9a, 0xa9, 0xff}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			e := cfgconv.TypeError{Value: p}
+			expected := fmt.Sprintf("cfgconv: cannot convert '%#v'(%T) to %s", e.Value, e.Value, e.Kind)
+			assert.Equal(t, expected, e.Error())
+		}
+		t.Run(fmt.Sprintf("%x", p), f)
+	}
+}
+
+func TestOverflowError(t *testing.T) {
+	patterns := []byte{0x00, 0xa0, 0x0a, 0x9a, 0xa9, 0xff}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			e := cfgconv.OverflowError{Value: p}
+			expected := fmt.Sprintf("cfgconv: overflow converting '%v' to %s", e.Value, e.Kind)
+			assert.Equal(t, expected, e.Error())
+		}
+		t.Run(fmt.Sprintf("%x", p), f)
+	}
 }

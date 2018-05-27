@@ -294,7 +294,7 @@ func Slice(v interface{}) ([]interface{}, error) {
 			return slice, nil
 		}
 	}
-	return []interface{}{}, TypeError{Value: v, Kind: reflect.Slice}
+	return nil, TypeError{Value: v, Kind: reflect.Slice}
 }
 
 // String converts a generic object into an string, if possible.

@@ -3,733 +3,661 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-package config
+package config_test
 
 import (
-	"reflect"
-	"strings"
+	"errors"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/warthog618/config"
+	"github.com/warthog618/config/cfgconv"
 )
 
-type mapReader struct {
-	// simple key value map.
-	// Note keys must be added as lowercase for config.GetX to work.
-	config map[string]interface{}
-}
-
-func (mr *mapReader) Contains(key string) bool {
-	_, ok := mr.config[key]
-	return ok
-}
-
-func (mr *mapReader) Read(key string) (interface{}, bool) {
-	v, ok := mr.config[key]
-	return v, ok
-}
-
 func TestNew(t *testing.T) {
-	cfg := New()
-	// just do something with it...
-	if _, err := cfg.Get(""); err == nil {
-		t.Errorf("Empty config contains something.")
-	}
+	cfg := config.New()
+	c, err := cfg.Get("")
+	assert.IsType(t, config.NotFoundError{}, err)
+	assert.Equal(t, nil, c)
+	// demonstrate nesting separation by "."
+	mr := mapReader{map[string]interface{}{
+		"a.b.c_d": true,
+	}}
+	cfg.InsertReader(&mr)
+	c, err = cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+	cfg.AddAlias("e", "a.b") // node alias uses "." nesting separator
+	c, err = cfg.Get("e.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+}
+
+func TestNewWithSeparator(t *testing.T) {
+	cfg := config.New(config.WithSeparator("_"))
+	c, err := cfg.Get("")
+	assert.IsType(t, config.NotFoundError{}, err)
+	assert.Equal(t, nil, c)
+	// demonstrate nesting separation by "_"
+	mr := mapReader{map[string]interface{}{
+		"a.b.c_d": true,
+	}}
+	cfg.InsertReader(&mr)
+	c, err = cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+	cfg.AddAlias("e", "a.b.c") // node alias uses "_" nesting separator
+	c, err = cfg.Get("e_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
 }
 
 func TestAddAlias(t *testing.T) {
-	cfg := New()
+	cfg := config.New()
 	mr := mapReader{map[string]interface{}{}}
 	cfg.InsertReader(&mr)
+
 	// alias maps newKey (requested) -> oldKey (in config)
 	mr.config["oldthing"] = "an old config string"
 	cfg.AddAlias("newthing", "oldthing")
-	if v, err := cfg.Get("oldthing"); err != nil {
-		t.Errorf("couldn't get oldthing - err '%v'", err)
-	} else if oldthing, ok := v.(string); ok {
-		if oldthing != mr.config["oldthing"] {
-			t.Errorf("oldthing mismatch - expected '%v' but got '%v'", mr.config["oldthing"], oldthing)
-		}
-	} else {
-		t.Errorf("oldthing is not a string")
-	}
-	if v, err := cfg.Get("newthing"); err != nil {
-		t.Errorf("couldn't get newthing - err '%v'", err)
-	} else if newthing, ok := v.(string); ok {
-		if newthing != mr.config["oldthing"] {
-			t.Errorf("newthing mismatch - expected '%v' but got '%v'", mr.config["oldthing"], newthing)
-		}
-	} else {
-		t.Errorf("newthing is not a string")
-	}
+	v, err := cfg.Get("oldthing")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr.config["oldthing"], v)
+	v, err = cfg.Get("newthing")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr.config["oldthing"], v)
+
 	// alias ignored if newKey exists
 	mr.config["newthing"] = "a new config string"
-	if v, err := cfg.Get("oldthing"); err != nil {
-		t.Errorf("couldn't get oldthing - err '%v'", err)
-	} else if oldthing, ok := v.(string); ok {
-		if oldthing != mr.config["oldthing"] {
-			t.Errorf("oldthing mismatch - expected '%v' but got '%v'", mr.config["oldthing"], oldthing)
-		}
-	} else {
-		t.Errorf("oldthing is not a string")
-	}
-	if v, err := cfg.Get("newthing"); err != nil {
-		t.Errorf("couldn't get newthing - err '%v'", err)
-	} else if newthing, ok := v.(string); ok {
-		if newthing != mr.config["newthing"] {
-			t.Errorf("newthing mismatch - expected '%v' but got '%v'", mr.config["newthing"], newthing)
-		}
-	} else {
-		t.Errorf("newthing is not a string")
-	}
+	v, err = cfg.Get("oldthing")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr.config["oldthing"], v)
+	v, err = cfg.Get("newthing")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr.config["newthing"], v)
 }
 
 func TestAddAliasNested(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr)
-	mr.config["a"] = "a"
-	mr.config["foo.a"] = "foo.a"
-	mr.config["foo.b"] = "foo.b"
-	mr.config["bar.b"] = "bar.b"
-	mr.config["bar.c"] = "bar.c"
-	cfg.AddAlias("foo.a", "foo.a")
-	assertGet(t, cfg, "foo.a", mr.config["foo.a"].(string), "nested leaf to self (ignored)")
-	cfg.AddAlias("c", "foo.b")
-	assertGet(t, cfg, "c", mr.config["foo.b"].(string), "root leaf to nested leaf")
-	cfg.AddAlias("d", "c")
-	refuteGet(t, cfg, "d", "alias to alias")
-	cfg.AddAlias("baz.b", "a")
-	assertGet(t, cfg, "baz.b", mr.config["a"].(string), "nested leaf to root leaf")
-	cfg.AddAlias("node", "")
-	assertGet(t, cfg, "node.a", mr.config["a"].(string), "nested node to root node")
-	cfg.AddAlias("", "foo")
-	assertGet(t, cfg, "b", mr.config["foo.b"].(string), "root node to nested node")
-	cfg.AddAlias("baz", "bar")
-	assertGet(t, cfg, "baz.c", mr.config["bar.c"].(string), "nested node to nested node")
-	assertGet(t, cfg, "baz.b", mr.config["a"].(string), "leaf alias has priority over node alias")
-	cfg.AddAlias("blob", "baz")
-	refuteGet(t, cfg, "blob.b", "alias to node alias")
-	// sub-tree
-	if bazCfg, err := cfg.GetConfig("baz"); err == nil {
-		assertGet(t, bazCfg, "b", mr.config["a"].(string), "sub-tree node leaf alias")
-		assertGet(t, bazCfg, "c", mr.config["bar.c"].(string), "sub-tree node alias")
-		bazCfg.AddAlias("d", "b")
-		assertGet(t, bazCfg, "b", mr.config["a"].(string), "sub-tree local leaf alias")
+	mr := mapReader{map[string]interface{}{
+		"a":     "a",
+		"foo.a": "foo.a",
+		"foo.b": "foo.b",
+		"bar.b": "bar.b",
+		"bar.c": "bar.c",
+	}}
+	type alias struct {
+		new string
+		old string
 	}
-	refuteGet(t, cfg, "d", "sub-tree alias locality")
+	aliases := []struct {
+		name     string
+		aa       []alias
+		tp       string
+		expected interface{}
+		err      error
+	}{
+		{"alias to alias", []alias{{"c", "foo.b"}, {"d", "c"}}, "d", nil, config.NotFoundError{}},
+		{"alias to node alias", []alias{{"baz", "bar"}, {"blob", "baz"}}, "blob.b", nil, config.NotFoundError{}},
+		{"leaf alias has priority over node alias", []alias{{"baz", "bar"}, {"baz.b", "a"}}, "baz.b", "a", nil},
+		{"leaf has priority over alias", []alias{{"a", "foo.a"}}, "a", "a", nil},
+		{"nested leaf to root leaf", []alias{{"baz.b", "a"}}, "baz.b", "a", nil},
+		{"nested leaf to self (ignored)", []alias{{"foo.a", "foo.a"}}, "foo.a", "foo.a", nil},
+		{"nested node to nested node", []alias{{"baz", "bar"}}, "baz.b", "bar.b", nil},
+		{"nested node to root node", []alias{{"node.a", "a"}}, "node.a", "a", nil},
+		{"root leaf to nested leaf", []alias{{"c", "foo.b"}}, "c", "foo.b", nil},
+		{"root node to nested node", []alias{{"", "foo"}}, "b", "foo.b", nil},
+	}
+	for _, a := range aliases {
+		f := func(t *testing.T) {
+			cfg := config.New()
+			cfg.InsertReader(&mr)
+			for _, al := range a.aa {
+				cfg.AddAlias(al.new, al.old)
+			}
+			v, err := cfg.Get(a.tp)
+			assert.IsType(t, a.err, err)
+			assert.Equal(t, a.expected, v)
+		}
+		t.Run(a.name, f)
+	}
+	// sub-tree config
+	cfg := config.New()
+	cfg.InsertReader(&mr)
+	barCfg, err := cfg.GetConfig("bar")
+	assertGet(t, barCfg, "b", "bar.b", "sub-tree leaf")
+	assertGet(t, barCfg, "c", "bar.c", "sub-tree leaf")
+	barCfg.AddAlias("d", "c")
+	assertGet(t, barCfg, "d", "bar.c", "sub-tree local leaf alias")
+
+	barCfg.AddAlias("e", "b")
+	refuteGet(t, cfg, "e", "sub-tree alias locality")
+	refuteGet(t, cfg, "bar.e", "sub-tree alias locality")
+
+	// aliased sub-tree config
+	cfg.AddAlias("baz", "bar")
+	cfg.AddAlias("baz.b", "a")
+	bazCfg, err := cfg.GetConfig("baz")
+	assert.Nil(t, err)
+	require.NotNil(t, bazCfg)
+	assertGet(t, bazCfg, "b", "a", "sub-tree node leaf alias")
+	assertGet(t, bazCfg, "c", "bar.c", "sub-tree leaf")
+	bazCfg.AddAlias("d", "c") // gets turned into baz.d -> baz.c which will fail as it is an alias to an alias
+	refuteGet(t, bazCfg, "d", "aliased sub-tree local leaf alias")
+	bazCfg.AddAlias("e", "b")
+
+	refuteGet(t, cfg, "e", "sub-tree alias locality")
+	refuteGet(t, cfg, "baz.e", "sub-tree alias locality")
+
+	// Fundamentally is the responsibility of the application to manage the config tree
+	// and setup the aliases for any included modules.
+	// In the case above they need to add the baz.d -> bar.c mapping like this...
+	cfg.AddAlias("baz.d", "bar.c")
+	assertGet(t, cfg, "baz.d", "bar.c", "sub-tree leaf")
+	bazCfg, err = cfg.GetConfig("baz")
+	assert.Nil(t, err)
+	require.NotNil(t, bazCfg)
+	bazCfg.AddAlias("d", "c") // this is pointless as noted above, but the baz.g -> bar.c alias should still work...
+	assertGet(t, bazCfg, "d", "bar.c", "sub-tree leaf alias")
 }
 
 func TestAppendReader(t *testing.T) {
-	cfg := New()
+	cfg := config.New()
 	mr1 := mapReader{map[string]interface{}{}}
 	cfg.AppendReader(nil) // should be ignored
 	cfg.InsertReader(&mr1)
 	mr1.config["something"] = "a test string"
-	if v, err := cfg.Get("something"); err != nil {
-		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := v.(string); ok {
-		if something != mr1.config["something"] {
-			t.Errorf("something mismatch - expected '%v' but got '%v'", mr1.config["something"], something)
-		}
-	} else {
-		t.Errorf("something is not a string")
-	}
+	v, err := cfg.Get("something")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr1.config["something"], v)
+
 	// append a second reader
 	mr2 := mapReader{map[string]interface{}{}}
 	cfg.AppendReader(&mr2)
 	mr2.config["something"] = "another test string"
 	mr2.config["something else"] = "yet another test string"
-	if v, err := cfg.Get("something"); err != nil {
-		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := v.(string); ok {
-		if something != mr1.config["something"] {
-			t.Errorf("something mismatch - expected '%v' but got '%v'", mr1.config["something"], something)
-		}
-	} else {
-		t.Errorf("something is not a string")
-	}
-	if v, err := cfg.Get("something else"); err != nil {
-		t.Errorf("couldn't get something else - err '%v'", err)
-	} else if something, ok := v.(string); ok {
-		if something != mr2.config["something else"] {
-			t.Errorf("something else mismatch - expected '%v' but got '%v'", mr2.config["something else"], something)
-		}
-	} else {
-		t.Errorf("something else is not a string")
-	}
+	v, err = cfg.Get("something")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr1.config["something"], v)
+	v, err = cfg.Get("something else")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr2.config["something else"], v)
 }
 
 func TestInsertReader(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr1 := mapReader{map[string]interface{}{
+		"something":      "a test string",
+		"something else": "yet another test string",
+	}}
 	cfg.InsertReader(nil) // should be ignored
-	cfg.InsertReader(&mr)
-	mr.config["something"] = "a test string"
-	if v, err := cfg.Get("something"); err != nil {
-		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := v.(string); ok {
-		if something != mr.config["something"] {
-			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
-		}
-	} else {
-		t.Errorf("something is not a string")
-	}
-	// overlay a second reader
-	mr = mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr)
-	mr.config["something"] = "another test string"
-	if v, err := cfg.Get("something"); err != nil {
-		t.Errorf("couldn't get something - err '%v'", err)
-	} else if something, ok := v.(string); ok {
-		if something != mr.config["something"] {
-			t.Errorf("something mismatch - expected '%v' but got '%v'", mr.config["something"], something)
-		}
-	} else {
-		t.Errorf("something is not a string")
-	}
+	cfg.InsertReader(&mr1)
+	v, err := cfg.Get("something")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr1.config["something"], v)
+	v, err = cfg.Get("something else")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr1.config["something else"], v)
+
+	// insert a second reader
+	mr2 := mapReader{map[string]interface{}{}}
+	cfg.InsertReader(&mr2)
+	v, err = cfg.Get("something")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr1.config["something"], v)
+	mr2.config["something"] = "another test string"
+	v, err = cfg.Get("something")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr2.config["something"], v)
+	v, err = cfg.Get("something else")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr1.config["something else"], v)
 }
 
-func TestSetSeparator(t *testing.T) {
-	cfg := New()
-	// separator is internal, so use nasty type assertion to check.
-	if cfg.(*config).separator != "." {
-		t.Errorf("default separator not set by New")
-	}
-	cfg.SetSeparator("_")
-	if cfg.(*config).separator != "_" {
-		t.Errorf("separator not set by SetSeparator")
-	}
+func assertGet(t *testing.T, cfg config.Config, key string, expected interface{}, comment string) {
+	v, err := cfg.Get(key)
+	assert.Nil(t, err)
+	assert.Equal(t, expected, v, comment)
 }
 
-func assertGet(t *testing.T, cfg Config, key string, expected string, comment string) {
-	if v, err := cfg.Get(key); err != nil {
-		t.Errorf("%s - failed to get '%s'", comment, key)
-	} else {
-		if vstr, ok := v.(string); ok {
-			if vstr != expected {
-				t.Errorf("%s - didn't get '%s' - expected '%s', got '%v'", comment, key, expected, v)
-			}
-		} else {
-			t.Errorf("%s - didn't get '%s' - expected '%s', got %v", comment, key, expected, v)
-		}
-	}
-}
-
-func refuteGet(t *testing.T, cfg Config, key string, comment string) {
-	if v, err := cfg.Get(key); err == nil {
-		t.Errorf("%s - succeeded to get '%s' - got '%v'", comment, key, v)
-	} else {
-		if nf, ok := err.(NotFoundError); ok {
-			nfstr := nf.Error()
-			if !strings.Contains(nfstr, key) {
-				t.Errorf("not found error does not identify key %s - %v", key, nf)
-			}
-		} else {
-			t.Errorf("get key (non existent) returned error other than NotFound:%v", err)
-		}
-	}
+func refuteGet(t *testing.T, cfg config.Config, key string, comment string) {
+	v, err := cfg.Get(key)
+	assert.IsType(t, config.NotFoundError{}, err, comment)
+	assert.Equal(t, nil, v, comment)
 }
 
 func TestGetOverlayed(t *testing.T) {
-	cfg := New()
-	// Single Reader
-	mr1 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr1)
-	mr1.config["a"] = "a - tier 1"
-	mr1.config["b"] = "b - tier 1"
-	mr1.config["c"] = "c - tier 1"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "one reader get")
-	assertGet(t, cfg, "b", mr1.config["b"].(string), "one reader get")
-	assertGet(t, cfg, "c", mr1.config["c"].(string), "one reader get")
-	refuteGet(t, cfg, "d", "one reader get")
-	refuteGet(t, cfg, "e", "one reader get")
-
-	// Two Readers
-	mr2 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr2)
-	mr2.config["b"] = "b - tier 2"
-	mr2.config["d"] = "d - tier 2"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "two reader get")
-	assertGet(t, cfg, "b", mr2.config["b"].(string), "two reader get")
-	assertGet(t, cfg, "c", mr1.config["c"].(string), "two reader get")
-	assertGet(t, cfg, "d", mr2.config["d"].(string), "two reader get")
-	refuteGet(t, cfg, "e", "two reader get")
-
-	// Three Readers
-	mr3 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr3)
-	mr3.config["c"] = "c - tier 3"
-	mr3.config["d"] = "d - tier 3"
-	assertGet(t, cfg, "a", mr1.config["a"].(string), "three reader get")
-	assertGet(t, cfg, "b", mr2.config["b"].(string), "three reader get")
-	assertGet(t, cfg, "c", mr3.config["c"].(string), "three reader get")
-	assertGet(t, cfg, "d", mr3.config["d"].(string), "three reader get")
-	refuteGet(t, cfg, "e", "three reader get")
+	mr1 := mapReader{map[string]interface{}{
+		"a": "a - tier 1",
+		"b": "b - tier 1",
+		"c": "c - tier 1",
+	}}
+	mr2 := mapReader{map[string]interface{}{
+		"b": "b - tier 2",
+		"d": "d - tier 2",
+	}}
+	mr3 := mapReader{map[string]interface{}{
+		"c": "c - tier 3",
+		"d": "d - tier 3",
+	}}
+	type kv struct {
+		k   string
+		v   interface{}
+		err error
+	}
+	patterns := []struct {
+		name     string
+		readers  []*mapReader // !!! breaks test if value instead of pointer - why???
+		expected []kv
+	}{
+		{"one", []*mapReader{&mr1}, []kv{
+			{"a", "a - tier 1", nil},
+			{"b", "b - tier 1", nil},
+			{"c", "c - tier 1", nil},
+			{"d", nil, config.NotFoundError{Key: "d"}},
+			{"e", nil, config.NotFoundError{Key: "e"}},
+		}},
+		{"two", []*mapReader{&mr1, &mr2}, []kv{
+			{"a", "a - tier 1", nil},
+			{"b", "b - tier 2", nil},
+			{"c", "c - tier 1", nil},
+			{"d", "d - tier 2", nil},
+			{"e", nil, config.NotFoundError{Key: "e"}},
+		}},
+		{"three", []*mapReader{&mr1, &mr2, &mr3}, []kv{
+			{"a", "a - tier 1", nil},
+			{"b", "b - tier 2", nil},
+			{"c", "c - tier 3", nil},
+			{"d", "d - tier 3", nil},
+			{"e", nil, config.NotFoundError{Key: "e"}},
+		}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			cfg := config.New()
+			for _, r := range p.readers {
+				cfg.InsertReader(r)
+			}
+			for _, x := range p.expected {
+				v, err := cfg.Get(x.k)
+				assert.Equal(t, x.err, err, x.k)
+				assert.Equal(t, x.v, v, x.k)
+			}
+		}
+		t.Run(p.name, f)
+	}
 }
 
 func TestGetBool(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"bool":       true,
+		"boolString": "true",
+		"boolInt":    1,
+		"notabool":   "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["bool"] = true
-	mr.config["boolString"] = "true"
-	mr.config["boolInt"] = 1
-	mr.config["notabool"] = "bogus"
-	if v, err := cfg.GetBool("bool"); err != nil {
-		t.Errorf("couldn't read bool - %v", err)
-	} else if v != true {
-		t.Errorf("read bool %v, expected true", v)
+	patterns := []struct {
+		k   string
+		v   bool
+		err error
+	}{
+		{"bool", true, nil},
+		{"boolString", true, nil},
+		{"boolInt", true, nil},
+		{"notabool", false, &strconv.NumError{}},
+		{"notsuchbool", false, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetBool("boolString"); err != nil {
-		t.Errorf("couldn't read boolString - %v", err)
-	} else if v != true {
-		t.Errorf("read boolString %v, expected true", v)
-	}
-	if v, err := cfg.GetBool("boolInt"); err != nil {
-		t.Errorf("couldn't read boolInt - %v", err)
-	} else if v != true {
-		t.Errorf("read boolInt %v, expected true", v)
-	}
-	if v, err := cfg.GetBool("notabool"); err == nil {
-		t.Errorf("could read notabool -%v", v)
-	} else {
-		if v != false {
-			t.Errorf("didn't return false -%v", v)
-		}
-	}
-	if v, err := cfg.GetBool("nosuchbool"); err == nil {
-		t.Errorf("could read nosuchbool -%v", v)
-	} else {
-		if v != false {
-			t.Errorf("didn't return false -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetBool(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetDuration(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"duration":     "123ms",
+		"notaduration": "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["duration"] = "123ms"
-	mr.config["notaduration"] = "bogus"
-	if v, err := cfg.GetDuration("duration"); err != nil {
-		t.Errorf("couldn't read duration - %v", err)
-	} else if v != time.Duration(123000000) {
-		t.Errorf("read duration %v, expected 123ms", v)
+	patterns := []struct {
+		k   string
+		v   time.Duration
+		err error
+	}{
+		{"duration", time.Duration(123000000), nil},
+		{"notaduration", time.Duration(0), errors.New("")},
+		{"nosuchduration", time.Duration(0), config.NotFoundError{}},
 	}
-	if v, err := cfg.GetDuration("notaduration"); err == nil {
-		t.Errorf("could read duration - notaduration -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
-	}
-	if v, err := cfg.GetDuration("nosuchduration"); err == nil {
-		t.Errorf("could read duration - nosuchduration -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetDuration(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetFloat(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"float":        3.1415,
+		"floatString":  "3.1415",
+		"floatInt":     1,
+		"notafloatInt": "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["float"] = 3.1415
-	mr.config["floatString"] = "3.1415"
-	mr.config["floatInt"] = 1
-	mr.config["notafloat"] = "bogus"
-	if v, err := cfg.GetFloat("float"); err != nil {
-		t.Errorf("couldn't read float - %v", err)
-	} else if v != 3.1415 {
-		t.Errorf("read float %v, expected 3.1415", v)
+	patterns := []struct {
+		k   string
+		v   float64
+		err error
+	}{
+		{"float", 3.1415, nil},
+		{"floatString", 3.1415, nil},
+		{"floatInt", 1, nil},
+		{"notafloatInt", 0, &strconv.NumError{}},
+		{"nosuchfloat", 0, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetFloat("floatString"); err != nil {
-		t.Errorf("couldn't read floatString - %v", err)
-	} else if v != 3.1415 {
-		t.Errorf("read floatString %v, expected 3.1415", v)
-	}
-	if v, err := cfg.GetFloat("floatInt"); err != nil {
-		t.Errorf("couldn't read floatInt - %v", err)
-	} else if v != 1 {
-		t.Errorf("read floatInt %v, expected 1", v)
-	}
-	if v, err := cfg.GetFloat("notafloat"); err == nil {
-		t.Errorf("could read float - notafloat -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
-	}
-	if v, err := cfg.GetFloat("nosuchfloat"); err == nil {
-		t.Errorf("could read float - nosuchfloat -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetFloat(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetInt(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"int":       42,
+		"intString": "43",
+		"notaint":   "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["int"] = 42
-	mr.config["intString"] = "42"
-	mr.config["notaint"] = "bogus"
-	if v, err := cfg.GetInt("int"); err != nil {
-		t.Errorf("couldn't read int - %v", err)
-	} else if v != 42 {
-		t.Errorf("read int %v, expected 3.1415", v)
+	patterns := []struct {
+		k   string
+		v   int64
+		err error
+	}{
+		{"int", 42, nil},
+		{"intString", 43, nil},
+		{"notaint", 0, &strconv.NumError{}},
+		{"nosuchint", 0, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetInt("intString"); err != nil {
-		t.Errorf("couldn't read intString - %v", err)
-	} else if v != 42 {
-		t.Errorf("read intString %v, expected 3.1415", v)
-	}
-	if v, err := cfg.GetInt("notaint"); err == nil {
-		t.Errorf("could read int - notaint -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
-	}
-	if v, err := cfg.GetInt("nosuchint"); err == nil {
-		t.Errorf("could read int - nosuchint -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetInt(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetString(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"string":     "a string",
+		"stringInt":  42,
+		"notastring": struct{}{},
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["string"] = "a string"
-	mr.config["stringInt"] = 42
-	mr.config["notastring"] = struct{}{}
-	if v, err := cfg.GetString("string"); err != nil {
-		t.Errorf("couldn't read string - %v", err)
-	} else if v != "a string" {
-		t.Errorf("read string %v, expected 3.1415", v)
+	patterns := []struct {
+		k   string
+		v   string
+		err error
+	}{
+		{"string", "a string", nil},
+		{"stringInt", "42", nil},
+		{"notastring", "", cfgconv.TypeError{}},
+		{"nosuchstring", "", config.NotFoundError{}},
 	}
-	if v, err := cfg.GetString("stringInt"); err != nil {
-		t.Errorf("couldn't read stringInt - %v", err)
-	} else if v != "42" {
-		t.Errorf("read stringInt %v, expected 3.1415", v)
-	}
-	if v, err := cfg.GetString("notastring"); err == nil {
-		t.Errorf("could read string - notastring -%v", v)
-	} else {
-		if v != "" {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetString("nosuchstring"); err == nil {
-		t.Errorf("could read string - nosuchstring -%v", v)
-	} else {
-		if v != "" {
-			t.Errorf("didn't return empty -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetString(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetTime(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"time":     "2017-03-01T01:02:03Z",
+		"notatime": "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["time"] = "2017-03-01T01:02:03Z"
-	mr.config["notatime"] = "bogus"
-	if v, err := cfg.GetTime("time"); err != nil {
-		t.Errorf("couldn't read time - %v", err)
-	} else if v != time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC) {
-		t.Errorf("read time %v, expected 123ms", v)
+	patterns := []struct {
+		k   string
+		v   time.Time
+		err error
+	}{
+		{"time", time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), nil},
+		{"notatime", time.Time{}, &time.ParseError{}},
+		{"nosuchtime", time.Time{}, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetTime("notatime"); err == nil {
-		t.Errorf("could read time - notatime -%v", v)
-	} else {
-		if !reflect.DeepEqual(v, time.Time{}) {
-			t.Errorf("didn't return 0 -%v", v)
-		}
-	}
-	if v, err := cfg.GetTime("nosuchtime"); err == nil {
-		t.Errorf("could read time - nosuchtime -%v", v)
-	} else {
-		if !reflect.DeepEqual(v, time.Time{}) {
-			t.Errorf("didn't return 0 -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetTime(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetUint(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"uint":       42,
+		"uintString": "43",
+		"notaUint":   "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["uint"] = 42
-	mr.config["uintString"] = "42"
-	mr.config["notaUint"] = "bogus"
-	if v, err := cfg.GetUint("uint"); err != nil {
-		t.Errorf("couldn't read uint - %v", err)
-	} else if v != 42 {
-		t.Errorf("read uint %v, expected 3.1415", v)
+	patterns := []struct {
+		k   string
+		v   uint64
+		err error
+	}{
+		{"uint", 42, nil},
+		{"uintString", 43, nil},
+		{"notaUint", 0, &strconv.NumError{}},
+		{"nosuchUint", 0, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetUint("uintString"); err != nil {
-		t.Errorf("couldn't read uint - %v", err)
-	} else if v != 42 {
-		t.Errorf("read uint %v, expected 3.1415", v)
-	}
-	if v, err := cfg.GetUint("notaUint"); err == nil {
-		t.Errorf("could read notaUint -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
-	}
-	if v, err := cfg.GetUint("nosuchUint"); err == nil {
-		t.Errorf("could read nosuchUint -%v", v)
-	} else {
-		if v != 0 {
-			t.Errorf("didn't return 0 -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetUint(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetSlice(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"slice":       []interface{}{1, 2, 3, 4},
+		"casttoslice": "bogus",
+		"notaslice":   struct{}{},
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["slice"] = []interface{}{1, 2, 3, 4}
-	mr.config["casttoslice"] = "bogus"
-	mr.config["notaslice"] = struct{}{}
-	if v, err := cfg.GetSlice("slice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, []interface{}{1, 2, 3, 4}) {
-		t.Errorf("read slice %v, expected %v", v, mr.config["slice"])
+	patterns := []struct {
+		k   string
+		v   []interface{}
+		err error
+	}{
+		{"slice", []interface{}{1, 2, 3, 4}, nil},
+		{"casttoslice", []interface{}{"bogus"}, nil},
+		{"notaslice", nil, cfgconv.TypeError{}},
+		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetSlice("casttoslice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, []interface{}{"bogus"}) {
-		t.Errorf("read slice %v, expected %v", v, mr.config["casttoslice"])
-	}
-	if v, err := cfg.GetSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetSlice(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetIntSlice(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"slice":       []int64{1, 2, -3, 4},
+		"casttoslice": "42",
+		"stringslice": []string{"one", "two", "three"},
+		"notaslice":   "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["slice"] = []int64{1, 2, -3, 4}
-	mr.config["casttoslice"] = "42"
-	mr.config["stringslice"] = []string{"one", "two", "three"}
-	mr.config["notaslice"] = "bogus"
-	if v, err := cfg.GetIntSlice("slice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, mr.config["slice"]) {
-		t.Errorf("read slice %v, expected %v", v, mr.config["slice"])
+	patterns := []struct {
+		k   string
+		v   []int64
+		err error
+	}{
+		{"slice", []int64{1, 2, -3, 4}, nil},
+		{"casttoslice", []int64{42}, nil},
+		{"stringslice", nil, &strconv.NumError{}},
+		{"notaslice", nil, &strconv.NumError{}},
+		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetIntSlice("casttoslice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, []int64{42}) {
-		t.Errorf("read slice %v, expected %v", v, []int64{42})
-	}
-	if v, err := cfg.GetIntSlice("stringslice"); err == nil {
-		t.Errorf("could read slice - stringslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetIntSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetIntSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetIntSlice(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetStringSlice(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"intslice":        []int64{1, 2, -3, 4},
+		"stringslice":     []string{"one", "two", "three"},
+		"uintslice":       []uint64{1, 2, 3, 4},
+		"notastringslice": []interface{}{1, 2, struct{}{}},
+		"casttoslice":     "bogus",
+		"notaslice":       struct{}{},
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["intslice"] = []int64{1, 2, -3, 4}
-	mr.config["stringslice"] = []string{"one", "two", "three"}
-	mr.config["uintslice"] = []uint64{1, 2, 3, 4}
-	mr.config["notastringslice"] = []interface{}{1, 2, struct{}{}}
-	mr.config["casttoslice"] = "bogus"
-	mr.config["notaslice"] = struct{}{}
-	expectedIntSlice := []string{"1", "2", "-3", "4"}
-	expectedUintSlice := []string{"1", "2", "3", "4"}
-	expectedCastToSlice := []string{"bogus"}
-	if v, err := cfg.GetStringSlice("stringslice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, mr.config["stringslice"]) {
-		t.Errorf("read slice %v, expected %v", v, mr.config["stringslice"])
+	patterns := []struct {
+		k   string
+		v   []string
+		err error
+	}{
+		{"intslice", []string{"1", "2", "-3", "4"}, nil},
+		{"uintslice", []string{"1", "2", "3", "4"}, nil},
+		{"stringslice", []string{"one", "two", "three"}, nil},
+		{"casttoslice", []string{"bogus"}, nil},
+		{"notastringslice", nil, cfgconv.TypeError{}},
+		{"notaslice", nil, cfgconv.TypeError{}},
+		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetStringSlice("casttoslice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, expectedCastToSlice) {
-		t.Errorf("read slice %v, expected %v", v, expectedCastToSlice)
-	}
-	if v, err := cfg.GetStringSlice("intslice"); err != nil {
-		t.Errorf("couldn't read slice - intslice -%v", v)
-	} else if !reflect.DeepEqual(v, expectedIntSlice) {
-		t.Errorf("read slice %v, expected %v", v, expectedIntSlice)
-	}
-	if v, err := cfg.GetStringSlice("uintslice"); err != nil {
-		t.Errorf("couldn't read slice - uintslice -%v", v)
-	} else if !reflect.DeepEqual(v, expectedUintSlice) {
-		t.Errorf("read slice %v, expected %v", v, expectedUintSlice)
-	}
-	if v, err := cfg.GetStringSlice("notastringslice"); err == nil {
-		t.Errorf("could read slice - notastringslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetStringSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetStringSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetStringSlice(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetUintSlice(t *testing.T) {
-	cfg := New()
-	mr := mapReader{map[string]interface{}{}}
+	cfg := config.New()
+	mr := mapReader{map[string]interface{}{
+		"slice":       []uint64{1, 2, 3, 4},
+		"casttoslice": "42",
+		"intslice":    []int64{1, 2, -3, 4},
+		"stringslice": []string{"one", "two", "three"},
+		"notaslice":   "bogus",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["slice"] = []uint64{1, 2, 3, 4}
-	mr.config["casttoslice"] = "42"
-	mr.config["intslice"] = []int64{1, 2, -3, 4}
-	mr.config["stringslice"] = []string{"one", "two", "three"}
-	mr.config["notaslice"] = "bogus"
-	if v, err := cfg.GetUintSlice("slice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, mr.config["slice"]) {
-		t.Errorf("read slice %v, expected %v", v, mr.config["slice"])
+	patterns := []struct {
+		k   string
+		v   []uint64
+		err error
+	}{
+		{"slice", []uint64{1, 2, 3, 4}, nil},
+		{"casttoslice", []uint64{42}, nil},
+		{"intslice", nil, cfgconv.TypeError{}},
+		{"stringslice", nil, &strconv.NumError{}},
+		{"notaslice", nil, &strconv.NumError{}},
+		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	if v, err := cfg.GetUintSlice("casttoslice"); err != nil {
-		t.Errorf("couldn't read slice - %v", err)
-	} else if !reflect.DeepEqual(v, []uint64{42}) {
-		t.Errorf("read slice %v, expected %v", v, []uint64{42})
-	}
-	if v, err := cfg.GetUintSlice("intslice"); err == nil {
-		t.Errorf("could read slice - intslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetUintSlice("stringslice"); err == nil {
-		t.Errorf("could read slice - stringslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetUintSlice("notaslice"); err == nil {
-		t.Errorf("could read slice - notaslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
-	}
-	if v, err := cfg.GetUintSlice("nosuchslice"); err == nil {
-		t.Errorf("could read slice - nosuchslice -%v", v)
-	} else {
-		if len(v) != 0 {
-			t.Errorf("didn't return empty -%v", v)
-		}
+	for _, p := range patterns {
+		v, err := cfg.GetUintSlice(p.k)
+		assert.IsType(t, p.err, err, p.k)
+		assert.Equal(t, p.v, v, p.k)
 	}
 }
 
 func TestGetConfig(t *testing.T) {
-	cfg := New()
+	cfg := config.New()
 	// Single Reader
-	mr := mapReader{map[string]interface{}{}}
+	mr := mapReader{map[string]interface{}{
+		"foo.a": "foo.a",
+		"foo.b": "foo.b",
+		"bar.b": "bar.b",
+		"bar.c": "bar.c",
+		"baz.a": "baz.a",
+		"baz.c": "baz.c",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["foo.a"] = "foo.a"
-	mr.config["foo.b"] = "foo.b"
-	mr.config["bar.b"] = "bar.b"
-	mr.config["bar.c"] = "bar.c"
-	mr.config["baz.a"] = "baz.a"
-	mr.config["baz.c"] = "baz.c"
-	cfg.AddAlias("foo.d", "bar.c")
-	if rootCfg, err := cfg.GetConfig(""); err == nil {
-		assertGet(t, rootCfg, "foo.a", mr.config["foo.a"].(string), "root config")
-		assertGet(t, rootCfg, "bar.b", mr.config["bar.b"].(string), "root config")
-		assertGet(t, rootCfg, "baz.c", mr.config["baz.c"].(string), "root config")
-	} else {
-		t.Errorf("failed to get root config")
+	cfg.AddAlias("foo.d", "bar.c") // leaf alias
+	cfg.AddAlias("fuz", "foo")     // node alias
+
+	type testPoint struct {
+		k   string
+		v   interface{}
+		err error
 	}
-	if fooCfg, err := cfg.GetConfig("foo"); err == nil {
-		assertGet(t, fooCfg, "a", mr.config["foo.a"].(string), "foo config")
-		assertGet(t, fooCfg, "b", mr.config["foo.b"].(string), "foo config")
-		refuteGet(t, fooCfg, "c", "foo config")
-		// alias in cfg
-		assertGet(t, fooCfg, "d", mr.config["bar.c"].(string), "foo config")
-		// alias in fooCfg
-		fooCfg.AddAlias("e", "b")
-		assertGet(t, fooCfg, "e", mr.config["foo.b"].(string), "foo config")
-		refuteGet(t, cfg, "foo.e", "foo config")
-	} else {
-		t.Errorf("failed to get foo config")
+	type alias struct {
+		new string
+		old string
 	}
-	if barCfg, err := cfg.GetConfig("bar"); err == nil {
-		refuteGet(t, barCfg, "a", "bar config")
-		assertGet(t, barCfg, "b", mr.config["bar.b"].(string), "bar config")
-		assertGet(t, barCfg, "c", mr.config["bar.c"].(string), "bar config")
-		refuteGet(t, barCfg, "e", "bar config")
-	} else {
-		t.Errorf("failed to get bar config")
+	patterns := []struct {
+		name    string
+		subtree string
+		tp      []testPoint
+	}{
+		{"root", "", []testPoint{
+			{"foo.a", "foo.a", nil},
+			{"foo.b", "foo.b", nil},
+			{"bar.b", "bar.b", nil},
+			{"bar.c", "bar.c", nil},
+			{"baz.a", "baz.a", nil},
+			{"baz.c", "baz.c", nil},
+		}},
+		{"foo", "foo", []testPoint{
+			{"a", "foo.a", nil},
+			{"b", "foo.b", nil},
+			{"c", nil, config.NotFoundError{}},
+			{"d", "bar.c", nil},
+		}},
+		{"fuz", "fuz", []testPoint{
+			{"a", "foo.a", nil},
+			{"b", "foo.b", nil},
+			{"c", nil, config.NotFoundError{}},
+			{"d", nil, config.NotFoundError{}}, // ignores foo.d -> bar.c alias
+		}},
+		{"bar", "bar", []testPoint{
+			{"a", nil, config.NotFoundError{}},
+			{"b", "bar.b", nil},
+			{"c", "bar.c", nil},
+			{"e", nil, config.NotFoundError{}},
+		}},
+		{"baz", "baz", []testPoint{
+			{"a", "baz.a", nil},
+			{"b", nil, config.NotFoundError{}},
+			{"c", "baz.c", nil},
+			{"e", nil, config.NotFoundError{}},
+		}},
+		{"blah", "blah", []testPoint{
+			{"a", nil, config.NotFoundError{}},
+			{"b", nil, config.NotFoundError{}},
+			{"c", nil, config.NotFoundError{}},
+			{"e", nil, config.NotFoundError{}},
+		}},
 	}
-	if bazCfg, err := cfg.GetConfig("baz"); err == nil {
-		assertGet(t, bazCfg, "a", mr.config["baz.a"].(string), "baz config")
-		refuteGet(t, bazCfg, "b", "baz config")
-		assertGet(t, bazCfg, "c", mr.config["baz.c"].(string), "baz config")
-	} else {
-		t.Errorf("failed to get bar config")
-	}
-	if blahCfg, err := cfg.GetConfig("blah"); err == nil {
-		refuteGet(t, blahCfg, "a", "blah config")
-		refuteGet(t, blahCfg, "b", "blah config")
-		refuteGet(t, blahCfg, "c", "blah config")
-	} else {
-		t.Errorf("failed to get blah config")
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			for _, tp := range p.tp {
+				c, err := cfg.GetConfig(p.subtree)
+				assert.Nil(t, err)
+				require.NotNil(t, c)
+				v, err := c.Get(tp.k)
+				assert.IsType(t, tp.err, err, tp.k)
+				assert.Equal(t, tp.v, v, tp.k)
+			}
+		}
+		t.Run(p.name, f)
 	}
 }
 
@@ -755,14 +683,15 @@ type nestedConfig struct {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfg := New()
+	cfg := config.New()
 	// Root Reader
-	mr := mapReader{map[string]interface{}{}}
+	mr := mapReader{map[string]interface{}{
+		"foo.a": 42,
+		"foo.b": "foo.b",
+		"foo.c": []int{1, 2, 3, 4},
+		"foo.d": "ignored",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["foo.a"] = 42
-	mr.config["foo.b"] = "foo.b"
-	mr.config["foo.c"] = []int{1, 2, 3, 4}
-	mr.config["foo.d"] = "ignored"
 	if err := cfg.Unmarshal("foo", 0); err == nil {
 		t.Errorf("failed to reject unmarshal into non-struct")
 	}
@@ -770,93 +699,55 @@ func TestUnmarshal(t *testing.T) {
 	foo.E = "some useful default"
 	// correctly typed
 	if err := cfg.Unmarshal("foo", &foo); err == nil {
-		if foo.Atagged != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], foo.Atagged)
-		}
-		if foo.B != mr.config["foo.b"] {
-			t.Errorf("failed to unmarshal 'foo.b', expected %v, got %v", mr.config["foo.b"], foo.B)
-		}
-		if !reflect.DeepEqual(foo.C, mr.config["foo.c"]) {
-			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], foo.C)
-		}
-		if foo.E != "some useful default" {
-			t.Errorf("unmarshalled 'foo.e', got %v", foo.B)
-		}
+		assert.Equal(t, mr.config["foo.a"], foo.Atagged)
+		assert.Equal(t, mr.config["foo.b"], foo.B)
+		assert.Equal(t, mr.config["foo.c"], foo.C)
+		assert.Equal(t, "some useful default", foo.E)
 	} else {
 		t.Errorf("failed to unmarshal foo")
 	}
-	// Mistyped
+	// Incorrectly typed
 	mr.config["foo.a"] = []int{1, 2}
 	foo = fooConfig{}
 	if err := cfg.Unmarshal("foo", &foo); err != nil {
-		if !strings.Contains(err.Error(), "foo.a") {
-			t.Errorf("unmarshal error doesn't identify key 'foo.a' - %v", err)
-		}
-		if foo.Atagged != 0 {
-			t.Errorf("set mistyped 'foo.a', expected 0, got %v", foo.Atagged)
-		}
-		if foo.B != mr.config["foo.b"] {
-			t.Errorf("failed to unmarshal 'foo.b', expected %v, got %v", mr.config["foo.b"], foo.B)
-		}
-		if !reflect.DeepEqual(foo.C, mr.config["foo.c"]) {
-			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], foo.C)
-		}
+		assert.IsType(t, config.UnmarshalError{}, err)
+		assert.Contains(t, err.Error(), "foo.a")
+		assert.Equal(t, 0, foo.Atagged)
+		assert.Equal(t, mr.config["foo.b"], foo.B)
+		assert.Equal(t, mr.config["foo.c"], foo.C)
 	} else {
 		t.Errorf("successfully unmarshalled mistyped foo")
 	}
 	mr.config["foo.a"] = 42
+
 	// Nested
 	mr.config["foo.nested.a"] = 43
 	mr.config["foo.nested.b"] = "foo.nested.b"
 	mr.config["foo.nested.c"] = []int{1, 2, -3, 4}
 	nc := nestedConfig{}
 	if err := cfg.Unmarshal("foo", &nc); err == nil {
-		if nc.Atagged != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], nc.Atagged)
-		}
-		if nc.B != mr.config["foo.b"] {
-			t.Errorf("failed to unmarshal 'foo.b', expected %v, got %v", mr.config["foo.b"], nc.B)
-		}
-		if !reflect.DeepEqual(nc.C, mr.config["foo.c"]) {
-			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], nc.C)
-		}
-		if nc.Nested.A != mr.config["foo.nested.a"] {
-			t.Errorf("failed to unmarshal 'foo.nested.a', expected %v, got %v", mr.config["foo.nested.a"], nc.Nested.A)
-		}
-		if nc.Nested.Btagged != mr.config["foo.nested.b"] {
-			t.Errorf("failed to unmarshal 'foo.nested.b', expected %v, got %v", mr.config["foo.nested.b"], nc.Nested.Btagged)
-		}
-		if !reflect.DeepEqual(nc.Nested.C, mr.config["foo.nested.c"]) {
-			t.Errorf("failed to unmarshal 'foo.nested.c', expected %v, got %v", mr.config["foo.nested.c"], nc.Nested.C)
-		}
+		assert.Equal(t, mr.config["foo.a"], nc.Atagged)
+		assert.Equal(t, mr.config["foo.b"], nc.B)
+		assert.Equal(t, mr.config["foo.c"], nc.C)
+		assert.Equal(t, mr.config["foo.nested.a"], nc.Nested.A)
+		assert.Equal(t, mr.config["foo.nested.b"], nc.Nested.Btagged)
+		assert.Equal(t, mr.config["foo.nested.c"], nc.Nested.C)
 	} else {
 		t.Errorf("failed to unmarshal foo")
 	}
-	// Nested mistyped
+
+	// Nested incorrectly typed
 	mr.config["foo.nested.a"] = []int{}
 	nc = nestedConfig{}
 	if err := cfg.Unmarshal("foo", &nc); err != nil {
-		if !strings.Contains(err.Error(), "foo.nested.a") {
-			t.Errorf("unmarshal error doesn't identify key 'foo.nested.a' - %v", err)
-		}
-		if nc.Atagged != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], nc.Atagged)
-		}
-		if nc.B != mr.config["foo.b"] {
-			t.Errorf("failed to unmarshal 'foo.b', expected %v, got %v", mr.config["foo.b"], nc.B)
-		}
-		if !reflect.DeepEqual(nc.C, mr.config["foo.c"]) {
-			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], nc.C)
-		}
-		if nc.Nested.A != 0 {
-			t.Errorf("set mistyped 'foo.nested.a', expected 0, got %v", nc.Nested.A)
-		}
-		if nc.Nested.Btagged != mr.config["foo.nested.b"] {
-			t.Errorf("failed to unmarshal 'foo.nested.b', expected %v, got %v", mr.config["foo.nested.b"], nc.Nested.Btagged)
-		}
-		if !reflect.DeepEqual(nc.Nested.C, mr.config["foo.nested.c"]) {
-			t.Errorf("failed to unmarshal 'foo.nested.c', expected %v, got %v", mr.config["foo.nested.c"], nc.Nested.C)
-		}
+		assert.IsType(t, config.UnmarshalError{}, err)
+		assert.Contains(t, err.Error(), "foo.nested.a")
+		assert.Equal(t, mr.config["foo.a"], nc.Atagged)
+		assert.Equal(t, mr.config["foo.b"], nc.B)
+		assert.Equal(t, mr.config["foo.c"], nc.C)
+		assert.Equal(t, 0, nc.Nested.A)
+		assert.Equal(t, mr.config["foo.nested.b"], nc.Nested.Btagged)
+		assert.Equal(t, mr.config["foo.nested.c"], nc.Nested.C)
 	} else {
 		t.Errorf("successfully unmarshalled mistyped foo.nested")
 	}
@@ -867,80 +758,64 @@ func TestUnmarshal(t *testing.T) {
 	cfg.AddAlias("foo.nested.e", "foo.b")
 	nc = nestedConfig{}
 	if err := cfg.Unmarshal("foo", &nc); err == nil {
-		if !reflect.DeepEqual(nc.Nested.E, mr.config["foo.b"]) {
-			t.Errorf("failed to unmarshal 'foo.nested.e', expected %v, got %v", mr.config["foo.b"], nc.Nested.E)
-		}
+		assert.Equal(t, mr.config["foo.b"], nc.Nested.E)
 	} else {
 		t.Errorf("failed to unmarshal foo")
 	}
 }
 
 func TestUnmarshalToMap(t *testing.T) {
-	cfg := New()
+	cfg := config.New()
 	// Root Reader
-	mr := mapReader{map[string]interface{}{}}
+	mr := mapReader{map[string]interface{}{
+		"foo.a": 42,
+		"foo.b": "foo.b",
+		"foo.c": []int{1, 2, 3, 4},
+		"foo.d": "ignored",
+	}}
 	cfg.InsertReader(&mr)
-	mr.config["foo.a"] = 42
-	mr.config["foo.b"] = "foo.b"
-	mr.config["foo.c"] = []int{1, 2, 3, 4}
-	mr.config["foo.d"] = "ignored"
 	// Nil - raw
 	obj := map[string]interface{}{"a": nil, "b": nil, "c": nil, "e": nil}
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		if obj["a"] != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], obj["a"])
-		}
-		if obj["b"] != mr.config["foo.b"] {
-			t.Errorf("failed to unmarshal 'foo.b', expected %v, got %v", mr.config["foo.b"], obj["b"])
-		}
-		if !reflect.DeepEqual(obj["c"], mr.config["foo.c"]) {
-			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], obj["c"])
-		}
-		if v, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", v)
-		}
-		if obj["e"] != nil {
-			t.Errorf("unmarshalled unconfigured 'e', expected %v, got %v", nil, obj["e"])
-		}
+		assert.Equal(t, mr.config["foo.a"], obj["a"])
+		assert.Equal(t, mr.config["foo.b"], obj["b"])
+		assert.Equal(t, mr.config["foo.c"], obj["c"])
+		v, ok := obj["d"]
+		assert.False(t, ok)
+		assert.Nil(t, v)
+		assert.Nil(t, obj["e"])
 	} else {
 		t.Errorf("failed to unmarshal foo")
 	}
 	// Typed
 	obj = map[string]interface{}{"a": int(0), "b": "", "c": []int{}, "e": "some useful default"}
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		if obj["a"] != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %#v, got %#v", mr.config["foo.a"], obj["a"])
-		}
-		if obj["b"] != mr.config["foo.b"] {
-			t.Errorf("failed to unmarshal 'foo.b', expected %v, got %v", mr.config["foo.b"], obj["b"])
-		}
-		if !reflect.DeepEqual(obj["c"], mr.config["foo.c"]) {
-			t.Errorf("failed to unmarshal 'foo.c', expected %v, got %v", mr.config["foo.c"], obj["c"])
-		}
-		if v, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", v)
-		}
-		if obj["e"] != "some useful default" {
-			t.Errorf("unmarshalled unconfigured 'e', expected %v, got %v", "some useful default", obj["e"])
-		}
+		assert.Equal(t, mr.config["foo.a"], obj["a"])
+		assert.Equal(t, mr.config["foo.b"], obj["b"])
+		assert.Equal(t, mr.config["foo.c"], obj["c"])
+		v, ok := obj["d"]
+		assert.False(t, ok)
+		assert.Nil(t, v)
+		assert.Equal(t, "some useful default", obj["e"])
 	} else {
 		t.Errorf("failed to unmarshal foo")
 	}
 	// Mistyped
 	obj = map[string]interface{}{"a": []int{}}
-	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		t.Errorf("successfully unmarshalled foo.a - %v", obj["a"])
-	} else if !strings.Contains(err.Error(), "foo.a") {
-		t.Errorf("unmarshal error doesn't identify key 'foo.a' - %v", err)
-	}
+	err := cfg.UnmarshalToMap("foo", obj)
+	assert.IsType(t, config.UnmarshalError{}, err)
+	assert.Contains(t, err.Error(), "foo.a")
+
 	obj = map[string]interface{}{"b": 44}
-	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		t.Errorf("successfully unmarshalled foo.b - %v", obj["b"])
-	}
+	err = cfg.UnmarshalToMap("foo", obj)
+	assert.IsType(t, config.UnmarshalError{}, err)
+	assert.Contains(t, err.Error(), "foo.b")
+
 	obj = map[string]interface{}{"c": ""}
-	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		t.Errorf("successfully unmarshalled foo.c - %v", obj["c"])
-	}
+	err = cfg.UnmarshalToMap("foo", obj)
+	assert.IsType(t, config.UnmarshalError{}, err)
+	assert.Contains(t, err.Error(), "foo.c")
+
 	// Nested
 	mr.config["foo.nested.a"] = 43
 	mr.config["foo.nested.b"] = "foo.nested.b"
@@ -949,21 +824,13 @@ func TestUnmarshalToMap(t *testing.T) {
 		"nested": map[string]interface{}{"a": int(0), "b": "", "c": []int{}}}
 	n1 := obj["nested"].(map[string]interface{})
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		if obj["a"] != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], obj["a"])
-		}
-		if n1["a"] != mr.config["foo.nested.a"] {
-			t.Errorf("failed to unmarshal 'foo.nested.a', expected %#v, got %#v", mr.config["foo.a"], n1["a"])
-		}
-		if n1["b"] != mr.config["foo.nested.b"] {
-			t.Errorf("failed to unmarshal 'foo.nested.b', expected %v, got %v", mr.config["foo.b"], n1["b"])
-		}
-		if !reflect.DeepEqual(n1["c"], mr.config["foo.nested.c"]) {
-			t.Errorf("failed to unmarshal 'foo.nested.c', expected %v, got %v", mr.config["foo.c"], n1["c"])
-		}
-		if v, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", v)
-		}
+		assert.Equal(t, mr.config["foo.a"], obj["a"])
+		assert.Equal(t, mr.config["foo.nested.a"], n1["a"])
+		assert.Equal(t, mr.config["foo.nested.b"], n1["b"])
+		assert.Equal(t, mr.config["foo.nested.c"], n1["c"])
+		v, ok := n1["d"]
+		assert.False(t, ok)
+		assert.Nil(t, v)
 	} else {
 		t.Errorf("failed to unmarshal foo")
 	}
@@ -975,24 +842,15 @@ func TestUnmarshalToMap(t *testing.T) {
 		"nested": map[string]interface{}{"a": int(0), "b": "", "c": []int{}}}
 	n1 = obj["nested"].(map[string]interface{})
 	if err := cfg.UnmarshalToMap("foo", obj); err != nil {
-		if !strings.Contains(err.Error(), "foo.nested.a") {
-			t.Errorf("unmarshal error doesn't identify key 'foo.nested.a' - %v", err)
-		}
-		if obj["a"] != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], obj["a"])
-		}
-		if n1["a"] != 0 {
-			t.Errorf("set mistyped 'foo.nested.a', expected 0, got %v", n1["a"])
-		}
-		if n1["b"] != mr.config["foo.nested.b"] {
-			t.Errorf("failed to unmarshal 'foo.nested.b', expected %v, got %v", mr.config["foo.b"], n1["b"])
-		}
-		if !reflect.DeepEqual(n1["c"], mr.config["foo.nested.c"]) {
-			t.Errorf("failed to unmarshal 'foo.nested.c', expected %v, got %v", mr.config["foo.c"], n1["c"])
-		}
-		if v, ok := obj["d"]; ok {
-			t.Errorf("unmarshalled unrequested 'd', got %v", v)
-		}
+		assert.IsType(t, config.UnmarshalError{}, err)
+		assert.Contains(t, err.Error(), "foo.nested.a")
+		assert.Equal(t, mr.config["foo.a"], obj["a"])
+		assert.Equal(t, 0, n1["a"])
+		assert.Equal(t, mr.config["foo.nested.b"], n1["b"])
+		assert.Equal(t, mr.config["foo.nested.c"], n1["c"])
+		v, ok := n1["d"]
+		assert.False(t, ok)
+		assert.Nil(t, v)
 	} else {
 		t.Errorf("failed to unmarshal foo")
 	}
@@ -1003,13 +861,55 @@ func TestUnmarshalToMap(t *testing.T) {
 		"nested": map[string]interface{}{"e": nil}}
 	n1 = obj["nested"].(map[string]interface{})
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		if obj["a"] != mr.config["foo.a"] {
-			t.Errorf("failed to unmarshal 'foo.a', expected %v, got %v", mr.config["foo.a"], obj["a"])
-		}
-		if n1["e"] != mr.config["foo.b"] {
-			t.Errorf("failed to unmarshal 'foo.nested.e', expected %#v, got %#v", mr.config["foo.b"], n1["e"])
-		}
+		assert.Equal(t, mr.config["foo.a"], obj["a"])
+		assert.Equal(t, mr.config["foo.b"], n1["e"])
 	} else {
 		t.Errorf("failed to unmarshal foo")
+	}
+}
+
+type mapReader struct {
+	// simple key value map.
+	// Note keys must be added as lowercase for config.GetX to work.
+	config map[string]interface{}
+}
+
+func (mr *mapReader) Contains(key string) bool {
+	_, ok := mr.config[key]
+	return ok
+}
+
+func (mr *mapReader) Read(key string) (interface{}, bool) {
+	v, ok := mr.config[key]
+	return v, ok
+}
+
+func TestNotFoundError(t *testing.T) {
+	patterns := []string{"one", "two", "three"}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			e := config.NotFoundError{Key: p}
+			expected := "config: key '" + e.Key + "' not found"
+			assert.Equal(t, expected, e.Error())
+		}
+		t.Run(fmt.Sprintf("%x", p), f)
+	}
+}
+
+func TestUnmarshalError(t *testing.T) {
+	patterns := []struct {
+		k   string
+		err error
+	}{
+		{"one", errors.New("two")},
+		{"three", errors.New("four")},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			e := config.UnmarshalError{Key: p.k, Err: p.err}
+			expected := "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
+			assert.Equal(t, expected, e.Error())
+		}
+		t.Run(p.k, f)
 	}
 }

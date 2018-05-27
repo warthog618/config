@@ -6,29 +6,29 @@
 // Package toml provides a TOML format reader for config.
 package toml
 
-import "github.com/pelletier/go-toml"
+import gotoml "github.com/pelletier/go-toml"
 
 // Reader provides the mapping from TOML to a config.Reader.
 type Reader struct {
-	config *toml.TomlTree
+	config *gotoml.Tree
 }
 
 // Read returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Reader) Read(key string) (interface{}, bool) {
 	v := r.config.Get(key)
-	if v != nil {
-		if _, ok := v.(*toml.TomlTree); ok {
-			return nil, false
-		}
-		return v, true
+	if v == nil {
+		return nil, false
 	}
-	return nil, false
+	if _, ok := v.(*gotoml.Tree); ok {
+		return nil, false
+	}
+	return v, true
 }
 
 // NewBytes returns a TOML reader that reads config from []byte.
 func NewBytes(cfg []byte) (*Reader, error) {
-	config, err := toml.Load(string(cfg))
+	config, err := gotoml.Load(string(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func NewBytes(cfg []byte) (*Reader, error) {
 
 // NewFile returns a TOML reader that reads config from a named file.
 func NewFile(filename string) (*Reader, error) {
-	config, err := toml.LoadFile(filename)
+	config, err := gotoml.LoadFile(filename)
 	if err != nil {
 		return nil, err
 	}

@@ -9,28 +9,30 @@ package prefixer
 
 import (
 	"strings"
-
-	"github.com/warthog618/config"
 )
 
-type reader config.Reader
+// Reader is the same as config.Reader.
+// Redfined to avoid dependency.
+type Reader interface {
+	Read(key string) (interface{}, bool)
+}
 
 // A wrapper around Reader that relocates the Reader config
 // to a subtree of the full tree.
 type prefixer struct {
+	// The Reader.
+	Reader
 	// The prefix of the reader config within the config tree.
 	// This is typically a config node, plus separator.
 	prefix string
-	// The reader.
-	reader
 }
 
 // New returns a new prefixer decorating the provided Reader.
 // The prefix defines the root node for the config returned by the reader.
 // e.g. with a prefix "module", reading the key "module.field" from the
 // prefixer will return the "field" reader from the Reader.
-func New(prefix string, reader config.Reader) config.Reader {
-	return &prefixer{prefix, reader}
+func New(prefix string, reader Reader) Reader {
+	return &prefixer{reader, prefix}
 }
 
 func (p *prefixer) Read(key string) (interface{}, bool) {
@@ -38,5 +40,5 @@ func (p *prefixer) Read(key string) (interface{}, bool) {
 		return nil, false
 	}
 	key = key[len(p.prefix):]
-	return p.reader.Read(key)
+	return p.Reader.Read(key)
 }

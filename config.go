@@ -22,7 +22,6 @@ type Config interface {
 	AddAlias(newKey string, oldKey string)
 	AppendReader(reader Reader)
 	InsertReader(reader Reader)
-	SetSeparator(separator string)
 	// Base get
 	Get(key string) (interface{}, error)
 	// Type gets
@@ -45,11 +44,27 @@ type Config interface {
 }
 
 // New creates a new config with no initial state.
-func New() Config {
-	return &config{
+func New(options ...Option) Config {
+	c := config{
 		separator: ".",
 		readers:   make([]Reader, 0),
 		aliases:   make(map[string][]string),
+	}
+	for _, option := range options {
+		option(&c)
+	}
+	return &c
+}
+
+// Option is a function which modifies a config at construction time.
+type Option func(*config)
+
+// WithSeparator is an Option that sets the config namespace separator.
+// This is an option to ensure it can only set at construction time,
+// as changing it a runtime makes no sense.
+func WithSeparator(separator string) Option {
+	return func(c *config) {
+		c.separator = separator
 	}
 }
 
@@ -126,8 +141,11 @@ func (c *config) prefixedKey(key ...string) string {
 	return c.prefix + c.separator + rhs
 }
 
-// Add an alias from a newKey, which should be used by the code,
+// Add an alias from a new key, which should be used by the code,
 // to an old key, which may still be present in legacy config.
+// Aliases are ignored if there is a config field matching the new key.
+// Multiple aliases may be added for a new key, and they are searched for
+// in the config in the reverse order they are added.
 // As with readers, the aliases are local to the config node, and any
 // subsequently created children.
 func (c *config) AddAlias(newKey string, oldKey string) {
@@ -146,13 +164,7 @@ func (c *config) AddAlias(newKey string, oldKey string) {
 	c.aliases[lNewKey] = append([]string{lOldKey}, aliases...)
 }
 
-func (c *config) SetSeparator(separator string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.separator = separator
-}
-
-// Get the raw string value corresponding to the key.
+// Get the raw value corresponding to the key.
 // Iterates through the list of readers, searching for a matching key,
 // or matching alias.  Returns the first match found, or an error if none is found.
 func (c *config) Get(key string) (interface{}, error) {
@@ -194,7 +206,7 @@ func (c *config) Get(key string) (interface{}, error) {
 			}
 		}
 	}
-	return "", NotFoundError{Key: fullKey}
+	return nil, NotFoundError{Key: fullKey}
 }
 
 func (c *config) GetBool(key string) (bool, error) {
@@ -248,13 +260,13 @@ func (c *config) GetInt(key string) (int64, error) {
 func (c *config) GetIntSlice(key string) ([]int64, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
-		return []int64(nil), err
+		return nil, err
 	}
 	retval := make([]int64, 0, len(slice))
 	for _, v := range slice {
 		cv, err := cfgconv.Int(v)
 		if err != nil {
-			return []int64(nil), err
+			return nil, err
 		}
 		retval = append(retval, cv)
 	}
@@ -264,7 +276,7 @@ func (c *config) GetIntSlice(key string) ([]int64, error) {
 func (c *config) GetSlice(key string) ([]interface{}, error) {
 	v, err := c.Get(key)
 	if err != nil {
-		return []interface{}(nil), err
+		return nil, err
 	}
 	return cfgconv.Slice(v)
 }
@@ -280,13 +292,13 @@ func (c *config) GetString(key string) (string, error) {
 func (c *config) GetStringSlice(key string) ([]string, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
-		return []string(nil), err
+		return nil, err
 	}
 	retval := make([]string, 0, len(slice))
 	for _, v := range slice {
 		cv, err := cfgconv.String(v)
 		if err != nil {
-			return []string(nil), err
+			return nil, err
 		}
 		retval = append(retval, cv)
 	}
@@ -312,13 +324,13 @@ func (c *config) GetUint(key string) (uint64, error) {
 func (c *config) GetUintSlice(key string) ([]uint64, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
-		return []uint64(nil), err
+		return nil, err
 	}
 	retval := make([]uint64, 0, len(slice))
 	for _, v := range slice {
 		cv, err := cfgconv.Uint(v)
 		if err != nil {
-			return []uint64(nil), err
+			return nil, err
 		}
 		retval = append(retval, cv)
 	}
@@ -334,7 +346,7 @@ func (e NotFoundError) Error() string {
 	return "config: key '" + e.Key + "' not found"
 }
 
-// UnmarshalError indicates an error occured while unmarhalling config into
+// UnmarshalError indicates an error occurred while unmarhalling config into
 // a struct or map.  The error indicates the problematic Key and the specific
 // error.
 type UnmarshalError struct {

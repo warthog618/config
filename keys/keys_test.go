@@ -3,33 +3,38 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-package keys
+package keys_test
 
-import "testing"
+import (
+	"testing"
 
-type replacerData struct {
-	fromSep   string
-	toSep     string
-	treatment Treatment
-	in        string
-	expected  string
-}
-
-var testPatterns = []replacerData{
-	{"-", ".", Unchanged, "Nested-key", "Nested.key"},
-	{"_", ":", LowerCase, "Nested_Key", "nested:key"},
-	{".", "_", UpperCase, "Nested.Key", "NESTED_KEY"},
-	{"_", "", LowerCamelCase, "NesTed_Key", "nestedKey"},
-	{".", "", UpperCamelCase, "nested.key", "NestedKey"},
-	{".", "_", 7, "NesteD.Key", "NesteD_Key"},
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/warthog618/config/keys"
+)
 
 func TestNewReplacer(t *testing.T) {
-	for _, p := range testPatterns {
-		r := NewReplacer(p.fromSep, p.toSep, p.treatment)
-		v := r.Replace(p.in)
-		if v != p.expected {
-			t.Errorf("failed to replace %s, got %v, expected %v", p.in, v, p.expected)
+	patterns := []struct {
+		fromSep   string
+		toSep     string
+		treatment keys.Treatment
+		in        string
+		expected  string
+	}{
+		{"-", ".", keys.Unchanged, "Nested-key", "Nested.key"},
+		{"_", ":", keys.LowerCase, "Nested_Key", "nested:key"},
+		{".", "_", keys.UpperCase, "Nested.Key", "NESTED_KEY"},
+		{"_", "", keys.LowerCamelCase, "NesTed_Key", "nestedKey"},
+		{".", "", keys.UpperCamelCase, "nested.key", "NestedKey"},
+		{".", "_", 7, "NesteD.Key", "NesteD_Key"},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			r := keys.NewReplacer(p.fromSep, p.toSep, p.treatment)
+			require.NotNil(t, r)
+			v := r.Replace(p.in)
+			assert.Equal(t, p.expected, v)
 		}
+		t.Run(p.in, f)
 	}
 }
