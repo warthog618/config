@@ -31,26 +31,39 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 	return nil, false
 }
 
-// SetListSeparator sets the separator between slice fields in the env namespace.
+// Option is a function which modifies a Reader at construction time.
+type Option func(*Reader)
+
+// WithListSeparator sets the separator between slice fields in the env namespace.
 // The default separator is ":"
-func (r *Reader) SetListSeparator(separator string) {
-	r.listSeparator = separator
+func WithListSeparator(separator string) Option {
+	return func(r *Reader) {
+		r.listSeparator = separator
+	}
 }
 
 // NewBytes returns a properties reader that reads config from []byte.
-func NewBytes(cfg []byte) (*Reader, error) {
+func NewBytes(cfg []byte, options ...Option) (*Reader, error) {
 	config, err := properties.Load(cfg, properties.UTF8)
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{config, ","}, nil
+	return new(config, options...), nil
 }
 
 // NewFile returns a properties reader that reads config from a named file.
-func NewFile(filename string) (*Reader, error) {
+func NewFile(filename string, options ...Option) (*Reader, error) {
 	config, err := properties.LoadFile(filename, properties.UTF8)
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{config, ","}, nil
+	return new(config, options...), nil
+}
+
+func new(config *properties.Properties, options ...Option) *Reader {
+	r := Reader{config, ","}
+	for _, option := range options {
+		option(&r)
+	}
+	return &r
 }

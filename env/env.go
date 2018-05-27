@@ -19,9 +19,15 @@ import (
 // Environment variables beginning with the prefix are loaded into the config.
 // The mapping from environment variable naming to config space naming is
 // determined by the prefix and separator fields of the Reader.
-func New(prefix string) (*Reader, error) {
+func New(prefix string, options ...Option) (*Reader, error) {
 	config := map[string]string(nil)
-	r := Reader{config, prefix, keys.NewReplacer("_", ".", keys.LowerCase), ":"}
+	r := Reader{config, prefix, nil, ":"}
+	for _, option := range options {
+		option(&r)
+	}
+	if r.cfgKeyReplacer == nil {
+		r.cfgKeyReplacer = keys.NewLowerCaseReplacer("_", ".")
+	}
 	r.load()
 	return &r, nil
 }
@@ -36,7 +42,7 @@ type Reader struct {
 	envPrefix string
 	// A replacer that maps from env space to config space.
 	// The replacer is applied AFTER the prefix has been removed.
-	cfgKeyReplacer keys.Replacer
+	cfgKeyReplacer Replacer
 	// The separator for slices stored in string values.
 	listSeparator string
 }
@@ -53,26 +59,39 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 	return nil, false
 }
 
-// SetEnvPrefix sets the prefix for environment variables included in this reader's config.
+// Replacer is a string replacer similar to strings.Replacer.
+// It must be safe for use by multiple goroutines.
+type Replacer interface {
+	Replace(s string) string
+}
+
+// Option is a function which modifies a Reader at construction time.
+type Option func(*Reader)
+
+// WithEnvPrefix sets the prefix for environment variables included in this reader's config.
 // The prefix is stripped from the environment variable name during mapping to
 // the config namespace and so should include any separator between it and the
 // first tier name.
-func (r *Reader) SetEnvPrefix(prefix string) {
-	r.envPrefix = prefix
-	r.load()
+func WithEnvPrefix(prefix string) Option {
+	return func(r *Reader) {
+		r.envPrefix = prefix
+	}
 }
 
-// SetCfgKeyReplacer sets the replacer used to map from env space to config space.
+// WithCfgKeyReplacer sets the replacer used to map from env space to config space.
 // The default is to replace "_" with "." and convert to lowercase.
-func (r *Reader) SetCfgKeyReplacer(keyReplacer keys.Replacer) {
-	r.cfgKeyReplacer = keyReplacer
-	r.load()
+func WithCfgKeyReplacer(keyReplacer keys.Replacer) Option {
+	return func(r *Reader) {
+		r.cfgKeyReplacer = keyReplacer
+	}
 }
 
-// SetListSeparator sets the separator between slice fields in the env namespace.
+// WithListSeparator sets the separator between slice fields in the env namespace.
 // The default separator is ":"
-func (r *Reader) SetListSeparator(separator string) {
-	r.listSeparator = separator
+func WithListSeparator(separator string) Option {
+	return func(r *Reader) {
+		r.listSeparator = separator
+	}
 }
 
 func (r *Reader) load() {

@@ -44,13 +44,19 @@ import (
 // The shortFlags defines the mapping from single character short flags to
 // long flag names.  Long names are within the flag naming space and so should
 // use the flagSeparator to separate tiers.
-func New(cmdArgs []string, shortFlags map[byte]string) (*Reader, error) {
+func New(cmdArgs []string, shortFlags map[byte]string, options ...Option) (*Reader, error) {
 	if len(cmdArgs) == 0 {
 		cmdArgs = os.Args[1:]
 	}
 	args := []string{}
 	config := map[string]interface{}(nil)
-	r := Reader{cmdArgs, args, config, shortFlags, keys.NewReplacer("-", ".", keys.Unchanged), ","}
+	r := Reader{cmdArgs, args, config, shortFlags, nil, ","}
+	for _, option := range options {
+		option(&r)
+	}
+	if r.cfgKeyReplacer == nil {
+		r.cfgKeyReplacer = keys.NewUnchangedReplacer("-", ".")
+	}
 	r.parse()
 	return &r, nil
 }
@@ -66,9 +72,34 @@ type Reader struct {
 	// map of short flag characters to long form flag name
 	shortFlags map[byte]string
 	// A replacer that maps from flag space to config space.
-	cfgKeyReplacer keys.Replacer
+	cfgKeyReplacer Replacer
 	// The separator for slices stored in string values.
 	listSeparator string
+}
+
+// Replacer is a string replacer similar to strings.Replacer.
+// It must be safe for use by multiple goroutines.
+type Replacer interface {
+	Replace(s string) string
+}
+
+// Option is a function which modifies a Reader at construction time.
+type Option func(*Reader)
+
+// WithCfgKeyReplacer sets the replacer used to map from flag space to config space.
+// The default separator is "."
+func WithCfgKeyReplacer(keyReplacer Replacer) Option {
+	return func(r *Reader) {
+		r.cfgKeyReplacer = keyReplacer
+	}
+}
+
+// WithListSeparator sets the separator between slice fields in the flag namespace.
+// The default separator is ","
+func WithListSeparator(separator string) Option {
+	return func(r *Reader) {
+		r.listSeparator = separator
+	}
 }
 
 // Args returns the trailing arguments from the command line that are not flags,
@@ -89,14 +120,6 @@ func (r *Reader) NFlag() int {
 	return len(r.config)
 }
 
-// SetShortFlag adds a mapping from a short flag character to the long flag
-// name, in the flag namespace.
-// Any existing mapping for the short flag is overwritten by this set.
-func (r *Reader) SetShortFlag(shortFlag byte, longFlag string) {
-	r.shortFlags[shortFlag] = longFlag
-	r.parse()
-}
-
 // Read returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Reader) Read(key string) (interface{}, bool) {
@@ -109,19 +132,6 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 		}
 	}
 	return v, ok
-}
-
-// SetCfgKeyReplacer sets the replacer used to map from flag space to config space.
-// The default separator is "."
-func (r *Reader) SetCfgKeyReplacer(keyReplacer *strings.Replacer) {
-	r.cfgKeyReplacer = keyReplacer
-	r.parse()
-}
-
-// SetListSeparator sets the separator between slice fields in the flag namespace.
-// The default separator is ","
-func (r *Reader) SetListSeparator(separator string) {
-	r.listSeparator = separator
 }
 
 func incrementFlag(config map[string]interface{}, key string) {

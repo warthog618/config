@@ -29,43 +29,79 @@ const (
 	UpperCamelCase
 )
 
-// Replacer defines an interface that replaces a key from one namespace
-// with a key from another.
-// This is a sub-interface of strings.Replacer that lacks the io.Writer.
-type Replacer interface {
-	Replace(old string) string
+// Replacer replaces a string with replacements.
+type Replacer struct {
+	replace func(s string) string
 }
 
-type replacer struct {
-	fromSep string
-	toSep   string
+// Replace performs the string replacement using the replace field.
+func (r Replacer) Replace(s string) string {
+	return r.replace(s)
 }
 
-// A fast replacer for when no treatment is required.
-func (r *replacer) Replace(from string) string {
-	return strings.Replace(from, r.fromSep, r.toSep, -1)
-}
+type replacer func(s string) string
 
-type treatedReplacer struct {
-	replacer
-	treatment Treatment
-}
-
-// CamelWord returns the CamelCase version of a word, i.e. the first
-// letter capitalised and other characters lowercase.
-func CamelWord(s string) string {
-	r, n := utf8.DecodeRuneInString(s)
-	return string(unicode.ToUpper(r)) + strings.ToLower(s[n:])
-}
-
-func (r *treatedReplacer) Replace(from string) string {
-	switch r.treatment {
+// NewReplacer returns a Replacer that will replace the from separator (fromSep)
+// with the to separator (toSep), and then apply the case treatment.
+func NewReplacer(fromSep, toSep string, treatment Treatment) Replacer {
+	switch treatment {
 	case LowerCase:
-		return strings.ToLower(strings.Replace(from, r.fromSep, r.toSep, -1))
+		return NewLowerCaseReplacer(fromSep, toSep)
 	case UpperCase:
-		return strings.ToUpper(strings.Replace(from, r.fromSep, r.toSep, -1))
+		return NewUpperCaseReplacer(fromSep, toSep)
 	case LowerCamelCase:
-		path := strings.Split(from, r.fromSep)
+		return NewLowerCamelCaseReplacer(fromSep, toSep)
+	case UpperCamelCase:
+		return NewUpperCamelCaseReplacer(fromSep, toSep)
+	default:
+		return NewUnchangedReplacer(fromSep, toSep)
+	}
+}
+
+// NullReplacer performs no change to the key.
+type NullReplacer struct {
+}
+
+// Replace simply returns the key.
+func (r NullReplacer) Replace(s string) string {
+	return s
+}
+
+// NewNullReplacer creates a Replacer that leaves the key unchanged.
+func NewNullReplacer() NullReplacer {
+	return NullReplacer{}
+}
+
+// NewUnchangedReplacer creates a Replacer that leaves case unchanged.
+func NewUnchangedReplacer(fromSep, toSep string) Replacer {
+	r := func(s string) string {
+		return strings.Replace(s, fromSep, toSep, -1)
+	}
+	return Replacer{r}
+}
+
+// NewLowerCaseReplacer creates a Replacer that forces keys to lower case.
+func NewLowerCaseReplacer(fromSep, toSep string) Replacer {
+	r := func(s string) string {
+		return strings.ToLower(strings.Replace(s, fromSep, toSep, -1))
+	}
+	return Replacer{r}
+}
+
+// NewUpperCaseReplacer creates a Replacer that forces keys to upper case.
+func NewUpperCaseReplacer(fromSep, toSep string) Replacer {
+	f := func(s string) string {
+		return strings.ToUpper(strings.Replace(s, fromSep, toSep, -1))
+	}
+	return Replacer{f}
+}
+
+// NewLowerCamelCaseReplacer creates a Replacer that forces keys to camel case,
+// i.e. each word begins with a capital letter, except the first word which
+// is all lower case.
+func NewLowerCamelCaseReplacer(fromSep, toSep string) Replacer {
+	f := func(from string) string {
+		path := strings.Split(from, fromSep)
 		for idx, p := range path {
 			if idx == 0 {
 				path[idx] = strings.ToLower(p)
@@ -73,23 +109,27 @@ func (r *treatedReplacer) Replace(from string) string {
 				path[idx] = CamelWord(p)
 			}
 		}
-		return strings.Join(path, r.toSep)
-	case UpperCamelCase:
-		path := strings.Split(from, r.fromSep)
+		return strings.Join(path, toSep)
+	}
+	return Replacer{f}
+}
+
+// NewUpperCamelCaseReplacer creates a Replacer that forces keys to camel case,
+// i.e. each word begins with a capital letter, including the first work.
+func NewUpperCamelCaseReplacer(fromSep, toSep string) Replacer {
+	f := func(from string) string {
+		path := strings.Split(from, fromSep)
 		for idx, p := range path {
 			path[idx] = CamelWord(p)
 		}
-		return strings.Join(path, r.toSep)
-	default:
-		return strings.Replace(from, r.fromSep, r.toSep, -1)
+		return strings.Join(path, toSep)
 	}
+	return Replacer{f}
 }
 
-// NewReplacer returns a Replacer that will replace the from separator (fromSep)
-// with the to separator (toSep), and then apply the case treatment.
-func NewReplacer(fromSep, toSep string, treatment Treatment) Replacer {
-	if treatment == Unchanged {
-		return &replacer{fromSep, toSep}
-	}
-	return &treatedReplacer{replacer{fromSep, toSep}, treatment}
+// CamelWord returns the CamelCase version of a word, i.e. the first
+// letter capitalised and other characters lowercase.
+func CamelWord(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + strings.ToLower(s[n:])
 }

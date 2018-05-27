@@ -42,18 +42,27 @@ func TestArgs(t *testing.T) {
 		{"empty", []string{}, nil, []string{}},
 		{"only one", []string{"arg1"}, nil, []string{"arg1"}},
 		{"only two", []string{"arg1", "arg2"}, nil, []string{"arg1", "arg2"}},
-		{"two with flags", []string{
-			"-v",
-			"-n=44",
-			"--leaf", "42",
-			"--slice=a,b",
-			"--nested-slice", "c,d", "arg1", "arg2"},
+		{"two with flags",
+			[]string{
+				"-v",
+				"-n=44",
+				"--leaf", "42",
+				"--slice=a,b",
+				"--nested-slice", "c,d", "arg1", "arg2"},
 			nil, []string{"arg1", "arg2"}},
-		{"terminated parsing", []string{
-			"-v", "-n=44", "--leaf", "42", "--",
-			"--slice=a,b", "--nested-slice", "c,d", "arg1"},
+		{"terminated parsing",
+			[]string{
+				"-v", "-n=44", "--leaf", "42", "--",
+				"--slice=a,b", "--nested-slice", "c,d", "arg1"},
 			nil,
 			[]string{"--slice=a,b", "--nested-slice", "c,d", "arg1"}},
+		{"non flag after group",
+			[]string{
+				"--addon", "first string",
+				"-ab",
+				"stophere",
+				"--addon", "second string"},
+			nil, []string{"stophere", "--addon", "second string"}},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
@@ -136,49 +145,22 @@ func TestNFlag(t *testing.T) {
 			"--",
 			"--slice=a,b", "--nested-slice", "c,d", "arg1"},
 			nil, 1},
+		{"non flag after group",
+			[]string{
+				"--addon", "first string",
+				"-ab",
+				"stophere",
+				"--addon", "second string"},
+			map[byte]string{
+				'a': "angle",
+				'b': "bonus",
+			}, 3},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			f, err := flag.New(p.in, p.shorts)
 			assert.Nil(t, err)
 			assert.Equal(t, p.nflag, f.NFlag())
-		}
-		t.Run(p.name, f)
-	}
-}
-
-func TestSetShortFlag(t *testing.T) {
-	type kv struct {
-		k string
-		v interface{}
-	}
-	patterns := []struct {
-		name     string
-		short    byte
-		long     string
-		expected []kv
-	}{
-		{"add", 'b', "bonus", []kv{{"nested.leaf", 1}, {"bonus", 1}}},
-		{"replace", 'a', "addon", []kv{{"addon", 1}}},
-	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			f, err := flag.New([]string{"-abc"}, map[byte]string{
-				'a': "nested-leaf",
-				'v': "logging-verbosity"})
-			assert.Nil(t, err)
-			require.NotNil(t, f)
-			assert.Equal(t, 1, f.NFlag())
-			f.SetShortFlag(p.short, p.long)
-			assert.Equal(t, len(p.expected), f.NFlag())
-			for _, x := range p.expected {
-				v, ok := f.Read(x.k)
-				assert.True(t, ok)
-				assert.Equal(t, x.v, v)
-			}
-			v, ok := f.Read("bogus")
-			assert.False(t, ok)
-			assert.Nil(t, v)
 		}
 		t.Run(p.name, f)
 	}
@@ -199,77 +181,97 @@ func TestReaderRead(t *testing.T) {
 	}{
 		{"empty", nil, nil, nil, bogus},
 		{"no shorts", []string{"-abc"}, nil, nil, bogus},
-		{"a short", []string{"-abc"}, map[byte]string{
-			'a': "nested-leaf",
-			'v': "logging-verbosity",
-		}, []kv{{"nested.leaf", 1}}, bogus},
-		{"two shorts", []string{"-a", "-b", "-c"}, map[byte]string{
-			'a': "nested-leaf",
-			'b': "bonus",
-			'v': "logging-verbosity",
-		}, []kv{{"nested.leaf", 1}, {"bonus", 1}}, bogus},
-		{"grouped shorts", []string{"-abc"}, map[byte]string{
-			'a': "nested-leaf",
-			'b': "bonus",
-			'v': "logging-verbosity",
-		}, []kv{{"nested.leaf", 1}, {"bonus", 1}}, bogus},
-		{"repeated long", []string{"--bonus", "--bonus", "--bonus"}, nil,
+		{"a short",
+			[]string{"-abc"},
+			map[byte]string{
+				'a': "nested-leaf",
+				'v': "logging-verbosity",
+			},
+			[]kv{{"nested.leaf", 1}}, bogus},
+		{"two shorts",
+			[]string{"-a", "-b", "-c"},
+			map[byte]string{
+				'a': "nested-leaf",
+				'b': "bonus",
+				'v': "logging-verbosity",
+			},
+			[]kv{{"nested.leaf", 1}, {"bonus", 1}}, bogus},
+		{"grouped shorts",
+			[]string{"-abc"}, map[byte]string{
+				'a': "nested-leaf",
+				'b': "bonus",
+				'v': "logging-verbosity",
+			},
+			[]kv{{"nested.leaf", 1}, {"bonus", 1}}, bogus},
+		{"repeated long",
+			[]string{"--bonus", "--bonus", "--bonus"}, nil,
 			[]kv{{"bonus", 3}}, bogus},
-		{"leaves", []string{
-			"-vvv",
-			"-n=44",
-			"--logging-verbosity",
-			"--leaf", "42",
-			"--slice=a,b",
-			"--nested-slice", "c,d",
-		}, map[byte]string{
-			'n': "nested-leaf",
-			'v': "logging-verbosity",
-		}, []kv{
-			{"leaf", "42"},
-			{"nested.leaf", "44"},
-			{"logging.verbosity", 4},
-			{"slice", []string{"a", "b"}},
-			{"nested.slice", []string{"c", "d"}},
-		}, bogus,
+		{"leaves",
+			[]string{
+				"-vvv",
+				"-n=44",
+				"--logging-verbosity",
+				"--leaf", "42",
+				"--slice=a,b",
+				"--nested-slice", "c,d",
+			},
+			map[byte]string{
+				'n': "nested-leaf",
+				'v': "logging-verbosity",
+			},
+			[]kv{
+				{"leaf", "42"},
+				{"nested.leaf", "44"},
+				{"logging.verbosity", 4},
+				{"slice", []string{"a", "b"}},
+				{"nested.slice", []string{"c", "d"}},
+			}, bogus,
 		},
-		{"precedence", []string{
-			"--addon", "first string",
-			"-abc",
-		}, map[byte]string{
-			'a': "addon",
-			'v': "logging-verbosity",
-		}, []kv{
-			{"addon", 1}}, bogus},
-		{"precedence2", []string{
-			"--addon", "first string",
-			"-abc",
-			"--addon", "second string",
-		}, map[byte]string{
-			'a': "addon",
-			'v': "logging-verbosity",
-		}, []kv{
-			{"addon", "second string"}}, bogus},
-		{"non flag after group", []string{
-			"--addon", "first string",
-			"-abc",
-			"stophere",
-			"--addon", "second string",
-		}, map[byte]string{
-			'a': "addon",
-			'b': "bonus",
-			'v': "logging-verbosity",
-		}, []kv{
-			{"addon", 1}, {"bonus", 1}}, bogus},
-		{"malformed flag", []string{
-			"--addon", "first string",
-			"-abc=42",
-		}, map[byte]string{
-			'a': "addon",
-			'b': "bonus",
-			'v': "logging-verbosity",
-		}, []kv{
-			{"addon", "first string"}}, append(bogus, "bonus")},
+		{"precedence",
+			[]string{
+				"--addon", "first string",
+				"-abc",
+			},
+			map[byte]string{
+				'a': "addon",
+				'v': "logging-verbosity",
+			},
+			[]kv{{"addon", 1}}, bogus},
+		{"precedence2",
+			[]string{
+				"--addon", "first string",
+				"-abc",
+				"--addon", "second string",
+			},
+			map[byte]string{
+				'a': "addon",
+				'v': "logging-verbosity",
+			},
+			[]kv{{"addon", "second string"}}, bogus},
+		{"non flag after group",
+			[]string{
+				"--addon", "first string",
+				"-ab",
+				"stophere",
+				"--addon", "second string",
+			}, map[byte]string{
+				'a': "addon",
+				'b': "bonus",
+				'v': "logging-verbosity",
+			},
+			[]kv{{"addon", 1}, {"bonus", 1}}, bogus},
+		{"malformed flag",
+			[]string{
+				"--addon", "first string",
+				"-abc=42",
+			},
+			map[byte]string{
+				'a': "addon",
+				'b': "bonus",
+				'v': "logging-verbosity",
+			},
+			[]kv{
+				{"addon", "first string"}}, append(bogus, "bonus")},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
@@ -292,12 +294,9 @@ func TestReaderRead(t *testing.T) {
 	}
 }
 
-func TestReaderSetCfgKeyReplacer(t *testing.T) {
+func TestReaderWithCfgKeyReplacer(t *testing.T) {
 	args := []string{"-n=44", "--leaf", "42"}
 	shorts := map[byte]string{'n': "nested-leaf"}
-	r, err := flag.New(args, shorts)
-	assert.Nil(t, err)
-	require.NotNil(t, r)
 	patterns := []struct {
 		name     string
 		old      string
@@ -311,7 +310,9 @@ func TestReaderSetCfgKeyReplacer(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r.SetCfgKeyReplacer(strings.NewReplacer(p.old, p.new))
+			r, err := flag.New(args, shorts, flag.WithCfgKeyReplacer(strings.NewReplacer(p.old, p.new)))
+			assert.Nil(t, err)
+			require.NotNil(t, r)
 			v, ok := r.Read(p.expected)
 			assert.True(t, ok)
 			assert.Equal(t, "44", v)
@@ -323,15 +324,12 @@ func TestReaderSetCfgKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestReaderSetListSeparator(t *testing.T) {
+func TestReaderWithListSeparator(t *testing.T) {
 	args := []string{"-s", "a,#b"}
 	shorts := map[byte]string{'s': "slice"}
-	r, err := flag.New(args, shorts)
-	assert.Nil(t, err)
-	require.NotNil(t, r)
 	patterns := []struct {
 		name     string
-		rep      string
+		sep      string
 		expected interface{}
 	}{
 		{"single", ",", []string{"a", "#b"}},
@@ -340,7 +338,9 @@ func TestReaderSetListSeparator(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r.SetListSeparator(p.rep)
+			r, err := flag.New(args, shorts, flag.WithListSeparator(p.sep))
+			assert.Nil(t, err)
+			require.NotNil(t, r)
 			v, ok := r.Read("slice")
 			assert.True(t, ok)
 			assert.Equal(t, p.expected, v)

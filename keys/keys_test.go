@@ -6,6 +6,7 @@
 package keys_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,5 +37,59 @@ func TestNewReplacer(t *testing.T) {
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
+	}
+}
+
+func BenchmarkUnchangedReplacer(b *testing.B) {
+	r := keys.NewUnchangedReplacer("_", ".")
+	for n := 0; n < b.N; n++ {
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
+	}
+}
+
+func BenchmarkNullReplacer(b *testing.B) {
+	r := keys.NewNullReplacer()
+	for n := 0; n < b.N; n++ {
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
+	}
+}
+
+func BenchmarkLowerCaseReplacer(b *testing.B) {
+	r := keys.NewLowerCaseReplacer("_", ".")
+	for n := 0; n < b.N; n++ {
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
+	}
+}
+
+func BenchmarkUpperCaseReplacer(b *testing.B) {
+	r := keys.NewUpperCaseReplacer("_", ".")
+	for n := 0; n < b.N; n++ {
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
+	}
+}
+
+func BenchmarkLowerCamelCaseReplacer(b *testing.B) {
+	r := keys.NewLowerCamelCaseReplacer("_", ".")
+	for n := 0; n < b.N; n++ {
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
+	}
+}
+
+func BenchmarkUpperCamelCaseReplacer(b *testing.B) {
+	r := keys.NewUpperCamelCaseReplacer("_", ".")
+	for n := 0; n < b.N; n++ {
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
+	}
+}
+
+func BenchmarkCamelWord(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		keys.CamelWord("BaNaNa")
+	}
+}
+
+func BenchmarkToLower(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		strings.ToLower("BaNaNa")
 	}
 }

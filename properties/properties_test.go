@@ -94,10 +94,7 @@ func testReaderRead(t *testing.T, reader *properties.Reader) {
 	}
 }
 
-func TestReaderSetListSeparator(t *testing.T) {
-	r, err := properties.NewBytes(validConfig)
-	assert.Nil(t, err)
-	require.NotNil(t, r)
+func TestReaderWithListSeparator(t *testing.T) {
 	patterns := []struct {
 		name     string
 		sep      string
@@ -109,16 +106,14 @@ func TestReaderSetListSeparator(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r.SetListSeparator(p.sep)
+			r, err := properties.NewBytes(validConfig, properties.WithListSeparator(p.sep))
+			assert.Nil(t, err)
+			require.NotNil(t, r)
 			v, ok := r.Read("slice")
 			assert.True(t, ok)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.name, f)
-	}
-
-	if err != nil {
-		t.Fatalf("failed to parse validConfig")
 	}
 }
 

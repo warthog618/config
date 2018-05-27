@@ -66,13 +66,9 @@ func TestReaderRead(t *testing.T) {
 	}
 }
 
-func TestReaderSetCfgKeyReplacer(t *testing.T) {
+func TestReaderWithCfgKeyReplacer(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	e, err := env.New(prefix)
-	assert.Nil(t, err)
-	require.NotNil(t, e)
-
 	patterns := []struct {
 		name      string
 		old       string
@@ -89,7 +85,9 @@ func TestReaderSetCfgKeyReplacer(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e.SetCfgKeyReplacer(keys.NewReplacer(p.old, p.new, p.treatment))
+			e, err := env.New(prefix, env.WithCfgKeyReplacer(keys.NewReplacer(p.old, p.new, p.treatment)))
+			assert.Nil(t, err)
+			require.NotNil(t, e)
 			v, ok := e.Read(p.expected)
 			assert.True(t, ok)
 			assert.Equal(t, "44", v)
@@ -102,9 +100,6 @@ func TestReaderSetListSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	os.Setenv(prefix+"SLICE", "a:#b")
-	e, err := env.New(prefix)
-	assert.Nil(t, err)
-	require.NotNil(t, e)
 	patterns := []struct {
 		name     string
 		sep      string
@@ -116,7 +111,9 @@ func TestReaderSetListSeparator(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e.SetListSeparator(p.sep)
+			e, err := env.New(prefix, env.WithListSeparator(p.sep))
+			assert.Nil(t, err)
+			require.NotNil(t, e)
 			v, ok := e.Read("slice")
 			assert.True(t, ok)
 			assert.Equal(t, p.expected, v)
@@ -128,9 +125,6 @@ func TestReaderSetListSeparator(t *testing.T) {
 func TestReaderSetPrefix(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	e, err := env.New(prefix)
-	assert.Nil(t, err)
-	require.NotNil(t, e)
 	patterns := []struct {
 		name   string
 		prefix string
@@ -142,7 +136,9 @@ func TestReaderSetPrefix(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e.SetEnvPrefix(p.prefix)
+			e, err := env.New(prefix, env.WithEnvPrefix(p.prefix))
+			assert.Nil(t, err)
+			require.NotNil(t, e)
 			v, ok := e.Read(p.k)
 			assert.True(t, ok)
 			assert.Equal(t, "44", v)
