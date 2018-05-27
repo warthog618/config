@@ -30,6 +30,7 @@ const (
 )
 
 // Replacer replaces a string with replacements.
+// It must be safe to call from multiple goroutines.
 type Replacer struct {
 	replace func(s string) string
 }

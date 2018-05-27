@@ -33,6 +33,8 @@ func New(prefix string, options ...Option) (*Reader, error) {
 }
 
 // Reader provides the mapping from environment variables to a config.Reader.
+// The Reader scans the envrionment only at construction time, so its config state
+// is effectively immutable.
 type Reader struct {
 	// config key=value
 	config map[string]string

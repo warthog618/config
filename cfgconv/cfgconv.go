@@ -7,13 +7,14 @@
 // to requested internal types.
 //
 // The type conversions are flexible, and include automatic conversion
-// from string to numeric,
-// from string to bool,
-// from numeric to string,
-// from numeric to bool,
-// from bool to numeric
-// from bool to string
-// from float to int
+//
+//	from string to numeric
+// 	from string to bool
+// 	from numeric to string
+// 	from numeric to bool
+// 	from bool to numeric
+// 	from bool to string
+// 	from float to int
 //
 // Performs range checks when converting between types to prevent loss of precision.
 //
@@ -39,7 +40,7 @@ func int2bool(v int) bool {
 }
 
 // Bool converts a generic object into an bool, if possible.
-// Returns 0 and an error if conversion is not possible.
+// Returns false and an error if conversion is not possible.
 func Bool(v interface{}) (bool, error) {
 	switch vt := v.(type) {
 	case bool:

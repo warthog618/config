@@ -12,7 +12,9 @@ import (
 	"github.com/magiconair/properties"
 )
 
-// Reader provides the mapping from JSON to a config.Reader.
+// Reader provides the mapping from a properties file to a config.Reader.
+// The Reader parses the properties only at construction time, so its config state
+// is effectively immutable.
 type Reader struct {
 	config *properties.Properties
 	// The separator for slices stored in string values.

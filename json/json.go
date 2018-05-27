@@ -14,6 +14,8 @@ import (
 )
 
 // Reader provides the mapping from JSON to a config.Reader.
+// The Reader parses the JSON only at construction time, so its config state
+// is effectively immutable.
 type Reader struct {
 	config map[string]interface{}
 }

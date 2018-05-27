@@ -9,6 +9,8 @@ package toml
 import gotoml "github.com/pelletier/go-toml"
 
 // Reader provides the mapping from TOML to a config.Reader.
+// The Reader parses the TOML only at construction time, so its config state
+// is effectively immutable.
 type Reader struct {
 	config *gotoml.Tree
 }

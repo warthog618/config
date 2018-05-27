@@ -14,7 +14,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Reader provides the mapping from JSON to a config.Reader.
+// Reader provides the mapping from YAML to a config.Reader.
+// The Reader parses the YAML only at construction time, so its config state
+// is effectively immutable.
 type Reader struct {
 	config map[interface{}]interface{}
 }

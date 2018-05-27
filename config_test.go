@@ -874,11 +874,6 @@ type mapReader struct {
 	config map[string]interface{}
 }
 
-func (mr *mapReader) Contains(key string) bool {
-	_, ok := mr.config[key]
-	return ok
-}
-
 func (mr *mapReader) Read(key string) (interface{}, bool) {
 	v, ok := mr.config[key]
 	return v, ok

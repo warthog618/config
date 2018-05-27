@@ -62,6 +62,8 @@ func New(cmdArgs []string, shortFlags map[byte]string, options ...Option) (*Read
 }
 
 // Reader provides the mapping from command line arguments to a config.Reader.
+// The Reader scans the command line only at construction time, so its config state
+// is effectively immutable.
 type Reader struct {
 	// The args to parse into config values.
 	cmdArgs []string

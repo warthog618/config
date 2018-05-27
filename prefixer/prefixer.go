@@ -23,7 +23,7 @@ type prefixer struct {
 	// The Reader.
 	Reader
 	// The prefix of the reader config within the config tree.
-	// This is typically a config node, plus separator.
+	// This is typically a config node, plus trailing separator.
 	prefix string
 }
 
