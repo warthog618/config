@@ -33,14 +33,13 @@ func New(prefix string, options ...Option) (*Getter, error) {
 }
 
 // Getter provides the mapping from environment variables to a config.Getter.
-// The Getter scans the envrionment only at construction time, so its config state
+// The Getter scans the environment only at construction time, so its config state
 // is effectively immutable.
 type Getter struct {
 	// config key=value
 	config map[string]string
-	// prefix in ENV space.
-	// This must include any separator - the envSeparator does not separate the
-	// prefix from the remainder of the key.
+	// prefix in env space.
+	// This must include any separator.
 	envPrefix string
 	// A replacer that maps from env space to config space.
 	// The replacer is applied AFTER the prefix has been removed.
