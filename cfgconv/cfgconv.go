@@ -39,7 +39,7 @@ func int2bool(v int) bool {
 	return true
 }
 
-// Bool converts a generic object into an bool, if possible.
+// Bool converts a generic object into a bool, if possible.
 // Returns false and an error if conversion is not possible.
 func Bool(v interface{}) (bool, error) {
 	switch vt := v.(type) {
@@ -186,7 +186,7 @@ func Duration(v interface{}) (time.Duration, error) {
 	return time.Duration(0), TypeError{Value: v, Kind: reflect.Int64}
 }
 
-// Float converts a generic object into an float64, if possible.
+// Float converts a generic object into a float64, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Float(v interface{}) (float64, error) {
 	switch vt := v.(type) {
@@ -298,7 +298,7 @@ func Slice(v interface{}) ([]interface{}, error) {
 	return nil, TypeError{Value: v, Kind: reflect.Slice}
 }
 
-// String converts a generic object into an string, if possible.
+// String converts a generic object into a string, if possible.
 // Returns 0 and an error if conversion is not possible.
 func String(v interface{}) (string, error) {
 	switch vt := v.(type) {
@@ -341,7 +341,7 @@ func Time(v interface{}) (time.Time, error) {
 	return time.Time{}, TypeError{Value: v, Kind: reflect.Int64}
 }
 
-// Uint converts a generic object into an uint64, if possible.
+// Uint converts a generic object into a uint64, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Uint(v interface{}) (uint64, error) {
 	switch vt := v.(type) {
