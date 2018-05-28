@@ -33,3 +33,11 @@ func TestGetter(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 1, v)
 }
+
+func BenchmarkGet(b *testing.B) {
+	g := dict.New()
+	g.Set("nested.leaf", "44")
+	for n := 0; n < b.N; n++ {
+		g.Get("nested.leaf")
+	}
+}

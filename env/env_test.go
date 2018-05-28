@@ -146,3 +146,12 @@ func TestGetterSetPrefix(t *testing.T) {
 		t.Run(p.name, f)
 	}
 }
+
+func BenchmarkGet(b *testing.B) {
+	prefix := "CFGENV_"
+	setup(prefix)
+	g, _ := env.New(prefix)
+	for n := 0; n < b.N; n++ {
+		g.Get("nested.leaf")
+	}
+}

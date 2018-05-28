@@ -133,3 +133,27 @@ func TestFileGetterGet(t *testing.T) {
 	require.NotNil(t, g)
 	testGetterGet(t, g)
 }
+
+var benchConfig = []byte(`
+bool = true
+int = 42
+float=  3.1415
+string = "this is a string"
+intSlice = [1,2,3,4]
+stringSlice = ["one","two","three","four"]
+[nested]
+bool = false
+int = 18
+float = 3.141
+leaf = 44
+string = "this is also a string"
+intSlice = [1,2,3,4,5,6]
+stringSlice = ["one","two","three"]
+	`)
+
+func BenchmarkGet(b *testing.B) {
+	g, _ := toml.NewBytes(benchConfig)
+	for n := 0; n < b.N; n++ {
+		g.Get("nested.leaf")
+	}
+}

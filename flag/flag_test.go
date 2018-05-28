@@ -348,3 +348,10 @@ func TestGetterWithListSeparator(t *testing.T) {
 		t.Run(p.name, f)
 	}
 }
+
+func BenchmarkGet(b *testing.B) {
+	g, _ := flag.New([]string{"--nested-leaf", "44"}, nil)
+	for n := 0; n < b.N; n++ {
+		g.Get("nested.leaf")
+	}
+}

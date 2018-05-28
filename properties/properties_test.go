@@ -157,3 +157,29 @@ func TestFileGetterGet(t *testing.T) {
 	require.NotNil(t, g)
 	testGetterGet(t, g)
 }
+
+var benchConfig = []byte(`
+bool:true
+int:42
+float:3.1415
+string = this is a string
+slice: a:#b
+intSlice = 1,2,3,4
+stringSlice = one,two,three,four
+
+nested.leaf: 44
+
+nested.bool = false
+nested.int = 18
+nested.float = 3.141
+nested.string = this is also a string
+nested.intSlice = 1,2,3,4,5,6
+nested.stringSlice = one,two,three
+`)
+
+func BenchmarkGet(b *testing.B) {
+	g, _ := properties.NewBytes(benchConfig)
+	for n := 0; n < b.N; n++ {
+		g.Get("nested.leaf")
+	}
+}
