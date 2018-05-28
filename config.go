@@ -17,37 +17,11 @@ import (
 	"github.com/warthog618/config/cfgconv"
 )
 
-// Config defines the functions available to access the config.
-type Config interface {
-	AddAlias(newKey string, oldKey string)
-	AppendReader(reader Reader)
-	InsertReader(reader Reader)
-	// Base get
-	Get(key string) (interface{}, error)
-	// Type gets
-	GetBool(key string) (bool, error)
-	GetDuration(key string) (time.Duration, error)
-	GetFloat(key string) (float64, error)
-	GetInt(key string) (int64, error)
-	GetString(key string) (string, error)
-	GetTime(key string) (time.Time, error)
-	GetUint(key string) (uint64, error)
-	// Slice gets
-	GetSlice(key string) ([]interface{}, error)
-	GetIntSlice(key string) ([]int64, error)
-	GetStringSlice(key string) ([]string, error)
-	GetUintSlice(key string) ([]uint64, error)
-	// Tree gets
-	GetConfig(key string) (Config, error)
-	Unmarshal(key string, obj interface{}) error
-	UnmarshalToMap(key string, objmap map[string]interface{}) error
-}
-
-// New creates a new config with no initial state.
-func New(options ...Option) Config {
-	c := config{
+// New creates a new config with minimal initial state.
+func New(options ...Option) *Config {
+	c := Config{
 		separator: ".",
-		readers:   make([]Reader, 0),
+		readers:   nil,
 		aliases:   make(map[string][]string),
 	}
 	for _, option := range options {
@@ -57,18 +31,19 @@ func New(options ...Option) Config {
 }
 
 // Option is a function which modifies a config at construction time.
-type Option func(*config)
+type Option func(*Config)
 
 // WithSeparator is an Option that sets the config namespace separator.
 // This is an option to ensure it can only set at construction time,
 // as changing it a runtime makes no sense.
 func WithSeparator(separator string) Option {
-	return func(c *config) {
+	return func(c *Config) {
 		c.separator = separator
 	}
 }
 
 // Reader provides the minimal interface for a configuration reader.
+// The Read method must be safe to call from multiple goroutines.
 type Reader interface {
 	// Read and return the value of the named config leaf key.
 	// Also returns an ok, similar to a map read, to indicate if the value
@@ -81,7 +56,8 @@ type Reader interface {
 	Read(key string) (interface{}, bool)
 }
 
-type config struct {
+// Config provides a unified key/value store of configuration.
+type Config struct {
 	// RWLock covering other fields.
 	// It does not prevent concurrent access to the readers themselves,
 	// only to the config fields.
@@ -100,39 +76,39 @@ type config struct {
 	aliases map[string][]string
 }
 
-// Append a reader to the set of readers for the config node.
+// AppendReader appends a reader to the set of readers for the config node.
 // This means this reader is only used as a last resort, relative to
 // the existing readers.
 //
 // This is generally applied to the root node.
 // When applied to a non-root node, the reader only applies to that node,
 // and any subsequently created children.
-func (c *config) AppendReader(reader Reader) {
+func (c *Config) AppendReader(reader Reader) {
 	if reader == nil {
 		return
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.readers = append(c.readers, reader)
+	c.mu.Unlock()
 }
 
-// Insert a reader to the set of readers for the config node.
+// InsertReader inserts a reader to the set of readers for the config node.
 // This means this reader is used before the existing readers.
 //
 // This is generally applied to the root node.
 // When applied to a non-root node, the reader only applies to that node,
 // and any subsequently created children.
-func (c *config) InsertReader(reader Reader) {
+func (c *Config) InsertReader(reader Reader) {
 	if reader == nil {
 		return
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.readers = append([]Reader{reader}, c.readers...)
+	c.mu.Unlock()
 }
 
-// Return the absolute config key for a key relative to the config node.
-func (c *config) prefixedKey(key ...string) string {
+// prefixedKey returns the absolute config key for a key relative to the config node.
+func (c *Config) prefixedKey(key ...string) string {
 	rhs := strings.Join(key, c.separator)
 	if len(c.prefix) == 0 {
 		// we are root.
@@ -141,14 +117,15 @@ func (c *config) prefixedKey(key ...string) string {
 	return c.prefix + c.separator + rhs
 }
 
-// Add an alias from a new key, which should be used by the code,
-// to an old key, which may still be present in legacy config.
-// Aliases are ignored if there is a config field matching the new key.
+// AddAlias adds an alias from an old key, which may still be present in legacy config,
+// to a new key, which should be the one used by the code.
+// Aliases are ignored by Get if there is a config field matching the new key.
 // Multiple aliases may be added for a new key, and they are searched for
 // in the config in the reverse order they are added.
-// As with readers, the aliases are local to the config node, and any
-// subsequently created children.
-func (c *config) AddAlias(newKey string, oldKey string) {
+// Multiple aliases may also be added for an old key.
+// When applied to a non-root node, the alias only applies to that node,
+// and any subsequently created children.
+func (c *Config) AddAlias(newKey string, oldKey string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	lNewKey := c.prefixedKey(newKey)
@@ -164,10 +141,11 @@ func (c *config) AddAlias(newKey string, oldKey string) {
 	c.aliases[lNewKey] = append([]string{lOldKey}, aliases...)
 }
 
-// Get the raw value corresponding to the key.
-// Iterates through the list of readers, searching for a matching key,
-// or matching alias.  Returns the first match found, or an error if none is found.
-func (c *config) Get(key string) (interface{}, error) {
+// Get gets the raw value corresponding to the key.
+// It iterates through the list of readers, searching for a matching key,
+// or failing that for a matching alias.
+// Returns the first match found, or an error if none is found.
+func (c *Config) Get(key string) (interface{}, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	fullKey := c.prefixedKey(key)
@@ -209,7 +187,10 @@ func (c *config) Get(key string) (interface{}, error) {
 	return nil, NotFoundError{Key: fullKey}
 }
 
-func (c *config) GetBool(key string) (bool, error) {
+// GetBool gets the value corresponding to the key and converts it to a bool,
+// if possible.
+// Returns false and an error if not possible.
+func (c *Config) GetBool(key string) (bool, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return false, err
@@ -217,7 +198,9 @@ func (c *config) GetBool(key string) (bool, error) {
 	return cfgconv.Bool(v)
 }
 
-func (c *config) GetConfig(key string) (Config, error) {
+// GetConfig gets the config corresponding to a subtree of the config,
+// where the node identifies the root node of the config returned.
+func (c *Config) GetConfig(node string) (*Config, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	aliases := make(map[string][]string, len(c.aliases))
@@ -225,15 +208,18 @@ func (c *config) GetConfig(key string) (Config, error) {
 		aliases[k] = v[:]
 	}
 	readers := c.readers[:]
-	return &config{
-		prefix:    c.prefixedKey(key),
+	return &Config{
+		prefix:    c.prefixedKey(node),
 		separator: c.separator,
 		readers:   readers,
 		aliases:   aliases,
 	}, nil
 }
 
-func (c *config) GetDuration(key string) (time.Duration, error) {
+// GetDuration gets the value corresponding to the key and converts it to
+// a time.Duration, if possible.
+// Returns 0 and an error if not possible.
+func (c *Config) GetDuration(key string) (time.Duration, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return 0, err
@@ -241,7 +227,10 @@ func (c *config) GetDuration(key string) (time.Duration, error) {
 	return cfgconv.Duration(v)
 }
 
-func (c *config) GetFloat(key string) (float64, error) {
+// GetFloat gets the value corresponding to the key and converts it to
+// a float64, if possible.
+// Returns 0 and an error if not possible.
+func (c *Config) GetFloat(key string) (float64, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return 0, err
@@ -249,7 +238,10 @@ func (c *config) GetFloat(key string) (float64, error) {
 	return cfgconv.Float(v)
 }
 
-func (c *config) GetInt(key string) (int64, error) {
+// GetInt gets the value corresponding to the key and converts it to
+// an int64, if possible.
+// Returns 0 and an error if not possible.
+func (c *Config) GetInt(key string) (int64, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return 0, err
@@ -257,7 +249,10 @@ func (c *config) GetInt(key string) (int64, error) {
 	return cfgconv.Int(v)
 }
 
-func (c *config) GetIntSlice(key string) ([]int64, error) {
+// GetIntSlice gets the value corresponding to the key and converts it to
+// a slice of int64s, if possible.
+// Returns nil and an error if not possible.
+func (c *Config) GetIntSlice(key string) ([]int64, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
 		return nil, err
@@ -273,7 +268,10 @@ func (c *config) GetIntSlice(key string) ([]int64, error) {
 	return retval, nil
 }
 
-func (c *config) GetSlice(key string) ([]interface{}, error) {
+// GetSlice gets the value corresponding to the key and converts it to
+// a slice of []interface{}, if possible.
+// Returns nil and an error if not possible.
+func (c *Config) GetSlice(key string) ([]interface{}, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return nil, err
@@ -281,7 +279,10 @@ func (c *config) GetSlice(key string) ([]interface{}, error) {
 	return cfgconv.Slice(v)
 }
 
-func (c *config) GetString(key string) (string, error) {
+// GetString gets the value corresponding to the key and converts it to
+// an string, if possible.
+// Returns an empty string and an error if not possible.
+func (c *Config) GetString(key string) (string, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return "", err
@@ -289,7 +290,10 @@ func (c *config) GetString(key string) (string, error) {
 	return cfgconv.String(v)
 }
 
-func (c *config) GetStringSlice(key string) ([]string, error) {
+// GetStringSlice gets the value corresponding to the key and converts it to
+// a slice of string, if possible.
+// Returns nil and an error if not possible.
+func (c *Config) GetStringSlice(key string) ([]string, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
 		return nil, err
@@ -305,7 +309,10 @@ func (c *config) GetStringSlice(key string) ([]string, error) {
 	return retval, nil
 }
 
-func (c *config) GetTime(key string) (time.Time, error) {
+// GetTime gets the value corresponding to the key and converts it to
+// a time.Time, if possible.
+// Returns time.Time{} and an error if not possible.
+func (c *Config) GetTime(key string) (time.Time, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return time.Time{}, err
@@ -313,7 +320,10 @@ func (c *config) GetTime(key string) (time.Time, error) {
 	return cfgconv.Time(v)
 }
 
-func (c *config) GetUint(key string) (uint64, error) {
+// GetUint gets the value corresponding to the key and converts it to
+// a iint64, if possible.
+// Returns 0 and an error if not possible.
+func (c *Config) GetUint(key string) (uint64, error) {
 	v, err := c.Get(key)
 	if err != nil {
 		return 0, err
@@ -321,7 +331,10 @@ func (c *config) GetUint(key string) (uint64, error) {
 	return cfgconv.Uint(v)
 }
 
-func (c *config) GetUintSlice(key string) ([]uint64, error) {
+// GetUintSlice gets the value corresponding to the key and converts it to
+// a slice of uint64, if possible.
+// Returns nil and an error if not possible.
+func (c *Config) GetUintSlice(key string) ([]uint64, error) {
 	slice, err := c.GetSlice(key)
 	if err != nil {
 		return nil, err
@@ -335,32 +348,6 @@ func (c *config) GetUintSlice(key string) ([]uint64, error) {
 		retval = append(retval, cv)
 	}
 	return retval, nil
-}
-
-// NotFoundError indicates that the Key could not be found in the config tree.
-type NotFoundError struct {
-	Key string
-}
-
-func (e NotFoundError) Error() string {
-	return "config: key '" + e.Key + "' not found"
-}
-
-// UnmarshalError indicates an error occurred while unmarhalling config into
-// a struct or map.  The error indicates the problematic Key and the specific
-// error.
-type UnmarshalError struct {
-	Key string
-	Err error
-}
-
-func (e UnmarshalError) Error() string {
-	return "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
-}
-
-func lowerCamelCase(s string) string {
-	r, n := utf8.DecodeRuneInString(s)
-	return string(unicode.ToLower(r)) + s[n:]
 }
 
 // Unmarshal a section of the config tree into a struct.
@@ -378,7 +365,7 @@ func lowerCamelCase(s string) string {
 // as are config fields which have no corresponding struct field.
 //
 // The error identifies first type conversion error, if any.
-func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
+func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 	nodeCfg, _ := c.GetConfig(node)
 	ov := reflect.Indirect(reflect.ValueOf(obj))
 	if ov.Kind() != reflect.Struct {
@@ -411,7 +398,7 @@ func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
 	return rerr
 }
 
-// Unmarshal a section of the config tree into a map[string]interface{}.
+// UnmarshalToMap unmarshals a section of the config tree into a map[string]interface{}.
 //
 // The node identifies the section of the tree to unmarshal.
 // The objmap keys define the fields to be populated from config.
@@ -425,7 +412,7 @@ func (c *config) Unmarshal(node string, obj interface{}) (rerr error) {
 // as are config fields which have no corresponding map key.
 //
 // The error identifies first type conversion error, if any.
-func (c *config) UnmarshalToMap(node string, objmap map[string]interface{}) (rerr error) {
+func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rerr error) {
 	nodeCfg, _ := c.GetConfig(node)
 	for key := range objmap {
 		vv := reflect.ValueOf(objmap[key])
@@ -450,4 +437,30 @@ func (c *config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 		}
 	}
 	return rerr
+}
+
+// NotFoundError indicates that the Key could not be found in the config tree.
+type NotFoundError struct {
+	Key string
+}
+
+func (e NotFoundError) Error() string {
+	return "config: key '" + e.Key + "' not found"
+}
+
+// UnmarshalError indicates an error occurred while unmarhalling config into
+// a struct or map.  The error indicates the problematic Key and the specific
+// error.
+type UnmarshalError struct {
+	Key string
+	Err error
+}
+
+func (e UnmarshalError) Error() string {
+	return "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
+}
+
+func lowerCamelCase(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+	return string(unicode.ToLower(r)) + s[n:]
 }

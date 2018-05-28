@@ -57,7 +57,7 @@ var defaultConfig = []byte(`{
 	}
 }`)
 
-func loadConfig() config.Config {
+func loadConfig() *config.Config {
 	cfg := config.New()
 
 	// highest priority first - flags override environment
@@ -110,7 +110,7 @@ func loadConfig() config.Config {
 	return cfg
 }
 
-func dumpConfig(cfg config.Config) {
+func dumpConfig(cfg *config.Config) {
 	configFile, _ := cfg.GetString("config.file")
 	log.Println("config.file", configFile)
 	unmarshal, _ := cfg.GetBool("unmarshal")
@@ -147,7 +147,7 @@ type module struct {
 }
 
 // Unmarshalling version of dumpConfig
-func dumpConfigU(cfg config.Config) {
+func dumpConfigU(cfg *config.Config) {
 	configFile, _ := cfg.GetString("config.file")
 	log.Println("config.file", configFile)
 	unmarshal, _ := cfg.GetBool("unmarshal")

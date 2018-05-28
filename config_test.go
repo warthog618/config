@@ -217,13 +217,13 @@ func TestInsertReader(t *testing.T) {
 	assert.Exactly(t, mr1.config["something else"], v)
 }
 
-func assertGet(t *testing.T, cfg config.Config, key string, expected interface{}, comment string) {
+func assertGet(t *testing.T, cfg *config.Config, key string, expected interface{}, comment string) {
 	v, err := cfg.Get(key)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, v, comment)
 }
 
-func refuteGet(t *testing.T, cfg config.Config, key string, comment string) {
+func refuteGet(t *testing.T, cfg *config.Config, key string, comment string) {
 	v, err := cfg.Get(key)
 	assert.IsType(t, config.NotFoundError{}, err, comment)
 	assert.Equal(t, nil, v, comment)
