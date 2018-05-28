@@ -3,21 +3,21 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package toml provides a TOML format reader for config.
+// Package toml provides a TOML format Getter for config.
 package toml
 
 import gotoml "github.com/pelletier/go-toml"
 
-// Reader provides the mapping from TOML to a config.Reader.
-// The Reader parses the TOML only at construction time, so its config state
+// Getter provides the mapping from TOML to a config.Getter.
+// The Getter parses the TOML only at construction time, so its config state
 // is effectively immutable.
-type Reader struct {
+type Getter struct {
 	config *gotoml.Tree
 }
 
-// Read returns the value for a given key and true if found, or
+// Get returns the value for a given key and true if found, or
 // nil and false if not.
-func (r *Reader) Read(key string) (interface{}, bool) {
+func (r *Getter) Get(key string) (interface{}, bool) {
 	v := r.config.Get(key)
 	if v == nil {
 		return nil, false
@@ -28,20 +28,20 @@ func (r *Reader) Read(key string) (interface{}, bool) {
 	return v, true
 }
 
-// NewBytes returns a TOML reader that reads config from []byte.
-func NewBytes(cfg []byte) (*Reader, error) {
+// NewBytes returns a TOML Getter that reads config from []byte.
+func NewBytes(cfg []byte) (*Getter, error) {
 	config, err := gotoml.Load(string(cfg))
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{config}, nil
+	return &Getter{config}, nil
 }
 
-// NewFile returns a TOML reader that reads config from a named file.
-func NewFile(filename string) (*Reader, error) {
+// NewFile returns a TOML Getter that reads config from a named file.
+func NewFile(filename string) (*Getter, error) {
 	config, err := gotoml.LoadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{config}, nil
+	return &Getter{config}, nil
 }

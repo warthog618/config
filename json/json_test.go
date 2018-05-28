@@ -33,9 +33,9 @@ func TestNewBytes(t *testing.T) {
 			assert.IsType(t, p.errType, err)
 			if err == nil {
 				require.NotNil(t, b)
-				// test b provides config.Reader interface.
+				// test b provides config.Getter interface.
 				cfg := config.New()
-				cfg.AppendReader(b)
+				cfg.AppendGetter(b)
 			}
 		}
 		t.Run(p.name, f)
@@ -58,29 +58,29 @@ func TestNewFile(t *testing.T) {
 			assert.IsType(t, p.errType, err)
 			if err == nil {
 				require.NotNil(t, b)
-				// test b provides config.Reader interface.
+				// test b provides config.Getter interface.
 				cfg := config.New()
-				cfg.AppendReader(b)
+				cfg.AppendGetter(b)
 			}
 		}
 		t.Run(p.name, f)
 	}
 }
 
-func TestBytesReaderRead(t *testing.T) {
-	reader, err := json.NewBytes(validConfig)
+func TestBytesGetterGet(t *testing.T) {
+	g, err := json.NewBytes(validConfig)
 	if err != nil {
 		t.Fatalf("failed to parse config")
 	}
-	testReaderRead(t, reader)
+	testGetterGet(t, g)
 }
 
-func TestFileReaderRead(t *testing.T) {
-	reader, err := json.NewFile("config.json")
+func TestFileGetterGet(t *testing.T) {
+	g, err := json.NewFile("config.json")
 	if err != nil {
 		t.Fatalf("failed to parse config")
 	}
-	testReaderRead(t, reader)
+	testGetterGet(t, g)
 }
 
 var validConfig = []byte(`{
@@ -107,13 +107,13 @@ var malformedConfig = []byte(`malformed{
   }`)
 
 // Test that config fields can be read and converted to required types using cfgconv.
-func testReaderRead(t *testing.T, reader *json.Reader) {
+func testGetterGet(t *testing.T, g *json.Getter) {
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
 	}
 	for _, key := range bogusKeys {
-		v, ok := reader.Read(key)
+		v, ok := g.Get(key)
 		assert.False(t, ok)
 		assert.Nil(t, v)
 	}
@@ -136,7 +136,7 @@ func testReaderRead(t *testing.T, reader *json.Reader) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			v, ok := reader.Read(p.k)
+			v, ok := g.Get(p.k)
 			assert.True(t, ok)
 			var cv interface{}
 			var err error

@@ -273,9 +273,9 @@ func Int(v interface{}) (int64, error) {
 // Slice converts a slice of something into a []interface{}
 //
 // Also interprets strings as a single element slice,
-// to handle the case where a Reader cannot distinguish
+// to handle the case where a Getter cannot distinguish
 // between a single entry slice and a literal,
-// e.g. the env reader.
+// e.g. the env Getter.
 func Slice(v interface{}) ([]interface{}, error) {
 	if slice, ok := v.([]interface{}); ok {
 		return slice, nil
@@ -310,10 +310,10 @@ func String(v interface{}) (string, error) {
 		return fmt.Sprintf("%v", v), nil
 	case []string:
 		// this case undoes accidental conversion of a string into a slice
-		// by a reader as the string contains a list separator character.
-		// Of course for the env reader the separator is ":", so in its case
+		// by a Getter as the string contains a list separator character.
+		// Of course for the env Getter the separator is ":", so in its case
 		// the resulting string will be wrong - with ":" replaced with ",".
-		// But it does fix the readers that use ",", such as flag and properties.
+		// But it does fix the Getters that use ",", such as flag and properties.
 		return strings.Join(vt, ","), nil
 	case nil:
 		return "", nil

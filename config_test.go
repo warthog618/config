@@ -24,10 +24,10 @@ func TestNew(t *testing.T) {
 	assert.IsType(t, config.NotFoundError{}, err)
 	assert.Equal(t, nil, c)
 	// demonstrate nesting separation by "."
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"a.b.c_d": true,
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	c, err = cfg.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, c)
@@ -43,10 +43,10 @@ func TestNewWithSeparator(t *testing.T) {
 	assert.IsType(t, config.NotFoundError{}, err)
 	assert.Equal(t, nil, c)
 	// demonstrate nesting separation by "_"
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"a.b.c_d": true,
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	c, err = cfg.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, c)
@@ -58,8 +58,8 @@ func TestNewWithSeparator(t *testing.T) {
 
 func TestAddAlias(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr)
+	mr := mapGetter{map[string]interface{}{}}
+	cfg.InsertGetter(&mr)
 
 	// alias maps newKey (requested) -> oldKey (in config)
 	mr.config["oldthing"] = "an old config string"
@@ -82,7 +82,7 @@ func TestAddAlias(t *testing.T) {
 }
 
 func TestAddAliasNested(t *testing.T) {
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"a":     "a",
 		"foo.a": "foo.a",
 		"foo.b": "foo.b",
@@ -114,7 +114,7 @@ func TestAddAliasNested(t *testing.T) {
 	for _, a := range aliases {
 		f := func(t *testing.T) {
 			cfg := config.New()
-			cfg.InsertReader(&mr)
+			cfg.InsertGetter(&mr)
 			for _, al := range a.aa {
 				cfg.AddAlias(al.new, al.old)
 			}
@@ -126,7 +126,7 @@ func TestAddAliasNested(t *testing.T) {
 	}
 	// sub-tree config
 	cfg := config.New()
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	barCfg, err := cfg.GetConfig("bar")
 	assertGet(t, barCfg, "b", "bar.b", "sub-tree leaf")
 	assertGet(t, barCfg, "c", "bar.c", "sub-tree leaf")
@@ -164,19 +164,19 @@ func TestAddAliasNested(t *testing.T) {
 	assertGet(t, bazCfg, "d", "bar.c", "sub-tree leaf alias")
 }
 
-func TestAppendReader(t *testing.T) {
+func TestAppendGetter(t *testing.T) {
 	cfg := config.New()
-	mr1 := mapReader{map[string]interface{}{}}
-	cfg.AppendReader(nil) // should be ignored
-	cfg.InsertReader(&mr1)
+	mr1 := mapGetter{map[string]interface{}{}}
+	cfg.AppendGetter(nil) // should be ignored
+	cfg.InsertGetter(&mr1)
 	mr1.config["something"] = "a test string"
 	v, err := cfg.Get("something")
 	assert.Nil(t, err)
 	assert.Exactly(t, mr1.config["something"], v)
 
 	// append a second reader
-	mr2 := mapReader{map[string]interface{}{}}
-	cfg.AppendReader(&mr2)
+	mr2 := mapGetter{map[string]interface{}{}}
+	cfg.AppendGetter(&mr2)
 	mr2.config["something"] = "another test string"
 	mr2.config["something else"] = "yet another test string"
 	v, err = cfg.Get("something")
@@ -187,14 +187,14 @@ func TestAppendReader(t *testing.T) {
 	assert.Exactly(t, mr2.config["something else"], v)
 }
 
-func TestInsertReader(t *testing.T) {
+func TestInsertGetter(t *testing.T) {
 	cfg := config.New()
-	mr1 := mapReader{map[string]interface{}{
+	mr1 := mapGetter{map[string]interface{}{
 		"something":      "a test string",
 		"something else": "yet another test string",
 	}}
-	cfg.InsertReader(nil) // should be ignored
-	cfg.InsertReader(&mr1)
+	cfg.InsertGetter(nil) // should be ignored
+	cfg.InsertGetter(&mr1)
 	v, err := cfg.Get("something")
 	assert.Nil(t, err)
 	assert.Exactly(t, mr1.config["something"], v)
@@ -203,8 +203,8 @@ func TestInsertReader(t *testing.T) {
 	assert.Exactly(t, mr1.config["something else"], v)
 
 	// insert a second reader
-	mr2 := mapReader{map[string]interface{}{}}
-	cfg.InsertReader(&mr2)
+	mr2 := mapGetter{map[string]interface{}{}}
+	cfg.InsertGetter(&mr2)
 	v, err = cfg.Get("something")
 	assert.Nil(t, err)
 	assert.Exactly(t, mr1.config["something"], v)
@@ -230,16 +230,16 @@ func refuteGet(t *testing.T, cfg *config.Config, key string, comment string) {
 }
 
 func TestGetOverlayed(t *testing.T) {
-	mr1 := mapReader{map[string]interface{}{
+	mr1 := mapGetter{map[string]interface{}{
 		"a": "a - tier 1",
 		"b": "b - tier 1",
 		"c": "c - tier 1",
 	}}
-	mr2 := mapReader{map[string]interface{}{
+	mr2 := mapGetter{map[string]interface{}{
 		"b": "b - tier 2",
 		"d": "d - tier 2",
 	}}
-	mr3 := mapReader{map[string]interface{}{
+	mr3 := mapGetter{map[string]interface{}{
 		"c": "c - tier 3",
 		"d": "d - tier 3",
 	}}
@@ -250,24 +250,24 @@ func TestGetOverlayed(t *testing.T) {
 	}
 	patterns := []struct {
 		name     string
-		readers  []*mapReader // !!! breaks test if value instead of pointer - why???
+		readers  []*mapGetter // !!! breaks test if value instead of pointer - why???
 		expected []kv
 	}{
-		{"one", []*mapReader{&mr1}, []kv{
+		{"one", []*mapGetter{&mr1}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 1", nil},
 			{"c", "c - tier 1", nil},
 			{"d", nil, config.NotFoundError{Key: "d"}},
 			{"e", nil, config.NotFoundError{Key: "e"}},
 		}},
-		{"two", []*mapReader{&mr1, &mr2}, []kv{
+		{"two", []*mapGetter{&mr1, &mr2}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 2", nil},
 			{"c", "c - tier 1", nil},
 			{"d", "d - tier 2", nil},
 			{"e", nil, config.NotFoundError{Key: "e"}},
 		}},
-		{"three", []*mapReader{&mr1, &mr2, &mr3}, []kv{
+		{"three", []*mapGetter{&mr1, &mr2, &mr3}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 2", nil},
 			{"c", "c - tier 3", nil},
@@ -279,7 +279,7 @@ func TestGetOverlayed(t *testing.T) {
 		f := func(t *testing.T) {
 			cfg := config.New()
 			for _, r := range p.readers {
-				cfg.InsertReader(r)
+				cfg.InsertGetter(r)
 			}
 			for _, x := range p.expected {
 				v, err := cfg.Get(x.k)
@@ -293,13 +293,13 @@ func TestGetOverlayed(t *testing.T) {
 
 func TestGetBool(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"bool":       true,
 		"boolString": "true",
 		"boolInt":    1,
 		"notabool":   "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   bool
@@ -320,11 +320,11 @@ func TestGetBool(t *testing.T) {
 
 func TestGetDuration(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"duration":     "123ms",
 		"notaduration": "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   time.Duration
@@ -343,13 +343,13 @@ func TestGetDuration(t *testing.T) {
 
 func TestGetFloat(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"float":        3.1415,
 		"floatString":  "3.1415",
 		"floatInt":     1,
 		"notafloatInt": "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   float64
@@ -370,12 +370,12 @@ func TestGetFloat(t *testing.T) {
 
 func TestGetInt(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"int":       42,
 		"intString": "43",
 		"notaint":   "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   int64
@@ -395,12 +395,12 @@ func TestGetInt(t *testing.T) {
 
 func TestGetString(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"string":     "a string",
 		"stringInt":  42,
 		"notastring": struct{}{},
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   string
@@ -420,11 +420,11 @@ func TestGetString(t *testing.T) {
 
 func TestGetTime(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"time":     "2017-03-01T01:02:03Z",
 		"notatime": "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   time.Time
@@ -443,12 +443,12 @@ func TestGetTime(t *testing.T) {
 
 func TestGetUint(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"uint":       42,
 		"uintString": "43",
 		"notaUint":   "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   uint64
@@ -468,12 +468,12 @@ func TestGetUint(t *testing.T) {
 
 func TestGetSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"slice":       []interface{}{1, 2, 3, 4},
 		"casttoslice": "bogus",
 		"notaslice":   struct{}{},
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   []interface{}
@@ -493,13 +493,13 @@ func TestGetSlice(t *testing.T) {
 
 func TestGetIntSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"slice":       []int64{1, 2, -3, 4},
 		"casttoslice": "42",
 		"stringslice": []string{"one", "two", "three"},
 		"notaslice":   "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   []int64
@@ -520,7 +520,7 @@ func TestGetIntSlice(t *testing.T) {
 
 func TestGetStringSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"intslice":        []int64{1, 2, -3, 4},
 		"stringslice":     []string{"one", "two", "three"},
 		"uintslice":       []uint64{1, 2, 3, 4},
@@ -528,7 +528,7 @@ func TestGetStringSlice(t *testing.T) {
 		"casttoslice":     "bogus",
 		"notaslice":       struct{}{},
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   []string
@@ -551,14 +551,14 @@ func TestGetStringSlice(t *testing.T) {
 
 func TestGetUintSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapReader{map[string]interface{}{
+	mr := mapGetter{map[string]interface{}{
 		"slice":       []uint64{1, 2, 3, 4},
 		"casttoslice": "42",
 		"intslice":    []int64{1, 2, -3, 4},
 		"stringslice": []string{"one", "two", "three"},
 		"notaslice":   "bogus",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	patterns := []struct {
 		k   string
 		v   []uint64
@@ -580,8 +580,8 @@ func TestGetUintSlice(t *testing.T) {
 
 func TestGetConfig(t *testing.T) {
 	cfg := config.New()
-	// Single Reader
-	mr := mapReader{map[string]interface{}{
+	// Single Getter
+	mr := mapGetter{map[string]interface{}{
 		"foo.a": "foo.a",
 		"foo.b": "foo.b",
 		"bar.b": "bar.b",
@@ -589,7 +589,7 @@ func TestGetConfig(t *testing.T) {
 		"baz.a": "baz.a",
 		"baz.c": "baz.c",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	cfg.AddAlias("foo.d", "bar.c") // leaf alias
 	cfg.AddAlias("fuz", "foo")     // node alias
 
@@ -684,14 +684,14 @@ type nestedConfig struct {
 
 func TestUnmarshal(t *testing.T) {
 	cfg := config.New()
-	// Root Reader
-	mr := mapReader{map[string]interface{}{
+	// Root Getter
+	mr := mapGetter{map[string]interface{}{
 		"foo.a": 42,
 		"foo.b": "foo.b",
 		"foo.c": []int{1, 2, 3, 4},
 		"foo.d": "ignored",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	if err := cfg.Unmarshal("foo", 0); err == nil {
 		t.Errorf("failed to reject unmarshal into non-struct")
 	}
@@ -766,14 +766,14 @@ func TestUnmarshal(t *testing.T) {
 
 func TestUnmarshalToMap(t *testing.T) {
 	cfg := config.New()
-	// Root Reader
-	mr := mapReader{map[string]interface{}{
+	// Root Getter
+	mr := mapGetter{map[string]interface{}{
 		"foo.a": 42,
 		"foo.b": "foo.b",
 		"foo.c": []int{1, 2, 3, 4},
 		"foo.d": "ignored",
 	}}
-	cfg.InsertReader(&mr)
+	cfg.InsertGetter(&mr)
 	// Nil - raw
 	obj := map[string]interface{}{"a": nil, "b": nil, "c": nil, "e": nil}
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
@@ -868,13 +868,13 @@ func TestUnmarshalToMap(t *testing.T) {
 	}
 }
 
-type mapReader struct {
+type mapGetter struct {
 	// simple key value map.
 	// Note keys must be added as lowercase for config.GetX to work.
 	config map[string]interface{}
 }
 
-func (mr *mapReader) Read(key string) (interface{}, bool) {
+func (mr *mapGetter) Get(key string) (interface{}, bool) {
 	v, ok := mr.config[key]
 	return v, ok
 }

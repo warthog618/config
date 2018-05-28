@@ -17,12 +17,10 @@ import (
 	"github.com/warthog618/config/cfgconv"
 )
 
-// New creates a new config with minimal initial state.
+// New creates a new Config with minimal initial state.
 func New(options ...Option) *Config {
 	c := Config{
 		separator: ".",
-		readers:   nil,
-		aliases:   make(map[string][]string),
 	}
 	for _, option := range options {
 		option(&c)
@@ -42,24 +40,24 @@ func WithSeparator(separator string) Option {
 	}
 }
 
-// Reader provides the minimal interface for a configuration reader.
-// The Read method must be safe to call from multiple goroutines.
-type Reader interface {
-	// Read and return the value of the named config leaf key.
+// Getter provides the minimal interface for a configuration Getter.
+type Getter interface {
+	// Get the value of the named config leaf key.
 	// Also returns an ok, similar to a map read, to indicate if the value
 	// was found.
 	// The type underlying the returned interface{} must be convertable to
 	// the expected type by cfgconv.
-	// Read is not expected to be performed on node keys, but in case it is
-	// the Read should return a nil interface{} and false, even if the node
+	// Get is not expected to be performed on node keys, but in case it is
+	// the Get should return a nil interface{} and false, even if the node
 	// exists in the config tree.
-	Read(key string) (interface{}, bool)
+	// Must be safe to call from multiple goroutines.
+	Get(key string) (interface{}, bool)
 }
 
 // Config provides a unified key/value store of configuration.
 type Config struct {
 	// RWLock covering other fields.
-	// It does not prevent concurrent access to the readers themselves,
+	// It does not prevent concurrent access to the getters themselves,
 	// only to the config fields.
 	mu sync.RWMutex
 	// The prefix common to all keys within this config node.
@@ -70,40 +68,40 @@ type Config struct {
 	prefix string
 	// path separator for nested objects
 	separator string
-	// A list of Readers providing config key/value pairs.
-	readers []Reader
+	// A list of Getters providing config key/value pairs.
+	gg []Getter
 	// A map to a list of old names for current config keys.
 	aliases map[string][]string
 }
 
-// AppendReader appends a reader to the set of readers for the config node.
-// This means this reader is only used as a last resort, relative to
-// the existing readers.
+// AppendGetter appends a getter to the set of getters for the config node.
+// This means this getter is only used as a last resort, relative to
+// the existing getters.
 //
 // This is generally applied to the root node.
-// When applied to a non-root node, the reader only applies to that node,
+// When applied to a non-root node, the getter only applies to that node,
 // and any subsequently created children.
-func (c *Config) AppendReader(reader Reader) {
-	if reader == nil {
+func (c *Config) AppendGetter(g Getter) {
+	if g == nil {
 		return
 	}
 	c.mu.Lock()
-	c.readers = append(c.readers, reader)
+	c.gg = append(c.gg, g)
 	c.mu.Unlock()
 }
 
-// InsertReader inserts a reader to the set of readers for the config node.
-// This means this reader is used before the existing readers.
+// InsertGetter inserts a getter to the set of getters for the config node.
+// This means this getter is used before the existing getters.
 //
 // This is generally applied to the root node.
-// When applied to a non-root node, the reader only applies to that node,
+// When applied to a non-root node, the getter only applies to that node,
 // and any subsequently created children.
-func (c *Config) InsertReader(reader Reader) {
-	if reader == nil {
+func (c *Config) InsertGetter(g Getter) {
+	if g == nil {
 		return
 	}
 	c.mu.Lock()
-	c.readers = append([]Reader{reader}, c.readers...)
+	c.gg = append([]Getter{g}, c.gg...)
 	c.mu.Unlock()
 }
 
@@ -133,6 +131,9 @@ func (c *Config) AddAlias(newKey string, oldKey string) {
 	if lNewKey == lOldKey {
 		return
 	}
+	if c.aliases == nil {
+		c.aliases = make(map[string][]string)
+	}
 	aliases, ok := c.aliases[lNewKey]
 	if !ok {
 		aliases = make([]string, 1)
@@ -142,22 +143,22 @@ func (c *Config) AddAlias(newKey string, oldKey string) {
 }
 
 // Get gets the raw value corresponding to the key.
-// It iterates through the list of readers, searching for a matching key,
+// It iterates through the list of getters, searching for a matching key,
 // or failing that for a matching alias.
 // Returns the first match found, or an error if none is found.
 func (c *Config) Get(key string) (interface{}, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	fullKey := c.prefixedKey(key)
-	for _, reader := range c.readers {
-		if v, ok := reader.Read(fullKey); ok {
+	for _, g := range c.gg {
+		if v, ok := g.Get(fullKey); ok {
 			return v, nil
 		}
 		if len(c.aliases) > 0 {
 			// leaf alias
 			if aliases, ok := c.aliases[fullKey]; ok {
 				for _, alias := range aliases {
-					if v, ok := reader.Read(alias); ok {
+					if v, ok := g.Get(alias); ok {
 						return v, nil
 					}
 				}
@@ -176,7 +177,7 @@ func (c *Config) Get(key string) (interface{}, error) {
 							idx += len(c.separator)
 						}
 						aliasKey := alias + fullKey[idx:]
-						if v, ok := reader.Read(aliasKey); ok {
+						if v, ok := g.Get(aliasKey); ok {
 							return v, nil
 						}
 					}
@@ -207,11 +208,11 @@ func (c *Config) GetConfig(node string) (*Config, error) {
 	for k, v := range c.aliases {
 		aliases[k] = v[:]
 	}
-	readers := c.readers[:]
+	gg := c.gg[:]
 	return &Config{
 		prefix:    c.prefixedKey(node),
 		separator: c.separator,
-		readers:   readers,
+		gg:        gg,
 		aliases:   aliases,
 	}, nil
 }
@@ -403,7 +404,7 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 // The node identifies the section of the tree to unmarshal.
 // The objmap keys define the fields to be populated from config.
 // If non-nil, the config values will be converted to the type already contained in the map.
-// If nil then the value is set to the raw value returned by the Reader.
+// If nil then the value is set to the raw value returned by the Getter.
 //
 // Nested objects can be populated by adding them as map[string]interface{},
 // with keys set corresponding to the nested field names.

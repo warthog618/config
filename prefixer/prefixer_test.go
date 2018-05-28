@@ -14,18 +14,18 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	m := mockReader{map[string]string{}}
+	m := mockGetter{map[string]string{}}
 	p := prefixer.New("blah.", &m)
 	if p == nil {
 		t.Fatalf("new returned nil")
 	}
-	// test provides config.Reader interface.
+	// test provides config.Getter interface.
 	cfg := config.New()
-	cfg.AppendReader(p)
+	cfg.AppendGetter(p)
 }
 
-func TestRead(t *testing.T) {
-	m := mockReader{map[string]string{"a": "is a", "foo.b": "is foo.b"}}
+func TestGet(t *testing.T) {
+	m := mockGetter{map[string]string{"a": "is a", "foo.b": "is foo.b"}}
 	patterns := []struct {
 		name string
 		k    string
@@ -42,7 +42,7 @@ func TestRead(t *testing.T) {
 	pr := prefixer.New("blah.", &m)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			v, ok := pr.Read(p.k)
+			v, ok := pr.Get(p.k)
 			assert.Equal(t, p.ok, ok)
 			assert.Equal(t, p.v, v)
 		}
@@ -50,13 +50,13 @@ func TestRead(t *testing.T) {
 	}
 }
 
-// A simple mock reader wrapping an accessible map.
+// A simple mock Getter wrapping an accessible map.
 
-type mockReader struct {
+type mockGetter struct {
 	Config map[string]string
 }
 
-func (m *mockReader) Read(key string) (interface{}, bool) {
+func (m *mockGetter) Get(key string) (interface{}, bool) {
 	v, ok := m.Config[key]
 	return v, ok
 }

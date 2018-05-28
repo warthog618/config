@@ -3,10 +3,10 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package flag provides a POSIX/GNU style style command line parser/config reader.
+// Package flag provides a POSIX/GNU style style command line parser/config getter.
 //
 // Parses command line flags and makes them available
-// through a config.Reader interface.
+// through a config.Getter interface.
 //
 // Handles:
 // - short form (-h)
@@ -36,7 +36,7 @@ import (
 	"github.com/warthog618/config/keys"
 )
 
-// New creates a new Reader.
+// New creates a new Getter.
 //
 // The command line to parse is provided by cmdArgs.
 // This does not include the name of the executable, and defaults to os.Args[1:]
@@ -44,13 +44,13 @@ import (
 // The shortFlags defines the mapping from single character short flags to
 // long flag names.  Long names are within the flag naming space and so should
 // use the flagSeparator to separate tiers.
-func New(cmdArgs []string, shortFlags map[byte]string, options ...Option) (*Reader, error) {
+func New(cmdArgs []string, shortFlags map[byte]string, options ...Option) (*Getter, error) {
 	if len(cmdArgs) == 0 {
 		cmdArgs = os.Args[1:]
 	}
 	args := []string{}
 	config := map[string]interface{}(nil)
-	r := Reader{cmdArgs, args, config, shortFlags, nil, ","}
+	r := Getter{cmdArgs, args, config, shortFlags, nil, ","}
 	for _, option := range options {
 		option(&r)
 	}
@@ -61,10 +61,10 @@ func New(cmdArgs []string, shortFlags map[byte]string, options ...Option) (*Read
 	return &r, nil
 }
 
-// Reader provides the mapping from command line arguments to a config.Reader.
-// The Reader scans the command line only at construction time, so its config state
+// Getter provides the mapping from command line arguments to a config.Getter.
+// The Getter scans the command line only at construction time, so its config state
 // is effectively immutable.
-type Reader struct {
+type Getter struct {
 	// The args to parse into config values.
 	cmdArgs []string
 	// residual args after flag parsing.
@@ -85,13 +85,13 @@ type Replacer interface {
 	Replace(s string) string
 }
 
-// Option is a function which modifies a Reader at construction time.
-type Option func(*Reader)
+// Option is a function which modifies a Getter at construction time.
+type Option func(*Getter)
 
 // WithCfgKeyReplacer sets the replacer used to map from flag space to config space.
 // The default separator is "."
 func WithCfgKeyReplacer(keyReplacer Replacer) Option {
-	return func(r *Reader) {
+	return func(r *Getter) {
 		r.cfgKeyReplacer = keyReplacer
 	}
 }
@@ -99,32 +99,32 @@ func WithCfgKeyReplacer(keyReplacer Replacer) Option {
 // WithListSeparator sets the separator between slice fields in the flag namespace.
 // The default separator is ","
 func WithListSeparator(separator string) Option {
-	return func(r *Reader) {
+	return func(r *Getter) {
 		r.listSeparator = separator
 	}
 }
 
 // Args returns the trailing arguments from the command line that are not flags,
 // or flag values.
-func (r *Reader) Args() []string {
+func (r *Getter) Args() []string {
 	return r.args
 }
 
 // NArg returns the number of trailing args in the command line.
-func (r *Reader) NArg() int {
+func (r *Getter) NArg() int {
 	return len(r.args)
 }
 
 // NFlag returns the number of flags detected in the command line.
 // Multiple instances of the same flag, in either short or long form, count
 // as a single flag.
-func (r *Reader) NFlag() int {
+func (r *Getter) NFlag() int {
 	return len(r.config)
 }
 
-// Read returns the value for a given key and true if found, or
+// Get returns the value for a given key and true if found, or
 // nil and false if not.
-func (r *Reader) Read(key string) (interface{}, bool) {
+func (r *Getter) Get(key string) (interface{}, bool) {
 	v, ok := r.config[key]
 	if ok && len(r.listSeparator) > 0 {
 		if vstr, sok := v.(string); sok {
@@ -146,7 +146,7 @@ func incrementFlag(config map[string]interface{}, key string) {
 	config[key] = 1
 }
 
-func (r *Reader) parse() {
+func (r *Getter) parse() {
 	config := map[string]interface{}{}
 	for idx := 0; idx < len(r.cmdArgs); idx++ {
 		arg := r.cmdArgs[idx]

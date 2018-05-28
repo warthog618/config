@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package env provides an environment variable reader for config.
+// Package env provides an environment variable getter for config.
 package env
 
 import (
@@ -13,15 +13,15 @@ import (
 	"github.com/warthog618/config/keys"
 )
 
-// New creates an environment variable reader.
+// New creates an environment variable Getter.
 //
-// The prefix determines the set of environment variables of interest to this reader.
+// The prefix determines the set of environment variables of interest to this Getter.
 // Environment variables beginning with the prefix are loaded into the config.
 // The mapping from environment variable naming to config space naming is
-// determined by the prefix and separator fields of the Reader.
-func New(prefix string, options ...Option) (*Reader, error) {
+// determined by the prefix and separator fields of the Getter.
+func New(prefix string, options ...Option) (*Getter, error) {
 	config := map[string]string(nil)
-	r := Reader{config, prefix, nil, ":"}
+	r := Getter{config, prefix, nil, ":"}
 	for _, option := range options {
 		option(&r)
 	}
@@ -32,10 +32,10 @@ func New(prefix string, options ...Option) (*Reader, error) {
 	return &r, nil
 }
 
-// Reader provides the mapping from environment variables to a config.Reader.
-// The Reader scans the envrionment only at construction time, so its config state
+// Getter provides the mapping from environment variables to a config.Getter.
+// The Getter scans the envrionment only at construction time, so its config state
 // is effectively immutable.
-type Reader struct {
+type Getter struct {
 	// config key=value
 	config map[string]string
 	// prefix in ENV space.
@@ -49,9 +49,9 @@ type Reader struct {
 	listSeparator string
 }
 
-// Read returns the value for a given key and true if found, or
+// Get returns the value for a given key and true if found, or
 // nil and false if not.
-func (r *Reader) Read(key string) (interface{}, bool) {
+func (r *Getter) Get(key string) (interface{}, bool) {
 	if v, ok := r.config[key]; ok {
 		if len(r.listSeparator) > 0 && strings.Contains(v, r.listSeparator) {
 			return strings.Split(v, r.listSeparator), ok
@@ -67,15 +67,15 @@ type Replacer interface {
 	Replace(s string) string
 }
 
-// Option is a function which modifies a Reader at construction time.
-type Option func(*Reader)
+// Option is a function which modifies a Getter at construction time.
+type Option func(*Getter)
 
-// WithEnvPrefix sets the prefix for environment variables included in this reader's config.
+// WithEnvPrefix sets the prefix for environment variables included in this Getter's config.
 // The prefix is stripped from the environment variable name during mapping to
 // the config namespace and so should include any separator between it and the
 // first tier name.
 func WithEnvPrefix(prefix string) Option {
-	return func(r *Reader) {
+	return func(r *Getter) {
 		r.envPrefix = prefix
 	}
 }
@@ -83,7 +83,7 @@ func WithEnvPrefix(prefix string) Option {
 // WithCfgKeyReplacer sets the replacer used to map from env space to config space.
 // The default is to replace "_" with "." and convert to lowercase.
 func WithCfgKeyReplacer(keyReplacer keys.Replacer) Option {
-	return func(r *Reader) {
+	return func(r *Getter) {
 		r.cfgKeyReplacer = keyReplacer
 	}
 }
@@ -91,12 +91,12 @@ func WithCfgKeyReplacer(keyReplacer keys.Replacer) Option {
 // WithListSeparator sets the separator between slice fields in the env namespace.
 // The default separator is ":"
 func WithListSeparator(separator string) Option {
-	return func(r *Reader) {
+	return func(r *Getter) {
 		r.listSeparator = separator
 	}
 }
 
-func (r *Reader) load() {
+func (r *Getter) load() {
 	config := map[string]string{}
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, r.envPrefix) {

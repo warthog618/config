@@ -26,9 +26,9 @@ func TestNew(t *testing.T) {
 	f, err := flag.New(args, shorts)
 	assert.Nil(t, err)
 	require.NotNil(t, f)
-	// test provides config.Reader interface.
+	// test provides config.Getter interface.
 	cfg := config.New()
-	cfg.AppendReader(f)
+	cfg.AppendGetter(f)
 }
 
 // TestArgs tests the Args and Narg functions.
@@ -166,7 +166,7 @@ func TestNFlag(t *testing.T) {
 	}
 }
 
-func TestReaderRead(t *testing.T) {
+func TestGetterGet(t *testing.T) {
 	type kv struct {
 		k string
 		v interface{}
@@ -280,12 +280,12 @@ func TestReaderRead(t *testing.T) {
 			require.NotNil(t, f)
 			assert.Equal(t, len(p.expected), f.NFlag())
 			for _, x := range p.expected {
-				v, ok := f.Read(x.k)
+				v, ok := f.Get(x.k)
 				assert.True(t, ok, x.k)
 				assert.Equal(t, x.v, v, x.k)
 			}
 			for _, x := range p.expectedZ {
-				v, ok := f.Read(x)
+				v, ok := f.Get(x)
 				assert.False(t, ok, x)
 				assert.Nil(t, v, x)
 			}
@@ -294,7 +294,7 @@ func TestReaderRead(t *testing.T) {
 	}
 }
 
-func TestReaderWithCfgKeyReplacer(t *testing.T) {
+func TestGetterWithCfgKeyReplacer(t *testing.T) {
 	args := []string{"-n=44", "--leaf", "42"}
 	shorts := map[byte]string{'n': "nested-leaf"}
 	patterns := []struct {
@@ -313,10 +313,10 @@ func TestReaderWithCfgKeyReplacer(t *testing.T) {
 			r, err := flag.New(args, shorts, flag.WithCfgKeyReplacer(strings.NewReplacer(p.old, p.new)))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
-			v, ok := r.Read(p.expected)
+			v, ok := r.Get(p.expected)
 			assert.True(t, ok)
 			assert.Equal(t, "44", v)
-			v, ok = r.Read("leaf")
+			v, ok = r.Get("leaf")
 			assert.True(t, ok)
 			assert.Equal(t, "42", v)
 		}
@@ -324,7 +324,7 @@ func TestReaderWithCfgKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestReaderWithListSeparator(t *testing.T) {
+func TestGetterWithListSeparator(t *testing.T) {
 	args := []string{"-s", "a,#b"}
 	shorts := map[byte]string{'s': "slice"}
 	patterns := []struct {
@@ -341,7 +341,7 @@ func TestReaderWithListSeparator(t *testing.T) {
 			r, err := flag.New(args, shorts, flag.WithListSeparator(p.sep))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
-			v, ok := r.Read("slice")
+			v, ok := r.Get("slice")
 			assert.True(t, ok)
 			assert.Equal(t, p.expected, v)
 		}

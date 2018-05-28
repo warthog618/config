@@ -15,21 +15,21 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	r := dict.New()
-	require.NotNil(t, r)
-	// test provides config.Reader interface.
+	g := dict.New()
+	require.NotNil(t, g)
+	// test provides config.Getter interface.
 	cfg := config.New()
-	cfg.AppendReader(r)
+	cfg.AppendGetter(g)
 }
 
-func TestReader(t *testing.T) {
-	r := dict.New()
-	require.NotNil(t, r)
-	v, ok := r.Read("a")
+func TestGetter(t *testing.T) {
+	g := dict.New()
+	require.NotNil(t, g)
+	v, ok := g.Get("a")
 	assert.False(t, ok)
 	assert.Nil(t, v)
-	r.Set("a", 1)
-	v, ok = r.Read("a")
+	g.Set("a", 1)
+	v, ok = g.Get("a")
 	assert.True(t, ok)
 	assert.Equal(t, 1, v)
 }

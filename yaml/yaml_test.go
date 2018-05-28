@@ -39,13 +39,13 @@ float: 3.1415
 `)
 
 // Test that config fields can be read and converted to required types using cfgconv.
-func testReaderRead(t *testing.T, reader *yaml.Reader) {
+func testGetterGet(t *testing.T, g *yaml.Getter) {
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
 	}
 	for _, key := range bogusKeys {
-		if v, ok := reader.Read(key); ok {
+		if v, ok := g.Get(key); ok {
 			t.Errorf("could read %s", key)
 		} else if v != nil {
 			t.Errorf("returned non-nil on failed read for %s, got %v", key, v)
@@ -70,7 +70,7 @@ func testReaderRead(t *testing.T, reader *yaml.Reader) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			v, ok := reader.Read(p.k)
+			v, ok := g.Get(p.k)
 			assert.True(t, ok)
 			var cv interface{}
 			var err error
@@ -102,9 +102,9 @@ func TestNewBytes(t *testing.T) {
 	b, err = yaml.NewBytes(validConfig)
 	assert.Nil(t, err)
 	require.NotNil(t, b)
-	// test provides config.Reader interface.
+	// test provides config.Getter interface.
 	cfg := config.New()
-	cfg.AppendReader(b)
+	cfg.AppendGetter(b)
 }
 
 func TestNewFile(t *testing.T) {
@@ -118,19 +118,19 @@ func TestNewFile(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, f)
 	cfg := config.New()
-	cfg.AppendReader(f)
+	cfg.AppendGetter(f)
 }
 
-func TestBytesReaderRead(t *testing.T) {
-	reader, err := yaml.NewBytes(validConfig)
+func TestBytesGetterGet(t *testing.T) {
+	g, err := yaml.NewBytes(validConfig)
 	assert.Nil(t, err)
-	require.NotNil(t, reader)
-	testReaderRead(t, reader)
+	require.NotNil(t, g)
+	testGetterGet(t, g)
 }
 
-func TestFileReaderRead(t *testing.T) {
-	reader, err := yaml.NewFile("config.yaml")
+func TestFileGetterGet(t *testing.T) {
+	g, err := yaml.NewFile("config.yaml")
 	assert.Nil(t, err)
-	require.NotNil(t, reader)
-	testReaderRead(t, reader)
+	require.NotNil(t, g)
+	testGetterGet(t, g)
 }

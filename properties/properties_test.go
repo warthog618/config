@@ -38,13 +38,13 @@ bool: true
 `)
 
 // Test that config fields can be read and converted to required types using cfgconv.
-func testReaderRead(t *testing.T, reader *properties.Reader) {
+func testGetterGet(t *testing.T, g *properties.Getter) {
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
 	}
 	for _, key := range bogusKeys {
-		if v, ok := reader.Read(key); ok {
+		if v, ok := g.Get(key); ok {
 			t.Errorf("could read %s", key)
 		} else if v != nil {
 			t.Errorf("returned non-nil on failed read for %s, got %v", key, v)
@@ -69,7 +69,7 @@ func testReaderRead(t *testing.T, reader *properties.Reader) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			v, ok := reader.Read(p.k)
+			v, ok := g.Get(p.k)
 			assert.True(t, ok)
 			var cv interface{}
 			var err error
@@ -94,7 +94,7 @@ func testReaderRead(t *testing.T, reader *properties.Reader) {
 	}
 }
 
-func TestReaderWithListSeparator(t *testing.T) {
+func TestGetterWithListSeparator(t *testing.T) {
 	patterns := []struct {
 		name     string
 		sep      string
@@ -109,7 +109,7 @@ func TestReaderWithListSeparator(t *testing.T) {
 			r, err := properties.NewBytes(validConfig, properties.WithListSeparator(p.sep))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
-			v, ok := r.Read("slice")
+			v, ok := r.Get("slice")
 			assert.True(t, ok)
 			assert.Equal(t, p.expected, v)
 		}
@@ -124,9 +124,9 @@ func TestNewBytes(t *testing.T) {
 	b, err = properties.NewBytes(validConfig)
 	assert.Nil(t, err)
 	require.NotNil(t, b)
-	// test provides config.Reader interface.
+	// test provides config.Getter interface.
 	cfg := config.New()
-	cfg.AppendReader(b)
+	cfg.AppendGetter(b)
 }
 
 func TestNewFile(t *testing.T) {
@@ -139,21 +139,21 @@ func TestNewFile(t *testing.T) {
 	f, err = properties.NewFile("config.properties")
 	assert.Nil(t, err)
 	require.NotNil(t, f)
-	// test provides config.Reader interface.
+	// test provides config.Getter interface.
 	cfg := config.New()
-	cfg.AppendReader(f)
+	cfg.AppendGetter(f)
 }
 
-func TestStringReaderRead(t *testing.T) {
-	reader, err := properties.NewBytes(validConfig)
+func TestStringGetterGet(t *testing.T) {
+	g, err := properties.NewBytes(validConfig)
 	assert.Nil(t, err)
-	require.NotNil(t, reader)
-	testReaderRead(t, reader)
+	require.NotNil(t, g)
+	testGetterGet(t, g)
 }
 
-func TestFileReaderRead(t *testing.T) {
-	reader, err := properties.NewFile("config.properties")
+func TestFileGetterGet(t *testing.T) {
+	g, err := properties.NewFile("config.properties")
 	assert.Nil(t, err)
-	require.NotNil(t, reader)
-	testReaderRead(t, reader)
+	require.NotNil(t, g)
+	testGetterGet(t, g)
 }

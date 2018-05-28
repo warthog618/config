@@ -30,12 +30,12 @@ func TestNew(t *testing.T) {
 	e, err := env.New(prefix)
 	assert.Nil(t, err)
 	require.NotNil(t, e)
-	// test provides config.Reader interface.
+	// test provides config.Getter interface.
 	cfg := config.New()
-	cfg.AppendReader(e)
+	cfg.AppendGetter(e)
 }
 
-func TestReaderRead(t *testing.T) {
+func TestGetterGet(t *testing.T) {
 	patterns := []struct {
 		name string
 		k    string
@@ -58,7 +58,7 @@ func TestReaderRead(t *testing.T) {
 
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			v, ok := e.Read(p.k)
+			v, ok := e.Get(p.k)
 			assert.Equal(t, p.ok, ok)
 			assert.Equal(t, p.v, v)
 		}
@@ -66,7 +66,7 @@ func TestReaderRead(t *testing.T) {
 	}
 }
 
-func TestReaderWithCfgKeyReplacer(t *testing.T) {
+func TestGetterWithCfgKeyReplacer(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	patterns := []struct {
@@ -88,7 +88,7 @@ func TestReaderWithCfgKeyReplacer(t *testing.T) {
 			e, err := env.New(prefix, env.WithCfgKeyReplacer(keys.NewReplacer(p.old, p.new, p.treatment)))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
-			v, ok := e.Read(p.expected)
+			v, ok := e.Get(p.expected)
 			assert.True(t, ok)
 			assert.Equal(t, "44", v)
 		}
@@ -96,7 +96,7 @@ func TestReaderWithCfgKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestReaderSetListSeparator(t *testing.T) {
+func TestGetterSetListSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	os.Setenv(prefix+"SLICE", "a:#b")
@@ -114,7 +114,7 @@ func TestReaderSetListSeparator(t *testing.T) {
 			e, err := env.New(prefix, env.WithListSeparator(p.sep))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
-			v, ok := e.Read("slice")
+			v, ok := e.Get("slice")
 			assert.True(t, ok)
 			assert.Equal(t, p.expected, v)
 		}
@@ -122,7 +122,7 @@ func TestReaderSetListSeparator(t *testing.T) {
 	}
 }
 
-func TestReaderSetPrefix(t *testing.T) {
+func TestGetterSetPrefix(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	patterns := []struct {
@@ -139,7 +139,7 @@ func TestReaderSetPrefix(t *testing.T) {
 			e, err := env.New(prefix, env.WithEnvPrefix(p.prefix))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
-			v, ok := e.Read(p.k)
+			v, ok := e.Get(p.k)
 			assert.True(t, ok)
 			assert.Equal(t, "44", v)
 		}
