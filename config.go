@@ -28,32 +28,6 @@ func New(options ...Option) *Config {
 	return &c
 }
 
-// Option is a function which modifies a config at construction time.
-type Option func(*Config)
-
-// WithSeparator is an Option that sets the config namespace separator.
-// This is an option to ensure it can only set at construction time,
-// as changing it a runtime makes no sense.
-func WithSeparator(separator string) Option {
-	return func(c *Config) {
-		c.separator = separator
-	}
-}
-
-// Getter provides the minimal interface for a configuration Getter.
-type Getter interface {
-	// Get the value of the named config leaf key.
-	// Also returns an ok, similar to a map read, to indicate if the value
-	// was found.
-	// The type underlying the returned interface{} must be convertable to
-	// the expected type by cfgconv.
-	// Get is not expected to be performed on node keys, but in case it is
-	// the Get should return a nil interface{} and false, even if the node
-	// exists in the config tree.
-	// Must be safe to call from multiple goroutines.
-	Get(key string) (interface{}, bool)
-}
-
 // Config provides a unified key/value store of configuration.
 type Config struct {
 	// RWLock covering other fields.
@@ -74,13 +48,48 @@ type Config struct {
 	aliases map[string][]string
 }
 
+// Getter provides the minimal interface for a configuration Getter.
+type Getter interface {
+	// Get the value of the named config leaf key.
+	// Also returns an ok, similar to a map read, to indicate if the value
+	// was found.
+	// The type underlying the returned interface{} must be convertable to
+	// the expected type by cfgconv.
+	// Get is not expected to be performed on node keys, but in case it is
+	// the Get should return a nil interface{} and false, even if the node
+	// exists in the config tree.
+	// Must be safe to call from multiple goroutines.
+	Get(key string) (interface{}, bool)
+}
+
+// Option is a function which modifies a Config at construction time.
+type Option func(*Config)
+
+// WithGetters is an Option that passes an initial set of getters.
+// The provided set is copied, so subsequent changes to that set will
+// not alter the Config.
+func WithGetters(gg []Getter) Option {
+	return func(c *Config) {
+		c.gg = append([]Getter(nil), gg...)
+	}
+}
+
+// WithSeparator is an Option that sets the config namespace separator.
+// This is an option to ensure it can only set at construction time,
+// as changing it a runtime makes no sense.
+func WithSeparator(separator string) Option {
+	return func(c *Config) {
+		c.separator = separator
+	}
+}
+
 // AppendGetter appends a getter to the set of getters for the config node.
 // This means this getter is only used as a last resort, relative to
 // the existing getters.
 //
 // This is generally applied to the root node.
 // When applied to a non-root node, the getter only applies to that node,
-// and any subsequently created children.
+// and any subsequently created children of that node.
 func (c *Config) AppendGetter(g Getter) {
 	if g == nil {
 		return
@@ -95,7 +104,7 @@ func (c *Config) AppendGetter(g Getter) {
 //
 // This is generally applied to the root node.
 // When applied to a non-root node, the getter only applies to that node,
-// and any subsequently created children.
+// and any subsequently created children of that node.
 func (c *Config) InsertGetter(g Getter) {
 	if g == nil {
 		return
@@ -206,13 +215,12 @@ func (c *Config) GetConfig(node string) (*Config, error) {
 	defer c.mu.Unlock()
 	aliases := make(map[string][]string, len(c.aliases))
 	for k, v := range c.aliases {
-		aliases[k] = v[:]
+		aliases[k] = append([]string(nil), v...)
 	}
-	gg := c.gg[:]
 	return &Config{
 		prefix:    c.prefixedKey(node),
 		separator: c.separator,
-		gg:        gg,
+		gg:        append([]Getter(nil), c.gg...),
 		aliases:   aliases,
 	}, nil
 }

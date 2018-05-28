@@ -37,6 +37,27 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, true, c)
 }
 
+func TestNewWithGetter(t *testing.T) {
+	mr := mapGetter{map[string]interface{}{
+		"a.b.c_d": true,
+	}}
+	gg := []config.Getter{&mr}
+	cfg := config.New(config.WithGetters(gg))
+	c, err := cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+	// show getters copied
+	gg[0] = mapGetter{}
+	c, err = cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+	// show getter not copied
+	mr.config["a.b.c_d"] = 43
+	c, err = cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, 43, c)
+}
+
 func TestNewWithSeparator(t *testing.T) {
 	cfg := config.New(config.WithSeparator("_"))
 	c, err := cfg.Get("")
