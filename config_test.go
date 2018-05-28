@@ -250,24 +250,24 @@ func TestGetOverlayed(t *testing.T) {
 	}
 	patterns := []struct {
 		name     string
-		readers  []*mapGetter // !!! breaks test if value instead of pointer - why???
+		readers  []mapGetter
 		expected []kv
 	}{
-		{"one", []*mapGetter{&mr1}, []kv{
+		{"one", []mapGetter{mr1}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 1", nil},
 			{"c", "c - tier 1", nil},
 			{"d", nil, config.NotFoundError{Key: "d"}},
 			{"e", nil, config.NotFoundError{Key: "e"}},
 		}},
-		{"two", []*mapGetter{&mr1, &mr2}, []kv{
+		{"two", []mapGetter{mr1, mr2}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 2", nil},
 			{"c", "c - tier 1", nil},
 			{"d", "d - tier 2", nil},
 			{"e", nil, config.NotFoundError{Key: "e"}},
 		}},
-		{"three", []*mapGetter{&mr1, &mr2, &mr3}, []kv{
+		{"three", []mapGetter{mr1, mr2, mr3}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 2", nil},
 			{"c", "c - tier 3", nil},
@@ -868,17 +868,6 @@ func TestUnmarshalToMap(t *testing.T) {
 	}
 }
 
-type mapGetter struct {
-	// simple key value map.
-	// Note keys must be added as lowercase for config.GetX to work.
-	config map[string]interface{}
-}
-
-func (mr *mapGetter) Get(key string) (interface{}, bool) {
-	v, ok := mr.config[key]
-	return v, ok
-}
-
 func TestNotFoundError(t *testing.T) {
 	patterns := []string{"one", "two", "three"}
 	for _, p := range patterns {
@@ -907,4 +896,15 @@ func TestUnmarshalError(t *testing.T) {
 		}
 		t.Run(p.k, f)
 	}
+}
+
+type mapGetter struct {
+	// simple key value map.
+	// Note keys must be added as lowercase for config.GetX to work.
+	config map[string]interface{}
+}
+
+func (mr mapGetter) Get(key string) (interface{}, bool) {
+	v, ok := mr.config[key]
+	return v, ok
 }
