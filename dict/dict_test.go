@@ -34,9 +34,33 @@ func TestGetter(t *testing.T) {
 	assert.Equal(t, 1, v)
 }
 
-func BenchmarkGet(b *testing.B) {
+func TestGetterWithConfig(t *testing.T) {
+	config := map[string]interface{}{"a": 1}
+	g := dict.New(dict.WithConfig(config))
+	require.NotNil(t, g)
+	v, ok := g.Get("a")
+	assert.True(t, ok)
+	assert.Equal(t, 1, v)
+}
+
+func TestGetterSet(t *testing.T) {
 	g := dict.New()
-	g.Set("nested.leaf", "44")
+	require.NotNil(t, g)
+	v, ok := g.Get("a")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+	g.Set("a", 1)
+	v, ok = g.Get("a")
+	assert.True(t, ok)
+	assert.Equal(t, 1, v)
+	g.Set("a", 32)
+	v, ok = g.Get("a")
+	assert.True(t, ok)
+	assert.Equal(t, 32, v)
+}
+
+func BenchmarkGet(b *testing.B) {
+	g := dict.New(dict.WithConfig(map[string]interface{}{"nested.leaf": "44"}))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}
