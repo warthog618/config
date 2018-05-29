@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package toml provides a TOML format Getter for config.
+// Package toml provides a TOML format getter for config.
 package toml
 
 import gotoml "github.com/pelletier/go-toml"

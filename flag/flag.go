@@ -9,23 +9,27 @@
 // through a config.Getter interface.
 //
 // Handles:
-// - short form (-h)
-// - long form (--help)
-// - bool flags accessible as bool or int (the latter giving a count of the times the flag occurs)
-// - -- terminator to forcilby terminate flag parsing before remaining args.
-// - returning remaining args after parsing.
+//
+//   - short form (-h)
+//   - long form (--help)
+//   - bool flags accessible as bool or int (the latter giving a count of the times the flag occurs)
+//   - -- terminator to forcilby terminate flag parsing before remaining args.
+//   - returning remaining args after parsing.
 //
 // Flags are assumed bool unless followed by a non-flag.
 // Values following a flag are associated with the previous flag.
 // In both short and long form, an '=' may be placed between the flag and value.
 // e.g.
-// -c config and -c=config are equivalent
-// The long form equivalents are:
-// --config-file config and --config-file=config
 //
-// Short flags may be grouped, e.g. -abc is equivalent to -a -b -c.
+//   -c config and -c=config are equivalent
+//
+// The long form equivalents are:
+//
+//   --config-file config and --config-file=config
+//
+// Short flags may be grouped, e.g. "-abc" is equivalent to "-a -b -c".
 // Grouped short flags may not have values following them.
-// So -abc config would stop parsing after the -abc and assume config was
+// So "-abc foo" would stop parsing after the "-abc" and assume "foo" was
 // the first non-flag an arg.
 package flag
 

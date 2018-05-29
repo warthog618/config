@@ -4,17 +4,17 @@
 // license that can be found in the LICENSE file.
 
 // Package cfgconv provides type conversions from incoming configuration types
-// to requested internal types.
+// to requested internal types.  Essentially a more general version of strconv.
 //
-// The type conversions are flexible, and include automatic conversion
+// The type conversions are flexible, and include automatic conversion from:
 //
-//	from string to numeric
-// 	from string to bool
-// 	from numeric to string
-// 	from numeric to bool
-// 	from bool to numeric
-// 	from bool to string
-// 	from float to int
+//	string to numeric
+// 	string to bool
+// 	numeric to string
+// 	numeric to bool
+// 	bool to numeric
+// 	bool to string
+// 	float to int
 //
 // Performs range checks when converting between types to prevent loss of precision.
 //

@@ -76,7 +76,7 @@ func WithGetters(gg []Getter) Option {
 
 // WithSeparator is an Option that sets the config namespace separator.
 // This is an option to ensure it can only set at construction time,
-// as changing it a runtime makes no sense.
+// as changing it at runtime makes no sense.
 func WithSeparator(separator string) Option {
 	return func(c *Config) {
 		c.separator = separator
