@@ -8,7 +8,6 @@ package json
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"strings"
 )
@@ -23,10 +22,7 @@ type Getter struct {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	if v, err := getFromMapTree(r.config, key, "."); err == nil {
-		return v, true
-	}
-	return nil, false
+	return getFromMapTree(r.config, key, ".")
 }
 
 // NewBytes returns a JSON Getter that reads config from a []byte.
@@ -48,11 +44,11 @@ func NewFile(filename string) (*Getter, error) {
 	return NewBytes(cfg)
 }
 
-func getFromMapTree(node map[string]interface{}, key string, pathSep string) (interface{}, error) {
+func getFromMapTree(node map[string]interface{}, key string, pathSep string) (interface{}, bool) {
 	// full key match - also handles leaves
 	if v, ok := node[key]; ok {
 		if _, ok := v.(map[string]interface{}); !ok {
-			return v, nil
+			return v, true
 		}
 	}
 	// nested path match
@@ -64,5 +60,5 @@ func getFromMapTree(node map[string]interface{}, key string, pathSep string) (in
 		}
 	}
 	// no match
-	return nil, fmt.Errorf("key '%v' not found", key)
+	return nil, false
 }
