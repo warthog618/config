@@ -15,9 +15,24 @@ type Getter struct {
 	config *gotoml.Tree
 }
 
+// New returns a properties Getter.
+func New(options ...Option) (*Getter, error) {
+	g := Getter{}
+	for _, option := range options {
+		err := option(&g)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &g, nil
+}
+
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
+	if r.config == nil {
+		return nil, false
+	}
 	v := r.config.Get(key)
 	if v == nil {
 		return nil, false
@@ -28,20 +43,30 @@ func (r *Getter) Get(key string) (interface{}, bool) {
 	return v, true
 }
 
-// NewBytes returns a TOML Getter that reads config from []byte.
-func NewBytes(cfg []byte) (*Getter, error) {
-	config, err := gotoml.Load(string(cfg))
-	if err != nil {
-		return nil, err
+// Option is a function that modifies the Getter during construction,
+// returning any error that may have occurred.
+type Option func(*Getter) error
+
+// FromBytes uses the []bytes as the source of TOML configuration.
+func FromBytes(cfg []byte) Option {
+	return func(g *Getter) error {
+		config, err := gotoml.Load(string(cfg))
+		if err != nil {
+			return err
+		}
+		g.config = config
+		return nil
 	}
-	return &Getter{config}, nil
 }
 
-// NewFile returns a TOML Getter that reads config from a named file.
-func NewFile(filename string) (*Getter, error) {
-	config, err := gotoml.LoadFile(filename)
-	if err != nil {
-		return nil, err
+// FromFile uses filename as the source of TOML configuration.
+func FromFile(filename string) Option {
+	return func(g *Getter) error {
+		config, err := gotoml.LoadFile(filename)
+		if err != nil {
+			return err
+		}
+		g.config = config
+		return nil
 	}
-	return &Getter{config}, nil
 }

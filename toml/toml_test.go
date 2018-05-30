@@ -94,11 +94,23 @@ func testGetterGet(t *testing.T, g *toml.Getter) {
 	}
 }
 
+func TestNew(t *testing.T) {
+	b, err := toml.New()
+	assert.Nil(t, err)
+	require.NotNil(t, b)
+	v, ok := b.Get("bogus")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+	// test b provides config.Getter interface.
+	cfg := config.New()
+	cfg.AppendGetter(b)
+}
+
 func TestNewBytes(t *testing.T) {
-	b, err := toml.NewBytes(malformedConfig)
+	b, err := toml.New(toml.FromBytes(malformedConfig))
 	assert.NotNil(t, err)
 	assert.Nil(t, b)
-	b, err = toml.NewBytes(validConfig)
+	b, err = toml.New(toml.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, b)
 	// test provides config.Getter interface.
@@ -107,13 +119,13 @@ func TestNewBytes(t *testing.T) {
 }
 
 func TestNewFile(t *testing.T) {
-	f, err := toml.NewFile("no_such.toml")
+	f, err := toml.New(toml.FromFile("no_such.toml"))
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
-	f, err = toml.NewFile("malformed.toml")
+	f, err = toml.New(toml.FromFile("malformed.toml"))
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
-	f, err = toml.NewFile("config.toml")
+	f, err = toml.New(toml.FromFile("config.toml"))
 	assert.Nil(t, err)
 	require.NotNil(t, f)
 	cfg := config.New()
@@ -121,14 +133,14 @@ func TestNewFile(t *testing.T) {
 }
 
 func TestStringGetterGet(t *testing.T) {
-	g, err := toml.NewBytes(validConfig)
+	g, err := toml.New(toml.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, g)
 	testGetterGet(t, g)
 }
 
 func TestFileGetterGet(t *testing.T) {
-	g, err := toml.NewFile("config.toml")
+	g, err := toml.New(toml.FromFile("config.toml"))
 	assert.Nil(t, err)
 	require.NotNil(t, g)
 	testGetterGet(t, g)
@@ -152,7 +164,7 @@ stringSlice = ["one","two","three"]
 	`)
 
 func BenchmarkGet(b *testing.B) {
-	g, _ := toml.NewBytes(benchConfig)
+	g, _ := toml.New(toml.FromBytes(benchConfig))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}

@@ -25,23 +25,47 @@ func (r *Getter) Get(key string) (interface{}, bool) {
 	return getFromMapTree(r.config, key, ".")
 }
 
-// NewBytes returns a JSON Getter that reads config from a []byte.
-func NewBytes(cfg []byte) (*Getter, error) {
+// New returns a JSON Getter.
+func New(options ...Option) (*Getter, error) {
+	g := Getter{}
+	for _, option := range options {
+		if err := option(&g); err != nil {
+			return nil, err
+		}
+	}
+	return &g, nil
+}
+
+// Option is a function that modifies the Getter during construction,
+// returning any error that may have occurred.
+type Option func(*Getter) error
+
+// FromBytes uses the []bytes as the source of JSON configuration.
+func FromBytes(cfg []byte) Option {
+	return func(g *Getter) error {
+		return fromBytes(g, cfg)
+	}
+}
+
+// FromFile uses filename as the source of JSON configuration.
+func FromFile(filename string) Option {
+	return func(g *Getter) error {
+		b, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+		return fromBytes(g, b)
+	}
+}
+
+func fromBytes(g *Getter, cfg []byte) error {
 	var config map[string]interface{}
 	err := json.Unmarshal(cfg, &config)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &Getter{config}, nil
-}
-
-// NewFile returns a JSON Getter that reads config from a named file.
-func NewFile(filename string) (*Getter, error) {
-	cfg, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return NewBytes(cfg)
+	g.config = config
+	return nil
 }
 
 func getFromMapTree(node map[string]interface{}, key string, pathSep string) (interface{}, bool) {

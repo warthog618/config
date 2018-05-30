@@ -34,11 +34,11 @@ func New(options ...Option) *Getter {
 // Option is a function which modifies a Getter at construction time.
 type Option func(*Getter)
 
-// WithConfig provides the config map, rather than having the Getter create a
+// WithMap provides the config map, rather than having the Getter create a
 // new one.
 // Note that the Getter assumes ownership of the map, so the caller should
 // not alter the map or any of its mutable values after the call.
-func WithConfig(config map[string]interface{}) Option {
+func WithMap(config map[string]interface{}) Option {
 	return func(c *Getter) {
 		c.config = config
 	}

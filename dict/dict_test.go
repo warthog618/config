@@ -36,7 +36,7 @@ func TestGetter(t *testing.T) {
 
 func TestGetterWithConfig(t *testing.T) {
 	config := map[string]interface{}{"a": 1}
-	g := dict.New(dict.WithConfig(config))
+	g := dict.New(dict.WithMap(config))
 	require.NotNil(t, g)
 	v, ok := g.Get("a")
 	assert.True(t, ok)
@@ -60,7 +60,7 @@ func TestGetterSet(t *testing.T) {
 }
 
 func BenchmarkGet(b *testing.B) {
-	g := dict.New(dict.WithConfig(map[string]interface{}{"nested.leaf": "44"}))
+	g := dict.New(dict.WithMap(map[string]interface{}{"nested.leaf": "44"}))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}

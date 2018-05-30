@@ -58,7 +58,11 @@ var defaultConfig = []byte(`{
 }`)
 
 func loadConfig() *config.Config {
-	cfg := config.New()
+	def, err := json.New(json.FromBytes(defaultConfig))
+	if err != nil {
+		panic(err)
+	}
+	cfg := config.New(config.WithDefault(def))
 
 	// highest priority first - flags override environment
 	shortFlags := map[byte]string{
@@ -84,14 +88,14 @@ func loadConfig() *config.Config {
 	configFile, err := cfg.GetString("config.file")
 	if err == nil {
 		// explicitly specified config file - must be there
-		jget, err := json.NewFile(configFile)
+		jget, err := json.New(json.FromFile(configFile))
 		if err != nil {
 			panic(err)
 		}
 		cfg.AppendGetter(jget)
 	} else {
 		// implicit and optional default config file
-		jget, err := json.NewFile("app.json")
+		jget, err := json.New(json.FromFile("app.json"))
 		if err == nil {
 			cfg.AppendGetter(jget)
 		} else {
@@ -100,13 +104,6 @@ func loadConfig() *config.Config {
 			}
 		}
 	}
-	// finally add the defaults which have lowest priority and are only
-	// used if none of the other sources find a field.
-	jget, err := json.NewBytes(defaultConfig)
-	if err != nil {
-		panic(err)
-	}
-	cfg.AppendGetter(jget)
 	return cfg
 }
 

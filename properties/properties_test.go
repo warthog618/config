@@ -106,7 +106,9 @@ func TestGetterWithListSeparator(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r, err := properties.NewBytes(validConfig, properties.WithListSeparator(p.sep))
+			r, err := properties.New(
+				properties.FromBytes(validConfig),
+				properties.WithListSeparator(p.sep))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get("slice")
@@ -117,11 +119,11 @@ func TestGetterWithListSeparator(t *testing.T) {
 	}
 }
 
-func TestNewBytes(t *testing.T) {
-	b, err := properties.NewBytes(malformedConfig)
+func TestNewFromBytes(t *testing.T) {
+	b, err := properties.New(properties.FromBytes(malformedConfig))
 	assert.NotNil(t, err)
 	assert.Nil(t, b)
-	b, err = properties.NewBytes(validConfig)
+	b, err = properties.New(properties.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, b)
 	// test provides config.Getter interface.
@@ -129,14 +131,14 @@ func TestNewBytes(t *testing.T) {
 	cfg.AppendGetter(b)
 }
 
-func TestNewFile(t *testing.T) {
-	f, err := properties.NewFile("no_such.properties")
+func TestNewFromFile(t *testing.T) {
+	f, err := properties.New(properties.FromFile("no_such.properties"))
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
-	f, err = properties.NewFile("malformed.properties")
+	f, err = properties.New(properties.FromFile("malformed.properties"))
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
-	f, err = properties.NewFile("config.properties")
+	f, err = properties.New(properties.FromFile("config.properties"))
 	assert.Nil(t, err)
 	require.NotNil(t, f)
 	// test provides config.Getter interface.
@@ -145,14 +147,14 @@ func TestNewFile(t *testing.T) {
 }
 
 func TestStringGetterGet(t *testing.T) {
-	g, err := properties.NewBytes(validConfig)
+	g, err := properties.New(properties.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, g)
 	testGetterGet(t, g)
 }
 
 func TestFileGetterGet(t *testing.T) {
-	g, err := properties.NewFile("config.properties")
+	g, err := properties.New(properties.FromFile("config.properties"))
 	assert.Nil(t, err)
 	require.NotNil(t, g)
 	testGetterGet(t, g)
@@ -178,7 +180,7 @@ nested.stringSlice = one,two,three
 `)
 
 func BenchmarkGet(b *testing.B) {
-	g, _ := properties.NewBytes(benchConfig)
+	g, _ := properties.New(properties.FromBytes(benchConfig))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}

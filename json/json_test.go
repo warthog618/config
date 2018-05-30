@@ -18,7 +18,19 @@ import (
 	"github.com/warthog618/config/json"
 )
 
-func TestNewBytes(t *testing.T) {
+func TestNew(t *testing.T) {
+	b, err := json.New()
+	assert.Nil(t, err)
+	require.NotNil(t, b)
+	v, ok := b.Get("bogus")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+	// test b provides config.Getter interface.
+	cfg := config.New()
+	cfg.AppendGetter(b)
+}
+
+func TestNewFromBytes(t *testing.T) {
 	patterns := []struct {
 		name    string
 		in      []byte
@@ -29,20 +41,17 @@ func TestNewBytes(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			b, err := json.NewBytes(p.in)
+			b, err := json.New(json.FromBytes(p.in))
 			assert.IsType(t, p.errType, err)
 			if err == nil {
 				require.NotNil(t, b)
-				// test b provides config.Getter interface.
-				cfg := config.New()
-				cfg.AppendGetter(b)
 			}
 		}
 		t.Run(p.name, f)
 	}
 }
 
-func TestNewFile(t *testing.T) {
+func TestNewFromFile(t *testing.T) {
 	patterns := []struct {
 		name    string
 		in      string
@@ -54,13 +63,10 @@ func TestNewFile(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			b, err := json.NewFile(p.in)
+			b, err := json.New(json.FromFile(p.in))
 			assert.IsType(t, p.errType, err)
 			if err == nil {
 				require.NotNil(t, b)
-				// test b provides config.Getter interface.
-				cfg := config.New()
-				cfg.AppendGetter(b)
 			}
 		}
 		t.Run(p.name, f)
@@ -68,18 +74,16 @@ func TestNewFile(t *testing.T) {
 }
 
 func TestBytesGetterGet(t *testing.T) {
-	g, err := json.NewBytes(validConfig)
-	if err != nil {
-		t.Fatalf("failed to parse config")
-	}
+	g, err := json.New(json.FromBytes(validConfig))
+	assert.Nil(t, err)
+	require.NotNil(t, g)
 	testGetterGet(t, g)
 }
 
 func TestFileGetterGet(t *testing.T) {
-	g, err := json.NewFile("config.json")
-	if err != nil {
-		t.Fatalf("failed to parse config")
-	}
+	g, err := json.New(json.FromFile("config.json"))
+	assert.Nil(t, err)
+	require.NotNil(t, g)
 	testGetterGet(t, g)
 }
 
@@ -180,7 +184,7 @@ var benchConfig = []byte(`{
   }`)
 
 func BenchmarkGet(b *testing.B) {
-	g, _ := json.NewBytes(benchConfig)
+	g, _ := json.New(json.FromBytes(benchConfig))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}

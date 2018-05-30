@@ -20,29 +20,54 @@ type Getter struct {
 	config map[interface{}]interface{}
 }
 
+// New returns a YAML Getter.
+func New(options ...Option) (*Getter, error) {
+	r := Getter{}
+	for _, option := range options {
+		err := option(&r)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &r, nil
+}
+
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
 	return getFromMapTree(r.config, key, ".")
 }
 
-// NewBytes returns a YAML Getter that reads config from a []byte.
-func NewBytes(cfg []byte) (*Getter, error) {
-	var config map[interface{}]interface{}
-	err := yaml.Unmarshal(cfg, &config)
-	if err != nil {
-		return nil, err
+// Option is a function that modifies the Getter during construction,
+// returning any error that may have occurred.
+type Option func(*Getter) error
+
+// FromBytes uses the []bytes as the source of TOML configuration.
+func FromBytes(cfg []byte) Option {
+	return func(g *Getter) error {
+		return fromBytes(g, cfg)
 	}
-	return &Getter{config}, nil
 }
 
-// NewFile returns a YAML Getter that reads config from a named file.
-func NewFile(filename string) (*Getter, error) {
-	cfg, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
+// FromFile uses filename as the source of TOML configuration.
+func FromFile(filename string) Option {
+	return func(g *Getter) error {
+		b, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+		return fromBytes(g, b)
 	}
-	return NewBytes(cfg)
+}
+
+func fromBytes(g *Getter, b []byte) error {
+	var config map[interface{}]interface{}
+	err := yaml.Unmarshal(b, &config)
+	if err != nil {
+		return err
+	}
+	g.config = config
+	return nil
 }
 
 func getFromMapTree(node map[interface{}]interface{}, key string, pathSep string) (interface{}, bool) {

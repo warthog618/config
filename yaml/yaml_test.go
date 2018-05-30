@@ -95,11 +95,23 @@ func testGetterGet(t *testing.T, g *yaml.Getter) {
 	}
 }
 
-func TestNewBytes(t *testing.T) {
-	b, err := yaml.NewBytes(malformedConfig)
+func TestNew(t *testing.T) {
+	b, err := yaml.New()
+	assert.Nil(t, err)
+	require.NotNil(t, b)
+	v, ok := b.Get("bogus")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+	// test b provides config.Getter interface.
+	cfg := config.New()
+	cfg.AppendGetter(b)
+}
+
+func TestNewFromBytes(t *testing.T) {
+	b, err := yaml.New(yaml.FromBytes(malformedConfig))
 	assert.NotNil(t, err)
 	assert.Nil(t, b)
-	b, err = yaml.NewBytes(validConfig)
+	b, err = yaml.New(yaml.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, b)
 	// test provides config.Getter interface.
@@ -107,14 +119,14 @@ func TestNewBytes(t *testing.T) {
 	cfg.AppendGetter(b)
 }
 
-func TestNewFile(t *testing.T) {
-	f, err := yaml.NewFile("no_such.yaml")
+func TestNewFromFile(t *testing.T) {
+	f, err := yaml.New(yaml.FromFile("no_such.yaml"))
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
-	f, err = yaml.NewFile("malformed.yaml")
+	f, err = yaml.New(yaml.FromFile("malformed.yaml"))
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
-	f, err = yaml.NewFile("config.yaml")
+	f, err = yaml.New(yaml.FromFile("config.yaml"))
 	assert.Nil(t, err)
 	require.NotNil(t, f)
 	cfg := config.New()
@@ -122,14 +134,14 @@ func TestNewFile(t *testing.T) {
 }
 
 func TestBytesGetterGet(t *testing.T) {
-	g, err := yaml.NewBytes(validConfig)
+	g, err := yaml.New(yaml.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, g)
 	testGetterGet(t, g)
 }
 
 func TestFileGetterGet(t *testing.T) {
-	g, err := yaml.NewFile("config.yaml")
+	g, err := yaml.New(yaml.FromFile("config.yaml"))
 	assert.Nil(t, err)
 	require.NotNil(t, g)
 	testGetterGet(t, g)
@@ -153,7 +165,7 @@ nested:
 `)
 
 func BenchmarkGet(b *testing.B) {
-	g, _ := yaml.NewBytes(benchConfig)
+	g, _ := yaml.New(yaml.FromBytes(benchConfig))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}
