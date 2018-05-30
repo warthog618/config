@@ -117,7 +117,7 @@ func WithListSeparator(separator string) Option {
 // WithShortFlags sets the set of short flags to be parsed from the command line.
 // The shortFlags defines the mapping from single character short flags to
 // long flag names.  Long names are within the flag namespace and so should
-// use the appropriate tier seperator. e.g. {'c':"config-file"}
+// use the appropriate tier separator. e.g. {'c':"config-file"}
 func WithShortFlags(shortFlags map[byte]string) Option {
 	return func(r *Getter) {
 		r.shortFlags = shortFlags

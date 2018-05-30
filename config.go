@@ -44,6 +44,9 @@ type Config struct {
 	separator string
 	// A list of Getters providing config key/value pairs.
 	gg []Getter
+	// The getter of last resort, assuming it is set.
+	// If it is set then it is also the last entry in gg.
+	def Getter
 	// A map to a list of old names for current config keys.
 	aliases map[string][]string
 }
@@ -65,12 +68,31 @@ type Getter interface {
 // Option is a function which modifies a Config at construction time.
 type Option func(*Config)
 
+// WithDefault is an Option that passes the default config.
+// The default getter is searched only when the key is not found in
+// any of the getters.
+// If called multiple times then all calls other than the final are ignored.
+func WithDefault(d Getter) Option {
+	return func(c *Config) {
+		if c.def != nil && c.gg != nil {
+			c.gg = c.gg[:len(c.gg)-1]
+		}
+		c.def = d
+		if c.def != nil {
+			c.gg = append(c.gg, c.def)
+		}
+	}
+}
+
 // WithGetters is an Option that passes an initial set of getters.
 // The provided set is copied, so subsequent changes to that set will
 // not alter the Config.
 func WithGetters(gg []Getter) Option {
 	return func(c *Config) {
 		c.gg = append([]Getter(nil), gg...)
+		if c.def != nil {
+			c.gg = append(c.gg, c.def)
+		}
 	}
 }
 
@@ -95,7 +117,11 @@ func (c *Config) AppendGetter(g Getter) {
 		return
 	}
 	c.mu.Lock()
-	c.gg = append(c.gg, g)
+	if c.def == nil {
+		c.gg = append(c.gg, g)
+	} else {
+		c.gg = append(append(c.gg[:len(c.gg)-1], g), c.def)
+	}
 	c.mu.Unlock()
 }
 
@@ -164,37 +190,49 @@ func (c *Config) Get(key string) (interface{}, error) {
 			return v, nil
 		}
 		if len(c.aliases) > 0 {
-			// leaf alias
-			if aliases, ok := c.aliases[fullKey]; ok {
-				for _, alias := range aliases {
-					if v, ok := g.Get(alias); ok {
-						return v, nil
-					}
-				}
+			if v, ok := c.getLeafAlias(g, fullKey); ok {
+				return v, nil
 			}
-			// node alias
-			path := strings.Split(fullKey, c.separator)
-			for plen := len(path) - 1; plen >= 0; plen-- {
-				nodeKey := strings.Join(path[:plen], c.separator)
-				if aliases, ok := c.aliases[nodeKey]; ok {
-					for _, alias := range aliases {
-						if len(alias) > 0 {
-							alias = alias + c.separator
-						}
-						idx := len(nodeKey)
-						if idx > 0 {
-							idx += len(c.separator)
-						}
-						aliasKey := alias + fullKey[idx:]
-						if v, ok := g.Get(aliasKey); ok {
-							return v, nil
-						}
-					}
-				}
+			if v, ok := c.getNodeAlias(g, fullKey); ok {
+				return v, nil
 			}
 		}
 	}
 	return nil, NotFoundError{Key: fullKey}
+}
+
+func (c *Config) getLeafAlias(g Getter, key string) (interface{}, bool) {
+	if aliases, ok := c.aliases[key]; ok {
+		for _, alias := range aliases {
+			if v, ok := g.Get(alias); ok {
+				return v, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func (c *Config) getNodeAlias(g Getter, key string) (interface{}, bool) {
+	path := strings.Split(key, c.separator)
+	for plen := len(path) - 1; plen >= 0; plen-- {
+		nodeKey := strings.Join(path[:plen], c.separator)
+		if aliases, ok := c.aliases[nodeKey]; ok {
+			for _, alias := range aliases {
+				if len(alias) > 0 {
+					alias = alias + c.separator
+				}
+				idx := len(nodeKey)
+				if idx > 0 {
+					idx += len(c.separator)
+				}
+				aliasKey := alias + key[idx:]
+				if v, ok := g.Get(aliasKey); ok {
+					return v, true
+				}
+			}
+		}
+	}
+	return nil, false
 }
 
 // GetBool gets the value corresponding to the key and converts it to a bool,
@@ -220,6 +258,7 @@ func (c *Config) GetConfig(node string) (*Config, error) {
 	return &Config{
 		prefix:    c.prefixedKey(node),
 		separator: c.separator,
+		def:       c.def,
 		gg:        append([]Getter(nil), c.gg...),
 		aliases:   aliases,
 	}, nil
@@ -364,7 +403,8 @@ func (c *Config) GetUintSlice(key string) ([]uint64, error) {
 // The node identifies the section of the tree to unmarshal.
 // The obj is a struct with fields corresponding to config values.
 // The config values will be converted to the type defined in the corresponding
-// struct fields.
+// struct fields.  Overflow checks are performed during conversion to ensure the
+// value returned by the getter can fit within the designated field.
 //
 // By default the config field names are drawn from the struct field, converted to
 // lowerCamelCase.

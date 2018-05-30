@@ -37,7 +37,51 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, true, c)
 }
 
-func TestNewWithGetter(t *testing.T) {
+func TestNewWithDefault(t *testing.T) {
+	def := mapGetter{map[string]interface{}{
+		"a.b.c": 43,
+	}}
+	cfg := config.New(config.WithDefault(&def))
+	c, err := cfg.Get("a.b.c")
+	assert.Nil(t, err)
+	assert.Equal(t, 43, c)
+
+	// After WithGetters
+	mr := mapGetter{map[string]interface{}{
+		"a.b.c_d": true,
+	}}
+	cfg = config.New(
+		config.WithGetters([]config.Getter{&mr}),
+		config.WithDefault(&def))
+	c, err = cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+	c, err = cfg.Get("a.b.c")
+	assert.Nil(t, err)
+	assert.Equal(t, 43, c)
+
+	// After WithGetters AND WithDefault
+	def2 := mapGetter{map[string]interface{}{
+		"a.b.d": 43,
+	}}
+	cfg = config.New(
+		config.WithGetters([]config.Getter{&mr}),
+		config.WithDefault(&def),
+		config.WithDefault(&def2),
+	)
+	c, err = cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+	c, err = cfg.Get("a.b.c")
+	assert.IsType(t, config.NotFoundError{}, err)
+	assert.Nil(t, c)
+	c, err = cfg.Get("a.b.d")
+	assert.Nil(t, err)
+	assert.Equal(t, 43, c)
+
+}
+
+func TestNewWithGetters(t *testing.T) {
 	mr := mapGetter{map[string]interface{}{
 		"a.b.c_d": true,
 	}}
@@ -56,6 +100,21 @@ func TestNewWithGetter(t *testing.T) {
 	c, err = cfg.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, 43, c)
+
+	// after WithDefault
+	def := mapGetter{map[string]interface{}{
+		"def": true,
+	}}
+	cfg = config.New(
+		config.WithDefault(&def),
+		config.WithGetters([]config.Getter{&mr}))
+	c, err = cfg.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, 43, c)
+	c, err = cfg.Get("def")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+
 }
 
 func TestNewWithSeparator(t *testing.T) {
@@ -196,10 +255,29 @@ func TestAppendGetter(t *testing.T) {
 	assert.Exactly(t, mr1.config["something"], v)
 
 	// append a second reader
-	mr2 := mapGetter{map[string]interface{}{}}
+	mr2 := mapGetter{map[string]interface{}{
+		"something":      "another test string",
+		"something else": "yet another test string",
+	}}
 	cfg.AppendGetter(&mr2)
-	mr2.config["something"] = "another test string"
-	mr2.config["something else"] = "yet another test string"
+	v, err = cfg.Get("something")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr1.config["something"], v)
+	v, err = cfg.Get("something else")
+	assert.Nil(t, err)
+	assert.Exactly(t, mr2.config["something else"], v)
+
+	// with a default getter
+	def := mapGetter{map[string]interface{}{
+		"something":      "a default string",
+		"something else": "yet another test string",
+	}}
+	cfg = config.New(config.WithDefault(def))
+	v, err = cfg.Get("something")
+	assert.Nil(t, err)
+	assert.Exactly(t, def.config["something"], v)
+	cfg.InsertGetter(&mr1)
+	cfg.AppendGetter(&mr2)
 	v, err = cfg.Get("something")
 	assert.Nil(t, err)
 	assert.Exactly(t, mr1.config["something"], v)
