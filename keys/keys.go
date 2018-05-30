@@ -68,11 +68,6 @@ func (r NullReplacer) Replace(s string) string {
 	return s
 }
 
-// NewNullReplacer creates a Replacer that leaves the key unchanged.
-func NewNullReplacer() NullReplacer {
-	return NullReplacer{}
-}
-
 // NewUnchangedReplacer creates a Replacer that leaves case unchanged.
 func NewUnchangedReplacer(fromSep, toSep string) Replacer {
 	r := func(s string) string {

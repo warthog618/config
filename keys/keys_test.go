@@ -40,6 +40,18 @@ func TestNewReplacer(t *testing.T) {
 	}
 }
 
+func TestNullReplacer(t *testing.T) {
+	r := keys.NullReplacer{}
+	patterns := []string{
+		"A.b.c_d-e",
+		"A.b:c#d-e",
+	}
+	for _, p := range patterns {
+		v := r.Replace(p)
+		assert.Equal(t, p, v)
+	}
+}
+
 func BenchmarkUnchangedReplacer(b *testing.B) {
 	r := keys.NewUnchangedReplacer("_", ".")
 	for n := 0; n < b.N; n++ {
@@ -48,7 +60,7 @@ func BenchmarkUnchangedReplacer(b *testing.B) {
 }
 
 func BenchmarkNullReplacer(b *testing.B) {
-	r := keys.NewNullReplacer()
+	r := keys.NullReplacer{}
 	for n := 0; n < b.N; n++ {
 		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
