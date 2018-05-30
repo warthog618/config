@@ -66,14 +66,14 @@ func loadConfig() *config.Config {
 		'c': "config-file",
 		'u': "unmarshal",
 	}
-	fget, err := flag.New([]string(nil), shortFlags)
+	fget, err := flag.New(flag.WithShortFlags(shortFlags))
 	if err != nil {
 		panic(err)
 	}
 	cfg.AppendGetter(fget)
 
 	// environment next
-	eget, err := env.New("APP_")
+	eget, err := env.New(env.WithEnvPrefix("APP_"))
 	if err != nil {
 		panic(err)
 	}

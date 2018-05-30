@@ -36,8 +36,8 @@ type Option func(*Getter)
 
 // WithConfig provides the config map, rather than having the Getter create a
 // new one.
-// Note that the Getter takes ownership of the map, so any subsequent sets
-// will update the passed map.
+// Note that the Getter assumes ownership of the map, so the caller should
+// not alter the map or any of its mutable values after the call.
 func WithConfig(config map[string]interface{}) Option {
 	return func(c *Getter) {
 		c.config = config
