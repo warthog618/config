@@ -17,15 +17,13 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	args := []string{"-avbcvv", "--config-file", "woot"}
-	shorts := map[byte]string{
-		'c': "config-file",
-		'b': "bonus",
-		'v': "logging-verbosity",
-	}
-	f, err := flag.New(args, shorts)
+	f, err := flag.New()
 	assert.Nil(t, err)
 	require.NotNil(t, f)
+	// basic get
+	v, ok := f.Get("config.file")
+	assert.False(t, ok)
+	assert.Nil(t, v)
 	// test provides config.Getter interface.
 	cfg := config.New()
 	cfg.AppendGetter(f)
@@ -39,7 +37,8 @@ func TestArgs(t *testing.T) {
 		shorts map[byte]string
 		args   []string
 	}{
-		{"empty", []string{}, nil, []string{}},
+		{"nil", nil, nil, nil},
+		{"empty", nil, nil, nil},
 		{"only one", []string{"arg1"}, nil, []string{"arg1"}},
 		{"only two", []string{"arg1", "arg2"}, nil, []string{"arg1", "arg2"}},
 		{"two with flags",
@@ -66,7 +65,9 @@ func TestArgs(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			f, err := flag.New(p.in, p.shorts)
+			f, err := flag.New(
+				flag.WithCommandLine(p.in),
+				flag.WithShortFlags(p.shorts))
 			assert.Nil(t, err)
 			assert.Equal(t, p.args, f.Args())
 			assert.Equal(t, len(p.args), f.NArg())
@@ -76,7 +77,7 @@ func TestArgs(t *testing.T) {
 		f = func(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, p.in...)
-			f, err := flag.New(nil, p.shorts)
+			f, err := flag.New(flag.WithShortFlags(p.shorts))
 			os.Args = oldArgs
 			assert.Nil(t, err)
 			assert.Equal(t, p.args, f.Args())
@@ -158,7 +159,9 @@ func TestNFlag(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			f, err := flag.New(p.in, p.shorts)
+			f, err := flag.New(
+				flag.WithCommandLine(p.in),
+				flag.WithShortFlags(p.shorts))
 			assert.Nil(t, err)
 			assert.Equal(t, p.nflag, f.NFlag())
 		}
@@ -275,7 +278,9 @@ func TestGetterGet(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			f, err := flag.New(p.args, p.shorts)
+			f, err := flag.New(
+				flag.WithCommandLine(p.args),
+				flag.WithShortFlags(p.shorts))
 			assert.Nil(t, err)
 			require.NotNil(t, f)
 			assert.Equal(t, len(p.expected), f.NFlag())
@@ -294,7 +299,7 @@ func TestGetterGet(t *testing.T) {
 	}
 }
 
-func TestGetterWithCfgKeyReplacer(t *testing.T) {
+func TestNewWithCfgKeyReplacer(t *testing.T) {
 	args := []string{"-n=44", "--leaf", "42"}
 	shorts := map[byte]string{'n': "nested-leaf"}
 	patterns := []struct {
@@ -310,7 +315,10 @@ func TestGetterWithCfgKeyReplacer(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r, err := flag.New(args, shorts, flag.WithCfgKeyReplacer(strings.NewReplacer(p.old, p.new)))
+			r, err := flag.New(
+				flag.WithCommandLine(args),
+				flag.WithShortFlags(shorts),
+				flag.WithCfgKeyReplacer(strings.NewReplacer(p.old, p.new)))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get(p.expected)
@@ -324,7 +332,21 @@ func TestGetterWithCfgKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestGetterWithListSeparator(t *testing.T) {
+func TestNewWithCommandLine(t *testing.T) {
+	args := []string{"-avbcvv", "--config-file", "woot"}
+	f, err := flag.New(flag.WithCommandLine(args))
+	assert.Nil(t, err)
+	require.NotNil(t, f)
+	// basic get
+	v, ok := f.Get("config.file")
+	assert.True(t, ok)
+	assert.Equal(t, "woot", v)
+	// test provides config.Getter interface.
+	cfg := config.New()
+	cfg.AppendGetter(f)
+}
+
+func TestNewWithListSeparator(t *testing.T) {
 	args := []string{"-s", "a,#b"}
 	shorts := map[byte]string{'s': "slice"}
 	patterns := []struct {
@@ -338,7 +360,10 @@ func TestGetterWithListSeparator(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r, err := flag.New(args, shorts, flag.WithListSeparator(p.sep))
+			r, err := flag.New(
+				flag.WithCommandLine(args),
+				flag.WithShortFlags(shorts),
+				flag.WithListSeparator(p.sep))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get("slice")
@@ -349,8 +374,26 @@ func TestGetterWithListSeparator(t *testing.T) {
 	}
 }
 
+func TestNewWithShortFlags(t *testing.T) {
+	args := []string{"-avbcvv", "-c", "woot"}
+	shorts := map[byte]string{'c': "config-file"}
+	f, err := flag.New(
+		flag.WithCommandLine(args),
+		flag.WithShortFlags(shorts),
+	)
+	assert.Nil(t, err)
+	require.NotNil(t, f)
+	// basic get
+	v, ok := f.Get("config.file")
+	assert.True(t, ok)
+	assert.Equal(t, "woot", v)
+	// test provides config.Getter interface.
+	cfg := config.New()
+	cfg.AppendGetter(f)
+}
+
 func BenchmarkGet(b *testing.B) {
-	g, _ := flag.New([]string{"--nested-leaf", "44"}, nil)
+	g, _ := flag.New(flag.WithCommandLine([]string{"--nested-leaf", "44"}))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}

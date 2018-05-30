@@ -42,24 +42,20 @@ import (
 
 // New creates a new Getter.
 //
-// The command line to parse is provided by cmdArgs.
-// This does not include the name of the executable, and defaults to os.Args[1:]
-// if an empty slice is passed.
-// The shortFlags defines the mapping from single character short flags to
-// long flag names.  Long names are within the flag naming space and so should
-// use the flagSeparator to separate tiers.
-func New(cmdArgs []string, shortFlags map[byte]string, options ...Option) (*Getter, error) {
-	if len(cmdArgs) == 0 {
-		cmdArgs = os.Args[1:]
-	}
-	args := []string{}
-	config := map[string]interface{}(nil)
-	r := Getter{cmdArgs, args, config, shortFlags, nil, ","}
+// By default the Getter will:
+// - parse the command line os.Args[1:]
+// - replace '-' in the flag namespace with '.' in the config namespace.
+// - split list values with the ',' separator.
+func New(options ...Option) (*Getter, error) {
+	r := Getter{listSeparator: ","}
 	for _, option := range options {
 		option(&r)
 	}
 	if r.cfgKeyReplacer == nil {
 		r.cfgKeyReplacer = keys.NewUnchangedReplacer("-", ".")
+	}
+	if r.cmdArgs == nil {
+		r.cmdArgs = os.Args[1:]
 	}
 	r.parse()
 	return &r, nil
@@ -92,8 +88,18 @@ type Replacer interface {
 // Option is a function which modifies a Getter at construction time.
 type Option func(*Getter)
 
-// WithCfgKeyReplacer sets the replacer used to map from flag space to config space.
-// The default separator is "."
+// WithCommandLine uses the provided command line as the source of config
+// instead of os.Args[1:].
+// The provided command line should NOT include the name of the executable
+// (os.Args[0]).
+func WithCommandLine(cmdArgs []string) Option {
+	return func(r *Getter) {
+		r.cmdArgs = cmdArgs
+	}
+}
+
+// WithCfgKeyReplacer sets the replacer used to map from flag namespace to config namespace.
+// The default replaces '-' in the flag namespace with '.' in the config namespace.
 func WithCfgKeyReplacer(keyReplacer Replacer) Option {
 	return func(r *Getter) {
 		r.cfgKeyReplacer = keyReplacer
@@ -105,6 +111,16 @@ func WithCfgKeyReplacer(keyReplacer Replacer) Option {
 func WithListSeparator(separator string) Option {
 	return func(r *Getter) {
 		r.listSeparator = separator
+	}
+}
+
+// WithShortFlags sets the set of short flags to be parsed from the command line.
+// The shortFlags defines the mapping from single character short flags to
+// long flag names.  Long names are within the flag namespace and so should
+// use the appropriate tier seperator. e.g. {'c':"config-file"}
+func WithShortFlags(shortFlags map[byte]string) Option {
+	return func(r *Getter) {
+		r.shortFlags = shortFlags
 	}
 }
 
