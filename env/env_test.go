@@ -25,9 +25,7 @@ func setup(prefix string) {
 }
 
 func TestNew(t *testing.T) {
-	prefix := "CFGENV_"
-	setup(prefix)
-	e, err := env.New(prefix)
+	e, err := env.New()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
 	// test provides config.Getter interface.
@@ -52,7 +50,7 @@ func TestGetterGet(t *testing.T) {
 	}
 	prefix := "CFGENV_"
 	setup(prefix)
-	e, err := env.New(prefix)
+	e, err := env.New(env.WithEnvPrefix(prefix))
 	assert.Nil(t, err)
 	require.NotNil(t, e)
 
@@ -66,7 +64,7 @@ func TestGetterGet(t *testing.T) {
 	}
 }
 
-func TestGetterWithCfgKeyReplacer(t *testing.T) {
+func TestNewWithCfgKeyReplacer(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	patterns := []struct {
@@ -85,7 +83,9 @@ func TestGetterWithCfgKeyReplacer(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e, err := env.New(prefix, env.WithCfgKeyReplacer(keys.NewReplacer(p.old, p.new, p.treatment)))
+			e, err := env.New(
+				env.WithEnvPrefix(prefix),
+				env.WithCfgKeyReplacer(keys.NewReplacer(p.old, p.new, p.treatment)))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get(p.expected)
@@ -96,7 +96,7 @@ func TestGetterWithCfgKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestGetterSetListSeparator(t *testing.T) {
+func TestNewWithListSeparator(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	os.Setenv(prefix+"SLICE", "a:#b")
@@ -111,7 +111,9 @@ func TestGetterSetListSeparator(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e, err := env.New(prefix, env.WithListSeparator(p.sep))
+			e, err := env.New(
+				env.WithEnvPrefix(prefix),
+				env.WithListSeparator(p.sep))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get("slice")
@@ -122,7 +124,7 @@ func TestGetterSetListSeparator(t *testing.T) {
 	}
 }
 
-func TestGetterSetPrefix(t *testing.T) {
+func TestNewWithEnvPrefix(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	patterns := []struct {
@@ -136,7 +138,7 @@ func TestGetterSetPrefix(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e, err := env.New(prefix, env.WithEnvPrefix(p.prefix))
+			e, err := env.New(env.WithEnvPrefix(p.prefix))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get(p.k)
@@ -150,7 +152,7 @@ func TestGetterSetPrefix(t *testing.T) {
 func BenchmarkGet(b *testing.B) {
 	prefix := "CFGENV_"
 	setup(prefix)
-	g, _ := env.New(prefix)
+	g, _ := env.New(env.WithEnvPrefix(prefix))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}

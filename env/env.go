@@ -19,9 +19,8 @@ import (
 // Environment variables beginning with the prefix are loaded into the config.
 // The mapping from environment variable naming to config space naming is
 // determined by the prefix and separator fields of the Getter.
-func New(prefix string, options ...Option) (*Getter, error) {
-	config := map[string]string(nil)
-	r := Getter{config, prefix, nil, ":"}
+func New(options ...Option) (*Getter, error) {
+	r := Getter{listSeparator: ":"}
 	for _, option := range options {
 		option(&r)
 	}
