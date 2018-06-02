@@ -49,8 +49,8 @@ func (r *Getter) Get(key string) (interface{}, bool) {
 // returning any error that may have occurred.
 type Option func(*Getter) error
 
-// WithListSeparator sets the separator between slice fields in the env namespace.
-// The default separator is ":"
+// WithListSeparator sets the separator between slice fields in the properties space.
+// The default separator is ","
 func WithListSeparator(separator string) Option {
 	return func(r *Getter) error {
 		r.listSeparator = separator

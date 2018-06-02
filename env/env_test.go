@@ -64,28 +64,44 @@ func TestGetterGet(t *testing.T) {
 	}
 }
 
-func TestNewWithCfgKeyReplacer(t *testing.T) {
+func TestNewWithKeyMapper(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	patterns := []struct {
-		name      string
-		old       string
-		new       string
-		treatment keys.Treatment
-		expected  string
+		name     string
+		mapper   env.Mapper
+		expected string
 	}{
-		{"default", "_", ".", keys.LowerCase, "nested.leaf"},
-		{"null", "_", "_", keys.Unchanged, "NESTED_LEAF"},
-		{"lower", "_", "_", keys.LowerCase, "nested_leaf"},
-		{"multi old", "TED_", ".", keys.LowerCase, "nes.leaf"},
-		{"multi new", "_", "_X_", keys.Unchanged, "NESTED_X_LEAF"},
-		{"multi lower", "_", "_X_", keys.LowerCase, "nested_x_leaf"},
+		{"default",
+			keys.MultiMapper{
+				MM: []keys.Mapper{
+					keys.ReplaceMapper{From: "_", To: "."},
+					keys.LowerCaseMapper{}}},
+			"nested.leaf"},
+		{"null", keys.NullMapper{}, "NESTED_LEAF"},
+		{"lower", keys.LowerCaseMapper{}, "nested_leaf"},
+		{"multi old",
+			keys.MultiMapper{
+				MM: []keys.Mapper{
+					keys.ReplaceMapper{From: "TED_", To: "."},
+					keys.LowerCaseMapper{}}},
+			"nes.leaf"},
+		{"multi new",
+			keys.ReplaceMapper{From: "_", To: "_X_"},
+			"NESTED_X_LEAF"},
+		{"multi lower",
+			keys.MultiMapper{
+				MM: []keys.Mapper{
+					keys.LowerCaseMapper{},
+					keys.ReplaceMapper{From: "_", To: "_X_"},
+				}},
+			"nested_X_leaf"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			e, err := env.New(
 				env.WithEnvPrefix(prefix),
-				env.WithCfgKeyReplacer(keys.NewReplacer(p.old, p.new, p.treatment)))
+				env.WithKeyMapper(p.mapper))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get(p.expected)
@@ -155,5 +171,16 @@ func BenchmarkGet(b *testing.B) {
 	g, _ := env.New(env.WithEnvPrefix(prefix))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkDefaultMapper(b *testing.B) {
+	m := keys.MultiMapper{
+		MM: []keys.Mapper{
+			keys.ReplaceMapper{From: "_", To: "."},
+			keys.LowerCaseMapper{}}}
+
+	for n := 0; n < b.N; n++ {
+		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }

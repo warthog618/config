@@ -44,15 +44,15 @@ import (
 //
 // By default the Getter will:
 // - parse the command line os.Args[1:]
-// - replace '-' in the flag namespace with '.' in the config namespace.
+// - replace '-' in the flag space with '.' in the config space.
 // - split list values with the ',' separator.
 func New(options ...Option) (*Getter, error) {
 	r := Getter{listSeparator: ","}
 	for _, option := range options {
 		option(&r)
 	}
-	if r.cfgKeyReplacer == nil {
-		r.cfgKeyReplacer = keys.NewUnchangedReplacer("-", ".")
+	if r.keyMapper == nil {
+		r.keyMapper = keys.ReplaceMapper{From: "-", To: "."}
 	}
 	if r.cmdArgs == nil {
 		r.cmdArgs = os.Args[1:]
@@ -74,15 +74,14 @@ type Getter struct {
 	// map of short flag characters to long form flag name
 	shortFlags map[byte]string
 	// A replacer that maps from flag space to config space.
-	cfgKeyReplacer Replacer
+	keyMapper Mapper
 	// The separator for slices stored in string values.
 	listSeparator string
 }
 
-// Replacer is a string replacer similar to strings.Replacer.
-// It must be safe for use by multiple goroutines.
-type Replacer interface {
-	Replace(s string) string
+// Mapper maps a key from one space to another.
+type Mapper interface {
+	Map(string) string
 }
 
 // Option is a function which modifies a Getter at construction time.
@@ -98,15 +97,15 @@ func WithCommandLine(cmdArgs []string) Option {
 	}
 }
 
-// WithCfgKeyReplacer sets the replacer used to map from flag namespace to config namespace.
-// The default replaces '-' in the flag namespace with '.' in the config namespace.
-func WithCfgKeyReplacer(keyReplacer Replacer) Option {
+// WithKeyMapper sets the mapper used to map from flag space to config space.
+// The default replaces '-' in the flag space with '.' in the config space.
+func WithKeyMapper(keyMapper Mapper) Option {
 	return func(r *Getter) {
-		r.cfgKeyReplacer = keyReplacer
+		r.keyMapper = keyMapper
 	}
 }
 
-// WithListSeparator sets the separator between slice fields in the flag namespace.
+// WithListSeparator sets the separator between slice fields in the flag space.
 // The default separator is ","
 func WithListSeparator(separator string) Option {
 	return func(r *Getter) {
@@ -116,7 +115,7 @@ func WithListSeparator(separator string) Option {
 
 // WithShortFlags sets the set of short flags to be parsed from the command line.
 // The shortFlags defines the mapping from single character short flags to
-// long flag names.  Long names are within the flag namespace and so should
+// long flag names.  Long names are within the flag space and so should
 // use the appropriate tier separator. e.g. {'c':"config-file"}
 func WithShortFlags(shortFlags map[byte]string) Option {
 	return func(r *Getter) {
@@ -181,9 +180,9 @@ func (r *Getter) parse() {
 			if strings.Contains(arg, "=") {
 				// split on = and process complete in place
 				s := strings.SplitN(arg, "=", 2)
-				config[r.cfgKeyReplacer.Replace(s[0])] = s[1]
+				config[r.keyMapper.Map(s[0])] = s[1]
 			} else {
-				key := r.cfgKeyReplacer.Replace(arg)
+				key := r.keyMapper.Map(arg)
 				if idx < len(r.cmdArgs)-1 {
 					val := r.cmdArgs[idx+1]
 					if strings.HasPrefix(val, "-") {
@@ -203,7 +202,7 @@ func (r *Getter) parse() {
 				// grouped short flags
 				for sidx := 0; sidx < len(arg); sidx++ {
 					if flag, ok := r.shortFlags[arg[sidx]]; ok {
-						incrementFlag(config, r.cfgKeyReplacer.Replace(flag))
+						incrementFlag(config, r.keyMapper.Map(flag))
 					}
 				}
 				continue
@@ -224,7 +223,7 @@ func (r *Getter) parse() {
 				}
 			}
 			if flag, ok := r.shortFlags[arg[0]]; ok {
-				key := r.cfgKeyReplacer.Replace(flag)
+				key := r.keyMapper.Map(flag)
 				if val == "" {
 					incrementFlag(config, key)
 				} else {

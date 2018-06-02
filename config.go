@@ -40,7 +40,10 @@ type Config struct {
 	// The keys passed into the non-root nodes should be local to that node,
 	// i.e. they should treat the node as the root of their own config tree.
 	prefix string
-	// path separator for nested objects
+	// path separator for nested objects.
+	// This is used to split keys into a list of tier names and leaf key.
+	// By default this is ".".
+	// e.g. a key "db.postgres.client" splits into  "db","postgres","client"
 	separator string
 	// A list of Getters providing config key/value pairs.
 	gg []Getter
@@ -49,20 +52,6 @@ type Config struct {
 	def Getter
 	// A map to a list of old names for current config keys.
 	aliases map[string][]string
-}
-
-// Getter provides the minimal interface for a configuration Getter.
-type Getter interface {
-	// Get the value of the named config leaf key.
-	// Also returns an ok, similar to a map read, to indicate if the value
-	// was found.
-	// The type underlying the returned interface{} must be convertable to
-	// the expected type by cfgconv.
-	// Get is not expected to be performed on node keys, but in case it is
-	// the Get should return a nil interface{} and false, even if the node
-	// exists in the config tree.
-	// Must be safe to call from multiple goroutines.
-	Get(key string) (interface{}, bool)
 }
 
 // Option is a function which modifies a Config at construction time.
@@ -107,7 +96,7 @@ func WithSeparator(separator string) Option {
 
 // AppendGetter appends a getter to the set of getters for the config node.
 // This means this getter is only used as a last resort, relative to
-// the existing getters.
+// the existing getters, but before the default getter.
 //
 // This is generally applied to the root node.
 // When applied to a non-root node, the getter only applies to that node,
@@ -413,7 +402,7 @@ func (c *Config) GetUintSlice(key string) ([]uint64, error) {
 // Struct fields which do not have corresponding config fields are ignored,
 // as are config fields which have no corresponding struct field.
 //
-// The error identifies first type conversion error, if any.
+// The error identifies the first type conversion error, if any.
 func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 	nodeCfg, _ := c.GetConfig(node)
 	ov := reflect.Indirect(reflect.ValueOf(obj))
@@ -460,7 +449,7 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 // Map keys which do not have corresponding config fields are ignored,
 // as are config fields which have no corresponding map key.
 //
-// The error identifies first type conversion error, if any.
+// The error identifies the first type conversion error, if any.
 func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rerr error) {
 	nodeCfg, _ := c.GetConfig(node)
 	for key := range objmap {
@@ -488,27 +477,9 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 	return rerr
 }
 
-// NotFoundError indicates that the Key could not be found in the config tree.
-type NotFoundError struct {
-	Key string
-}
-
-func (e NotFoundError) Error() string {
-	return "config: key '" + e.Key + "' not found"
-}
-
-// UnmarshalError indicates an error occurred while unmarhalling config into
-// a struct or map.  The error indicates the problematic Key and the specific
-// error.
-type UnmarshalError struct {
-	Key string
-	Err error
-}
-
-func (e UnmarshalError) Error() string {
-	return "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
-}
-
+// lowerCamelCase converts the first rune of a string to lower case.
+// This is used to convert Go exported field names to config space keys.
+// e.g. ConfigFile becomes configFile.
 func lowerCamelCase(s string) string {
 	r, n := utf8.DecodeRuneInString(s)
 	return string(unicode.ToLower(r)) + s[n:]

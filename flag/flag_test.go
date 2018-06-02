@@ -7,13 +7,13 @@ package flag_test
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/flag"
+	"github.com/warthog618/config/keys"
 )
 
 func TestNew(t *testing.T) {
@@ -304,21 +304,20 @@ func TestNewWithCfgKeyReplacer(t *testing.T) {
 	shorts := map[byte]string{'n': "nested-leaf"}
 	patterns := []struct {
 		name     string
-		old      string
-		new      string
+		mapper   flag.Mapper
 		expected string
 	}{
-		{"standard", "-", "_", "nested_leaf"},
-		{"multi old", "ted-", ".", "nes.leaf"},
-		{"multi new", "-", "_X_", "nested_X_leaf"},
-		{"no new", "-", "", "nestedleaf"},
+		{"standard", keys.ReplaceMapper{From: "-", To: "_"}, "nested_leaf"},
+		{"multi old", keys.ReplaceMapper{From: "ted-", To: "."}, "nes.leaf"},
+		{"multi new", keys.ReplaceMapper{From: "-", To: "_X_"}, "nested_X_leaf"},
+		{"no new", keys.ReplaceMapper{From: "-", To: ""}, "nestedleaf"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			r, err := flag.New(
 				flag.WithCommandLine(args),
 				flag.WithShortFlags(shorts),
-				flag.WithCfgKeyReplacer(strings.NewReplacer(p.old, p.new)))
+				flag.WithKeyMapper(p.mapper))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get(p.expected)
@@ -396,5 +395,12 @@ func BenchmarkGet(b *testing.B) {
 	g, _ := flag.New(flag.WithCommandLine([]string{"--nested-leaf", "44"}))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkDefaultMapper(b *testing.B) {
+	m := keys.ReplaceMapper{From: "-", To: "."}
+	for n := 0; n < b.N; n++ {
+		m.Map("apple-Banana-Cantelope-date-Eggplant-fig")
 	}
 }

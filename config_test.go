@@ -7,7 +7,6 @@ package config_test
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -24,7 +23,7 @@ func TestNew(t *testing.T) {
 	assert.IsType(t, config.NotFoundError{}, err)
 	assert.Equal(t, nil, c)
 	// demonstrate nesting separation by "."
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"a.b.c_d": true,
 	}}
 	cfg.InsertGetter(&mr)
@@ -38,7 +37,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewWithDefault(t *testing.T) {
-	def := mapGetter{map[string]interface{}{
+	def := mockGetter{map[string]interface{}{
 		"a.b.c": 43,
 	}}
 	cfg := config.New(config.WithDefault(&def))
@@ -47,7 +46,7 @@ func TestNewWithDefault(t *testing.T) {
 	assert.Equal(t, 43, c)
 
 	// After WithGetters
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"a.b.c_d": true,
 	}}
 	cfg = config.New(
@@ -61,7 +60,7 @@ func TestNewWithDefault(t *testing.T) {
 	assert.Equal(t, 43, c)
 
 	// After WithGetters AND WithDefault
-	def2 := mapGetter{map[string]interface{}{
+	def2 := mockGetter{map[string]interface{}{
 		"a.b.d": 43,
 	}}
 	cfg = config.New(
@@ -82,7 +81,7 @@ func TestNewWithDefault(t *testing.T) {
 }
 
 func TestNewWithGetters(t *testing.T) {
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"a.b.c_d": true,
 	}}
 	gg := []config.Getter{&mr}
@@ -91,7 +90,7 @@ func TestNewWithGetters(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, true, c)
 	// show getters copied
-	gg[0] = mapGetter{}
+	gg[0] = mockGetter{}
 	c, err = cfg.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, c)
@@ -102,7 +101,7 @@ func TestNewWithGetters(t *testing.T) {
 	assert.Equal(t, 43, c)
 
 	// after WithDefault
-	def := mapGetter{map[string]interface{}{
+	def := mockGetter{map[string]interface{}{
 		"def": true,
 	}}
 	cfg = config.New(
@@ -123,7 +122,7 @@ func TestNewWithSeparator(t *testing.T) {
 	assert.IsType(t, config.NotFoundError{}, err)
 	assert.Equal(t, nil, c)
 	// demonstrate nesting separation by "_"
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"a.b.c_d": true,
 	}}
 	cfg.InsertGetter(&mr)
@@ -138,7 +137,7 @@ func TestNewWithSeparator(t *testing.T) {
 
 func TestAddAlias(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{}}
+	mr := mockGetter{map[string]interface{}{}}
 	cfg.InsertGetter(&mr)
 
 	// alias maps newKey (requested) -> oldKey (in config)
@@ -162,7 +161,7 @@ func TestAddAlias(t *testing.T) {
 }
 
 func TestAddAliasNested(t *testing.T) {
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"a":     "a",
 		"foo.a": "foo.a",
 		"foo.b": "foo.b",
@@ -246,7 +245,7 @@ func TestAddAliasNested(t *testing.T) {
 
 func TestAppendGetter(t *testing.T) {
 	cfg := config.New()
-	mr1 := mapGetter{map[string]interface{}{}}
+	mr1 := mockGetter{map[string]interface{}{}}
 	cfg.AppendGetter(nil) // should be ignored
 	cfg.InsertGetter(&mr1)
 	mr1.config["something"] = "a test string"
@@ -255,7 +254,7 @@ func TestAppendGetter(t *testing.T) {
 	assert.Exactly(t, mr1.config["something"], v)
 
 	// append a second reader
-	mr2 := mapGetter{map[string]interface{}{
+	mr2 := mockGetter{map[string]interface{}{
 		"something":      "another test string",
 		"something else": "yet another test string",
 	}}
@@ -268,7 +267,7 @@ func TestAppendGetter(t *testing.T) {
 	assert.Exactly(t, mr2.config["something else"], v)
 
 	// with a default getter
-	def := mapGetter{map[string]interface{}{
+	def := mockGetter{map[string]interface{}{
 		"something":      "a default string",
 		"something else": "yet another test string",
 	}}
@@ -288,7 +287,7 @@ func TestAppendGetter(t *testing.T) {
 
 func TestInsertGetter(t *testing.T) {
 	cfg := config.New()
-	mr1 := mapGetter{map[string]interface{}{
+	mr1 := mockGetter{map[string]interface{}{
 		"something":      "a test string",
 		"something else": "yet another test string",
 	}}
@@ -302,7 +301,7 @@ func TestInsertGetter(t *testing.T) {
 	assert.Exactly(t, mr1.config["something else"], v)
 
 	// insert a second reader
-	mr2 := mapGetter{map[string]interface{}{}}
+	mr2 := mockGetter{map[string]interface{}{}}
 	cfg.InsertGetter(&mr2)
 	v, err = cfg.Get("something")
 	assert.Nil(t, err)
@@ -329,16 +328,16 @@ func refuteGet(t *testing.T, cfg *config.Config, key string, comment string) {
 }
 
 func TestGetOverlayed(t *testing.T) {
-	mr1 := mapGetter{map[string]interface{}{
+	mr1 := mockGetter{map[string]interface{}{
 		"a": "a - tier 1",
 		"b": "b - tier 1",
 		"c": "c - tier 1",
 	}}
-	mr2 := mapGetter{map[string]interface{}{
+	mr2 := mockGetter{map[string]interface{}{
 		"b": "b - tier 2",
 		"d": "d - tier 2",
 	}}
-	mr3 := mapGetter{map[string]interface{}{
+	mr3 := mockGetter{map[string]interface{}{
 		"c": "c - tier 3",
 		"d": "d - tier 3",
 	}}
@@ -349,24 +348,24 @@ func TestGetOverlayed(t *testing.T) {
 	}
 	patterns := []struct {
 		name     string
-		readers  []mapGetter
+		readers  []mockGetter
 		expected []kv
 	}{
-		{"one", []mapGetter{mr1}, []kv{
+		{"one", []mockGetter{mr1}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 1", nil},
 			{"c", "c - tier 1", nil},
 			{"d", nil, config.NotFoundError{Key: "d"}},
 			{"e", nil, config.NotFoundError{Key: "e"}},
 		}},
-		{"two", []mapGetter{mr1, mr2}, []kv{
+		{"two", []mockGetter{mr1, mr2}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 2", nil},
 			{"c", "c - tier 1", nil},
 			{"d", "d - tier 2", nil},
 			{"e", nil, config.NotFoundError{Key: "e"}},
 		}},
-		{"three", []mapGetter{mr1, mr2, mr3}, []kv{
+		{"three", []mockGetter{mr1, mr2, mr3}, []kv{
 			{"a", "a - tier 1", nil},
 			{"b", "b - tier 2", nil},
 			{"c", "c - tier 3", nil},
@@ -392,7 +391,7 @@ func TestGetOverlayed(t *testing.T) {
 
 func TestGetBool(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"bool":       true,
 		"boolString": "true",
 		"boolInt":    1,
@@ -419,7 +418,7 @@ func TestGetBool(t *testing.T) {
 
 func TestGetDuration(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"duration":     "123ms",
 		"notaduration": "bogus",
 	}}
@@ -442,7 +441,7 @@ func TestGetDuration(t *testing.T) {
 
 func TestGetFloat(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"float":        3.1415,
 		"floatString":  "3.1415",
 		"floatInt":     1,
@@ -469,7 +468,7 @@ func TestGetFloat(t *testing.T) {
 
 func TestGetInt(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"int":       42,
 		"intString": "43",
 		"notaint":   "bogus",
@@ -494,7 +493,7 @@ func TestGetInt(t *testing.T) {
 
 func TestGetString(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"string":     "a string",
 		"stringInt":  42,
 		"notastring": struct{}{},
@@ -519,7 +518,7 @@ func TestGetString(t *testing.T) {
 
 func TestGetTime(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"time":     "2017-03-01T01:02:03Z",
 		"notatime": "bogus",
 	}}
@@ -542,7 +541,7 @@ func TestGetTime(t *testing.T) {
 
 func TestGetUint(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"uint":       42,
 		"uintString": "43",
 		"notaUint":   "bogus",
@@ -567,7 +566,7 @@ func TestGetUint(t *testing.T) {
 
 func TestGetSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"slice":       []interface{}{1, 2, 3, 4},
 		"casttoslice": "bogus",
 		"notaslice":   struct{}{},
@@ -592,7 +591,7 @@ func TestGetSlice(t *testing.T) {
 
 func TestGetIntSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"slice":       []int64{1, 2, -3, 4},
 		"casttoslice": "42",
 		"stringslice": []string{"one", "two", "three"},
@@ -619,7 +618,7 @@ func TestGetIntSlice(t *testing.T) {
 
 func TestGetStringSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"intslice":        []int64{1, 2, -3, 4},
 		"stringslice":     []string{"one", "two", "three"},
 		"uintslice":       []uint64{1, 2, 3, 4},
@@ -650,7 +649,7 @@ func TestGetStringSlice(t *testing.T) {
 
 func TestGetUintSlice(t *testing.T) {
 	cfg := config.New()
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"slice":       []uint64{1, 2, 3, 4},
 		"casttoslice": "42",
 		"intslice":    []int64{1, 2, -3, 4},
@@ -680,7 +679,7 @@ func TestGetUintSlice(t *testing.T) {
 func TestGetConfig(t *testing.T) {
 	cfg := config.New()
 	// Single Getter
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"foo.a": "foo.a",
 		"foo.b": "foo.b",
 		"bar.b": "bar.b",
@@ -784,7 +783,7 @@ type nestedConfig struct {
 func TestUnmarshal(t *testing.T) {
 	cfg := config.New()
 	// Root Getter
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"foo.a": 42,
 		"foo.b": "foo.b",
 		"foo.c": []int{1, 2, 3, 4},
@@ -866,7 +865,7 @@ func TestUnmarshal(t *testing.T) {
 func TestUnmarshalToMap(t *testing.T) {
 	cfg := config.New()
 	// Root Getter
-	mr := mapGetter{map[string]interface{}{
+	mr := mockGetter{map[string]interface{}{
 		"foo.a": 42,
 		"foo.b": "foo.b",
 		"foo.c": []int{1, 2, 3, 4},
@@ -967,43 +966,13 @@ func TestUnmarshalToMap(t *testing.T) {
 	}
 }
 
-func TestNotFoundError(t *testing.T) {
-	patterns := []string{"one", "two", "three"}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			e := config.NotFoundError{Key: p}
-			expected := "config: key '" + e.Key + "' not found"
-			assert.Equal(t, expected, e.Error())
-		}
-		t.Run(fmt.Sprintf("%x", p), f)
-	}
-}
+// A simple mock Getter wrapping an accessible map.
 
-func TestUnmarshalError(t *testing.T) {
-	patterns := []struct {
-		k   string
-		err error
-	}{
-		{"one", errors.New("two")},
-		{"three", errors.New("four")},
-	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			e := config.UnmarshalError{Key: p.k, Err: p.err}
-			expected := "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
-			assert.Equal(t, expected, e.Error())
-		}
-		t.Run(p.k, f)
-	}
-}
-
-type mapGetter struct {
-	// simple key value map.
-	// Note keys must be added as lowercase for config.GetX to work.
+type mockGetter struct {
 	config map[string]interface{}
 }
 
-func (mr mapGetter) Get(key string) (interface{}, bool) {
-	v, ok := mr.config[key]
+func (m mockGetter) Get(key string) (interface{}, bool) {
+	v, ok := m.config[key]
 	return v, ok
 }
