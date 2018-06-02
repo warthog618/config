@@ -478,9 +478,11 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 }
 
 // lowerCamelCase converts the first rune of a string to lower case.
+// The function assumes key is already camel cased. so only
+// lower cases the leading character.
 // This is used to convert Go exported field names to config space keys.
 // e.g. ConfigFile becomes configFile.
-func lowerCamelCase(s string) string {
-	r, n := utf8.DecodeRuneInString(s)
-	return string(unicode.ToLower(r)) + s[n:]
+func lowerCamelCase(key string) string {
+	r, n := utf8.DecodeRuneInString(key)
+	return string(unicode.ToLower(r)) + key[n:]
 }
