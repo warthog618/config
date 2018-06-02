@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package properties provides a Java properties format getter for config.
+// Package properties provides a Java properties format Getter for config.
 package properties
 
 import (

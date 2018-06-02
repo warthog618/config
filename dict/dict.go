@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package dict provides a simple getter that wraps a key/value map.
+// Package dict provides a simple Getter that wraps a key/value map.
 package dict
 
 import "sync"

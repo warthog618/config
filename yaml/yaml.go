@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package yaml provides a YAML format getter for config.
+// Package yaml provides a YAML format Getter for config.
 package yaml
 
 import (

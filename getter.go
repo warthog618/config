@@ -38,7 +38,8 @@ type Mapper interface {
 }
 
 // MappedGetter returns a getter decorating the wrapped Getter.
-// The mapper performs key mapping from config space to getter space.
+// The mapper performs key mapping from config space prior to getting from
+// the getter.
 func MappedGetter(mapper Mapper, g Getter) Getter {
 	return &mapped{g, mapper}
 }
@@ -59,8 +60,9 @@ type prefixed struct {
 
 // PrefixedGetter returns a new getter decorating the wrapped Getter.
 // The prefix defines the root node for the config returned by the wrapped Getter.
-// e.g. with a prefix "module", reading the key "module.field" from the
-// prefixed will return the "field" Getter from the Getter.
+// The prefix must include any separator prior to the first field.
+// e.g. with a prefix "a.module.", reading the key "a.module.field" from the
+// PrefixedGetter will return the "field" Getter from the Getter.
 func PrefixedGetter(prefix string, g Getter) Getter {
 	return &prefixed{g, prefix}
 }
