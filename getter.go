@@ -20,7 +20,7 @@ type Getter interface {
 	// the Get should return a nil interface{} and false, even if the node
 	// exists in the config tree.
 	// Must be safe to call from multiple goroutines.
-	Get(key string) (interface{}, bool)
+	Get(key string) (value interface{}, found bool)
 }
 
 // A wrapper around Getter that relocates the Getter config
@@ -37,10 +37,10 @@ type Mapper interface {
 	Map(key string) string
 }
 
-// MappedGetter returns a getter decorating the wrapped Getter.
+// NewMappedGetter returns a getter decorating the wrapped Getter.
 // The mapper performs key mapping from config space prior to getting from
 // the getter.
-func MappedGetter(mapper Mapper, g Getter) Getter {
+func NewMappedGetter(mapper Mapper, g Getter) Getter {
 	return &mapped{g, mapper}
 }
 
@@ -58,12 +58,12 @@ type prefixed struct {
 	prefix string
 }
 
-// PrefixedGetter returns a new getter decorating the wrapped Getter.
+// NewPrefixedGetter returns a new getter decorating the wrapped Getter.
 // The prefix defines the root node for the config returned by the wrapped Getter.
 // The prefix must include any separator prior to the first field.
 // e.g. with a prefix "a.module.", reading the key "a.module.field" from the
 // PrefixedGetter will return the "field" Getter from the Getter.
-func PrefixedGetter(prefix string, g Getter) Getter {
+func NewPrefixedGetter(prefix string, g Getter) Getter {
 	return &prefixed{g, prefix}
 }
 

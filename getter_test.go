@@ -13,10 +13,10 @@ import (
 	"github.com/warthog618/config/keys"
 )
 
-func TestMappedGetter(t *testing.T) {
+func TestNewMappedGetter(t *testing.T) {
 	g := mockGetter{map[string]interface{}{}}
 	m := keys.NullMapper{}
-	p := config.MappedGetter(m, &g)
+	p := config.NewMappedGetter(m, &g)
 	if p == nil {
 		t.Fatalf("new returned nil")
 	}
@@ -57,7 +57,7 @@ func TestMappedGetterGet(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			pr := config.MappedGetter(p.m, &g)
+			pr := config.NewMappedGetter(p.m, &g)
 			v, ok := pr.Get(p.k)
 			assert.Equal(t, p.ok, ok)
 			assert.Equal(t, p.v, v)
@@ -68,7 +68,7 @@ func TestMappedGetterGet(t *testing.T) {
 
 func TestPrefixedGetter(t *testing.T) {
 	m := mockGetter{map[string]interface{}{}}
-	p := config.PrefixedGetter("blah.", &m)
+	p := config.NewPrefixedGetter("blah.", &m)
 	if p == nil {
 		t.Fatalf("new returned nil")
 	}
@@ -96,7 +96,7 @@ func TestPrefixedGetterGet(t *testing.T) {
 		{"empty", "", false, nil},
 		{"level 0", "a", false, nil},
 	}
-	pr := config.PrefixedGetter("blah.", &m)
+	pr := config.NewPrefixedGetter("blah.", &m)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			v, ok := pr.Get(p.k)
