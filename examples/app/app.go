@@ -57,7 +57,16 @@ var defaultConfig = []byte(`{
 	}
 }`)
 
-func loadConfig() *config.Config {
+// Config defines the config interface used by this module.
+type Config interface {
+	GetBool(key string) (bool, error)
+	GetConfig(node string) (*config.Config, error)
+	GetInt(key string) (int64, error)
+	GetString(key string) (string, error)
+	Unmarshal(node string, obj interface{}) (rerr error)
+}
+
+func loadConfig() Config {
 	def, err := json.New(json.FromBytes(defaultConfig))
 	if err != nil {
 		panic(err)
@@ -107,7 +116,7 @@ func loadConfig() *config.Config {
 	return cfg
 }
 
-func dumpConfig(cfg *config.Config) {
+func dumpConfig(cfg Config) {
 	configFile, _ := cfg.GetString("config.file")
 	log.Println("config.file", configFile)
 	unmarshal, _ := cfg.GetBool("unmarshal")
@@ -144,7 +153,7 @@ type module struct {
 }
 
 // Unmarshalling version of dumpConfig
-func dumpConfigU(cfg *config.Config) {
+func dumpConfigU(cfg Config) {
 	configFile, _ := cfg.GetString("config.file")
 	log.Println("config.file", configFile)
 	unmarshal, _ := cfg.GetBool("unmarshal")

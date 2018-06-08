@@ -51,8 +51,8 @@ func New(options ...Option) (*Getter, error) {
 	for _, option := range options {
 		option(&r)
 	}
-	if r.keyMapper == nil {
-		r.keyMapper = keys.ReplaceMapper{From: "-", To: "."}
+	if r.keyReplacer == nil {
+		r.keyReplacer = keys.StringReplacer("-", ".")
 	}
 	if r.cmdArgs == nil {
 		r.cmdArgs = os.Args[1:]
@@ -74,14 +74,14 @@ type Getter struct {
 	// map of short flag characters to long form flag name
 	shortFlags map[byte]string
 	// A replacer that maps from flag space to config space.
-	keyMapper Mapper
+	keyReplacer Replacer
 	// The separator for slices stored in string values.
 	listSeparator string
 }
 
-// Mapper maps a key from one space to another.
-type Mapper interface {
-	Map(string) string
+// Replacer maps a key from one space to another.
+type Replacer interface {
+	Replace(string) string
 }
 
 // Option is a function which modifies a Getter at construction time.
@@ -97,11 +97,11 @@ func WithCommandLine(cmdArgs []string) Option {
 	}
 }
 
-// WithKeyMapper sets the mapper used to map from flag space to config space.
+// WithKeyReplacer sets the replacer used to map from flag space to config space.
 // The default replaces '-' in the flag space with '.' in the config space.
-func WithKeyMapper(keyMapper Mapper) Option {
+func WithKeyReplacer(keyReplacer Replacer) Option {
 	return func(r *Getter) {
-		r.keyMapper = keyMapper
+		r.keyReplacer = keyReplacer
 	}
 }
 
@@ -180,9 +180,9 @@ func (r *Getter) parse() {
 			if strings.Contains(arg, "=") {
 				// split on = and process complete in place
 				s := strings.SplitN(arg, "=", 2)
-				config[r.keyMapper.Map(s[0])] = s[1]
+				config[r.keyReplacer.Replace(s[0])] = s[1]
 			} else {
-				key := r.keyMapper.Map(arg)
+				key := r.keyReplacer.Replace(arg)
 				if idx < len(r.cmdArgs)-1 {
 					val := r.cmdArgs[idx+1]
 					if strings.HasPrefix(val, "-") {
@@ -202,7 +202,7 @@ func (r *Getter) parse() {
 				// grouped short flags
 				for sidx := 0; sidx < len(arg); sidx++ {
 					if flag, ok := r.shortFlags[arg[sidx]]; ok {
-						incrementFlag(config, r.keyMapper.Map(flag))
+						incrementFlag(config, r.keyReplacer.Replace(flag))
 					}
 				}
 				continue
@@ -223,7 +223,7 @@ func (r *Getter) parse() {
 				}
 			}
 			if flag, ok := r.shortFlags[arg[0]]; ok {
-				key := r.keyMapper.Map(flag)
+				key := r.keyReplacer.Replace(flag)
 				if val == "" {
 					incrementFlag(config, key)
 				} else {

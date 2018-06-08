@@ -19,11 +19,10 @@ func New(options ...Option) (*Getter, error) {
 	for _, option := range options {
 		option(&r)
 	}
-	if r.keyMapper == nil {
-		r.keyMapper = keys.MultiMapper{
-			MM: []keys.Mapper{
-				keys.ReplaceMapper{From: "_", To: "."},
-				keys.LowerCaseMapper{}}}
+	if r.keyReplacer == nil {
+		r.keyReplacer = keys.ChainReplacer(
+			keys.StringReplacer("_", "."),
+			keys.LowerCaseReplacer())
 	}
 	r.load()
 	return &r, nil
@@ -38,18 +37,18 @@ type Getter struct {
 	// prefix in env space used to identify variables of interest.
 	// This must include any separator.
 	envPrefix string
-	// A mapper that maps from env space to config space.
-	// The mapping is applied AFTER the envPrefix has been removed.
+	// A replacer that translates from env space to config space.
+	// The replacement is applied AFTER the envPrefix has been removed.
 	// e.g. environment var APP_MY_CONFIG with envPrefix "APP_"
 	// would map from "MY_CONFIG".
-	keyMapper Mapper
+	keyReplacer Replacer
 	// The separator for slices stored in string values.
 	listSeparator string
 }
 
-// Mapper maps a key from one space to another.
-type Mapper interface {
-	Map(string) string
+// Replacer maps a key from one space to another.
+type Replacer interface {
+	Replace(string) string
 }
 
 // Get returns the value for a given key and true if found, or
@@ -77,11 +76,11 @@ func WithEnvPrefix(prefix string) Option {
 	}
 }
 
-// WithKeyMapper sets the replacer used to map from env space to config space.
+// WithKeyReplacer sets the replacer used to map from env space to config space.
 // The default is to replace "_" with "." and convert to lowercase.
-func WithKeyMapper(m Mapper) Option {
+func WithKeyReplacer(m Replacer) Option {
 	return func(r *Getter) {
-		r.keyMapper = m
+		r.keyReplacer = m
 	}
 }
 
@@ -100,7 +99,7 @@ func (r *Getter) load() {
 			keyValue := strings.SplitN(env, "=", 2)
 			if len(keyValue) == 2 {
 				envKey := keyValue[0][len(r.envPrefix):]
-				cfgKey := r.keyMapper.Map(envKey)
+				cfgKey := r.keyReplacer.Replace(envKey)
 				config[cfgKey] = keyValue[1]
 			}
 		}

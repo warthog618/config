@@ -57,6 +57,19 @@ type Config struct {
 // Option is a function which modifies a Config at construction time.
 type Option func(*Config)
 
+type Getter interface {
+	// Get the value of the named config leaf key.
+	// Also returns an ok, similar to a map read, to indicate if the value
+	// was found.
+	// The type underlying the returned interface{} must be convertable to
+	// the expected type by cfgconv.
+	// Get is not expected to be performed on node keys, but in case it is
+	// the Get should return a nil interface{} and false, even if the node
+	// exists in the config tree.
+	// Must be safe to call from multiple goroutines.
+	Get(key string) (value interface{}, found bool)
+}
+
 // WithDefault is an Option that passes the default config.
 // The default getter is searched only when the key is not found in
 // any of the getters.

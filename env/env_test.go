@@ -64,44 +64,40 @@ func TestGetterGet(t *testing.T) {
 	}
 }
 
-func TestNewWithKeyMapper(t *testing.T) {
+func TestNewWithKeyReplacer(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	patterns := []struct {
 		name     string
-		mapper   env.Mapper
+		r        env.Replacer
 		expected string
 	}{
 		{"default",
-			keys.MultiMapper{
-				MM: []keys.Mapper{
-					keys.ReplaceMapper{From: "_", To: "."},
-					keys.LowerCaseMapper{}}},
+			keys.ChainReplacer(
+				keys.StringReplacer("_", "."),
+				keys.LowerCaseReplacer()),
 			"nested.leaf"},
-		{"null", keys.NullMapper{}, "NESTED_LEAF"},
-		{"lower", keys.LowerCaseMapper{}, "nested_leaf"},
+		{"null", keys.NullReplacer(), "NESTED_LEAF"},
+		{"lower", keys.LowerCaseReplacer(), "nested_leaf"},
 		{"multi old",
-			keys.MultiMapper{
-				MM: []keys.Mapper{
-					keys.ReplaceMapper{From: "TED_", To: "."},
-					keys.LowerCaseMapper{}}},
+			keys.ChainReplacer(
+				keys.StringReplacer("TED_", "."),
+				keys.LowerCaseReplacer()),
 			"nes.leaf"},
 		{"multi new",
-			keys.ReplaceMapper{From: "_", To: "_X_"},
+			keys.StringReplacer("_", "_X_"),
 			"NESTED_X_LEAF"},
 		{"multi lower",
-			keys.MultiMapper{
-				MM: []keys.Mapper{
-					keys.LowerCaseMapper{},
-					keys.ReplaceMapper{From: "_", To: "_X_"},
-				}},
+			keys.ChainReplacer(
+				keys.LowerCaseReplacer(),
+				keys.StringReplacer("_", "_X_")),
 			"nested_X_leaf"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			e, err := env.New(
 				env.WithEnvPrefix(prefix),
-				env.WithKeyMapper(p.mapper))
+				env.WithKeyReplacer(p.r))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get(p.expected)
@@ -174,13 +170,12 @@ func BenchmarkGet(b *testing.B) {
 	}
 }
 
-func BenchmarkDefaultMapper(b *testing.B) {
-	m := keys.MultiMapper{
-		MM: []keys.Mapper{
-			keys.ReplaceMapper{From: "_", To: "."},
-			keys.LowerCaseMapper{}}}
+func BenchmarkDefaultReplacer(b *testing.B) {
+	r := keys.ChainReplacer(
+		keys.StringReplacer("_", "."),
+		keys.LowerCaseReplacer())
 
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }

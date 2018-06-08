@@ -14,12 +14,37 @@ import (
 	"github.com/warthog618/config/keys"
 )
 
-func TestCamelCaseMapper(t *testing.T) {
+func TestCamelCaseReplacer(t *testing.T) {
+	patterns := []struct {
+		in       string
+		expected string
+	}{
+		{"", ""},
+		{"topKey", "Topkey"},
+		{"nested.key", "Nested.Key"},
+		{"Nested.key", "Nested.Key"},
+		{"Nested.Key", "Nested.Key"},
+		{"nested.Key", "Nested.Key"},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			m := keys.CamelCaseReplacer()
+			require.NotNil(t, m)
+			v := m.Replace(p.in)
+			assert.Equal(t, p.expected, v)
+		}
+		t.Run(p.in, f)
+	}
+}
+
+func TestCamelCaseSepReplacer(t *testing.T) {
 	patterns := []struct {
 		sep      string
 		in       string
 		expected string
 	}{
+		{"", "", ""},
+		{"-", "", ""},
 		{"-", "topKey", "Topkey"},
 		{"", "topKEy", "TOPKEY"}, // splits on every character
 		{"-", "nested-key", "Nested-Key"},
@@ -29,21 +54,82 @@ func TestCamelCaseMapper(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			m := keys.CamelCaseMapper{Sep: p.sep}
+			m := keys.CamelCaseSepReplacer(p.sep)
 			require.NotNil(t, m)
-			v := m.Map(p.in)
+			v := m.Replace(p.in)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
 	}
 }
 
-func TestLowerCamelCaseMapper(t *testing.T) {
+func TestChainReplacer(t *testing.T) {
+	patterns := []struct {
+		name     string
+		in       string
+		expected string
+		r        []keys.ReplacerFunc
+	}{
+		{"empty", "", "", nil},
+		{"none", "a.b.c.d", "a.b.c.d", nil},
+		{"one", "A.B.C.D", "a.b.c.d",
+			[]keys.ReplacerFunc{
+				keys.LowerCaseReplacer(),
+			}},
+		{"two", "C.D", "a.b.c.d",
+			[]keys.ReplacerFunc{
+				keys.LowerCaseReplacer(),
+				keys.PrefixReplacer("a.b."),
+			}},
+		{"three", "C.D", "a.b.c.d",
+			[]keys.ReplacerFunc{
+				keys.LowerCaseReplacer(),
+				keys.PrefixReplacer("foo."),
+				keys.StringReplacer("foo", "a.b"),
+			}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			m := keys.ChainReplacer(p.r...)
+			require.NotNil(t, m)
+			v := m.Replace(p.in)
+			assert.Equal(t, p.expected, v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestLowerCamelCaseReplacer(t *testing.T) {
+	patterns := []struct {
+		in       string
+		expected string
+	}{
+		{"", ""},
+		{"topKey", "topkey"},
+		{"nested.key", "nested.Key"},
+		{"Nested.key", "nested.Key"},
+		{"Nested.Key", "nested.Key"},
+		{"nested.Key", "nested.Key"},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			m := keys.LowerCamelCaseReplacer()
+			require.NotNil(t, m)
+			v := m.Replace(p.in)
+			assert.Equal(t, p.expected, v)
+		}
+		t.Run(p.in, f)
+	}
+}
+
+func TestLowerCamelCaseSepReplacer(t *testing.T) {
 	patterns := []struct {
 		sep      string
 		in       string
 		expected string
 	}{
+		{"", "", ""},
+		{"-", "", ""},
 		{"-", "topKey", "topkey"},
 		{"", "topKEy", "tOPKEY"}, // splits on every character
 		{"-", "nested-key", "nested-Key"},
@@ -53,16 +139,16 @@ func TestLowerCamelCaseMapper(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			m := keys.LowerCamelCaseMapper{Sep: p.sep}
+			m := keys.LowerCamelCaseSepReplacer(p.sep)
 			require.NotNil(t, m)
-			v := m.Map(p.in)
+			v := m.Replace(p.in)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
 	}
 }
 
-func TestLowerCaseMapper(t *testing.T) {
+func TestLowerCaseReplacer(t *testing.T) {
 	patterns := []struct {
 		in       string
 		expected string
@@ -76,51 +162,16 @@ func TestLowerCaseMapper(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			m := keys.LowerCaseMapper{}
+			m := keys.LowerCaseReplacer()
 			require.NotNil(t, m)
-			v := m.Map(p.in)
+			v := m.Replace(p.in)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
 	}
 }
 
-type mockMapper struct {
-	name string
-}
-
-func (m mockMapper) Map(key string) string {
-	return m.name + key
-}
-
-func TestMultiMapper(t *testing.T) {
-	m1 := mockMapper{"m1"}
-	m2 := mockMapper{"m2"}
-	m3 := mockMapper{"m3"}
-	patterns := []struct {
-		name     string
-		in       []keys.Mapper
-		expected string
-	}{
-		{"none", []keys.Mapper{}, "banana"},
-		{"one", []keys.Mapper{m1}, "m1banana"},
-		{"two", []keys.Mapper{m1, m2}, "m2m1banana"},
-		{"three", []keys.Mapper{m1, m2, m3}, "m3m2m1banana"},
-		{"revtwo", []keys.Mapper{m2, m1}, "m1m2banana"},
-		{"revthree", []keys.Mapper{m3, m2, m1}, "m1m2m3banana"},
-	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			m := keys.MultiMapper{MM: p.in}
-			require.NotNil(t, m)
-			v := m.Map("banana")
-			assert.Equal(t, p.expected, v)
-		}
-		t.Run(p.name, f)
-	}
-}
-
-func TestNullMapper(t *testing.T) {
+func TestNullReplacer(t *testing.T) {
 	patterns := []struct {
 		in       string
 		expected string
@@ -134,16 +185,16 @@ func TestNullMapper(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			m := keys.NullMapper{}
+			m := keys.NullReplacer()
 			require.NotNil(t, m)
-			v := m.Map(p.in)
+			v := m.Replace(p.in)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
 	}
 }
 
-func TestPrefixMapper(t *testing.T) {
+func TestPrefixReplacer(t *testing.T) {
 	patterns := []struct {
 		prefix   string
 		in       string
@@ -158,16 +209,16 @@ func TestPrefixMapper(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			m := keys.PrefixMapper{Prefix: p.prefix}
+			m := keys.PrefixReplacer(p.prefix)
 			require.NotNil(t, m)
-			v := m.Map(p.in)
+			v := m.Replace(p.in)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.prefix+p.in, f)
 	}
 }
 
-func TestSeparatorMapper(t *testing.T) {
+func TestStringReplacer(t *testing.T) {
 	patterns := []struct {
 		from     string
 		to       string
@@ -180,19 +231,20 @@ func TestSeparatorMapper(t *testing.T) {
 		{"_", "-", "Nested_key", "Nested-key"},
 		{".", "_", "Nested.Key", "Nested_Key"},
 		{":", "#", "nested:Key", "nested#Key"},
+		{"foo", "a.b", "foo.c.d", "a.b.c.d"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			m := keys.ReplaceMapper{From: p.from, To: p.to}
-			require.NotNil(t, m)
-			v := m.Map(p.in)
+			r := keys.StringReplacer(p.from, p.to)
+			require.NotNil(t, r)
+			v := r.Replace(p.in)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
 	}
 }
 
-func TestUpperCaseMapper(t *testing.T) {
+func TestUpperCaseReplacer(t *testing.T) {
 	patterns := []struct {
 		in       string
 		expected string
@@ -206,40 +258,12 @@ func TestUpperCaseMapper(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			m := keys.UpperCaseMapper{}
-			require.NotNil(t, m)
-			v := m.Map(p.in)
+			r := keys.UpperCaseReplacer()
+			require.NotNil(t, r)
+			v := r.Replace(p.in)
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
-	}
-}
-
-func TestCamelCase(t *testing.T) {
-	patterns := []struct {
-		in       string
-		expected string
-	}{
-		{"topKey", "Topkey"},
-		{"topKEy", "Topkey"},
-		{"TOPKEY", "Topkey"},
-		{"nested-key", "Nested-key"},
-		{"Nested-key", "Nested-key"},
-		{"spaced key", "Spaced key"},
-		{"Spaced key", "Spaced key"},
-	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			v := keys.CamelCase(p.in)
-			assert.Equal(t, p.expected, v)
-		}
-		t.Run(p.in, f)
-	}
-}
-
-func BenchmarkCamelCase(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		keys.CamelCase("BaNaNa")
 	}
 }
 
@@ -249,50 +273,58 @@ func BenchmarkToLower(b *testing.B) {
 	}
 }
 
-func BenchmarkCamelCaseMapper(b *testing.B) {
-	m := keys.CamelCaseMapper{Sep: "_"}
+func BenchmarkCamelCase(b *testing.B) {
+	r := keys.CamelCaseSepReplacer("_")
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }
 
-func BenchmarkNullMapper(b *testing.B) {
-	m := keys.NullMapper{}
+func BenchmarkNull(b *testing.B) {
+	r := keys.NullReplacer()
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }
 
-func BenchmarkLowerCamelCaseMapper(b *testing.B) {
-	m := keys.LowerCamelCaseMapper{Sep: "_"}
+func BenchmarkLowerCamelCase(b *testing.B) {
+	r := keys.LowerCamelCaseSepReplacer("_")
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }
 
-func BenchmarkLowerCaseMapper(b *testing.B) {
-	m := keys.LowerCaseMapper{}
+func BenchmarkLowerCase(b *testing.B) {
+	r := keys.LowerCaseReplacer()
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }
 
-func BenchmarkPrefixMapper(b *testing.B) {
-	m := keys.PrefixMapper{Prefix: "apple_"}
+func BenchmarkPrefix(b *testing.B) {
+	r := keys.PrefixReplacer("apple_")
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }
-func BenchmarkSeparatorMapper(b *testing.B) {
-	m := keys.ReplaceMapper{From: "_", To: "."}
+func BenchmarkStringReplace(b *testing.B) {
+	r := keys.StringReplacer("_", ".")
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
 }
 
-func BenchmarkUpperCaseMapper(b *testing.B) {
-	m := keys.UpperCaseMapper{}
+func BenchmarkUpperCase(b *testing.B) {
+	r := keys.UpperCaseReplacer()
 	for n := 0; n < b.N; n++ {
-		m.Map("apple_Banana_Cantelope_date_Eggplant_fig")
+		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}
+}
+
+type mockReplacer struct {
+	name string
+}
+
+func (m mockReplacer) Replace(key string) string {
+	return m.name + key
 }

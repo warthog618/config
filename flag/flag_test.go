@@ -304,20 +304,20 @@ func TestNewWithCfgKeyReplacer(t *testing.T) {
 	shorts := map[byte]string{'n': "nested-leaf"}
 	patterns := []struct {
 		name     string
-		mapper   flag.Mapper
+		r        flag.Replacer
 		expected string
 	}{
-		{"standard", keys.ReplaceMapper{From: "-", To: "_"}, "nested_leaf"},
-		{"multi old", keys.ReplaceMapper{From: "ted-", To: "."}, "nes.leaf"},
-		{"multi new", keys.ReplaceMapper{From: "-", To: "_X_"}, "nested_X_leaf"},
-		{"no new", keys.ReplaceMapper{From: "-", To: ""}, "nestedleaf"},
+		{"standard", keys.StringReplacer("-", "_"), "nested_leaf"},
+		{"multi old", keys.StringReplacer("ted-", "."), "nes.leaf"},
+		{"multi new", keys.StringReplacer("-", "_X_"), "nested_X_leaf"},
+		{"no new", keys.StringReplacer("-", ""), "nestedleaf"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			r, err := flag.New(
 				flag.WithCommandLine(args),
 				flag.WithShortFlags(shorts),
-				flag.WithKeyMapper(p.mapper))
+				flag.WithKeyReplacer(p.r))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get(p.expected)
@@ -398,9 +398,9 @@ func BenchmarkGet(b *testing.B) {
 	}
 }
 
-func BenchmarkDefaultMapper(b *testing.B) {
-	m := keys.ReplaceMapper{From: "-", To: "."}
+func BenchmarkDefaultReplacer(b *testing.B) {
+	r := keys.StringReplacer("-", ".")
 	for n := 0; n < b.N; n++ {
-		m.Map("apple-Banana-Cantelope-date-Eggplant-fig")
+		r.Replace("apple-Banana-Cantelope-date-Eggplant-fig")
 	}
 }

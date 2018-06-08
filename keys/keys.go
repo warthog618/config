@@ -12,122 +12,119 @@ import (
 	"unicode/utf8"
 )
 
-// CamelCaseMapper is a mapper that that forces keys to camel case,
-// so each word begins with a capital letter.
-type CamelCaseMapper struct {
-	// Sep is the string separating words - usually "." in config space.
-	Sep string
+// ReplacerFunc is a func that implements a string replacement.
+type ReplacerFunc func(key string) string
+
+// Replace calls the ReplacerFunc to perform the map.
+func (r ReplacerFunc) Replace(key string) string {
+	return r(key)
 }
 
-// Map converts the string to camel case.
-// e.g. CONFIG.FILE becomes Config.File
-func (m CamelCaseMapper) Map(key string) string {
-	path := strings.Split(key, m.Sep)
-	for idx, p := range path {
-		path[idx] = CamelCase(p)
+// ChainReplacer returns a replacer that applies a list of replacers, in order.
+func ChainReplacer(rr ...ReplacerFunc) ReplacerFunc {
+	return func(key string) string {
+		for _, r := range rr {
+			key = r.Replace(key)
+		}
+		return key
 	}
-	return strings.Join(path, m.Sep)
 }
 
-// LowerCamelCaseMapper is a mapper that that forces keys to camel case,
+// CamelCaseReplacer is a replacer that that forces keys to camel case,
+// so each word begins with a capital letter.
+// Words are separated by the default separator - ".".
+func CamelCaseReplacer() ReplacerFunc {
+	return CamelCaseSepReplacer(".")
+}
+
+// CamelCaseSepReplacer is a replacer that that forces keys to camel case,
+// so each word begins with a capital letter.
+// Words are separated by the provided separator.
+func CamelCaseSepReplacer(sep string) ReplacerFunc {
+	return func(key string) string {
+		if key == "" {
+			return ""
+		}
+		path := strings.Split(key, sep)
+		for i, p := range path {
+			path[i] = camelCase(p)
+		}
+		return strings.Join(path, sep)
+	}
+}
+
+// LowerCamelCaseReplacer is a replacer that that forces keys to camel case,
 // so each word begins with a capital letter, except the first word which
 // is all lower case.
-type LowerCamelCaseMapper struct {
-	// Sep is the string separating words - usually "." in config space.
-	Sep string
+// Words are separated by the default separator - ".".
+func LowerCamelCaseReplacer() ReplacerFunc {
+	return LowerCamelCaseSepReplacer(".")
 }
 
-// Map converts the string to lower camel case.
-// e.g. CONFIG.FILE becomes config.File
-func (m LowerCamelCaseMapper) Map(key string) string {
-	path := strings.Split(key, m.Sep)
-	for idx, p := range path {
-		if idx == 0 {
-			path[idx] = strings.ToLower(p)
-		} else {
-			path[idx] = CamelCase(p)
+// LowerCamelCaseSepReplacer is a replacer that that forces keys to camel case,
+// so each word begins with a capital letter, except the first word which
+// is all lower case.
+// Words are separated by the provided separator.
+func LowerCamelCaseSepReplacer(sep string) ReplacerFunc {
+	return func(key string) string {
+		if key == "" {
+			return ""
 		}
+		path := strings.Split(key, sep)
+		path[0] = strings.ToLower(path[0])
+		for i, p := range path[1:] {
+			path[i+1] = camelCase(p)
+		}
+		return strings.Join(path, sep)
 	}
-	return strings.Join(path, m.Sep)
 }
 
-// LowerCaseMapper is a mapper that that forces keys to lower case.
-type LowerCaseMapper struct{}
-
-// Map converts the string to lower case.
-// e.g. CONFIG.FILE becomes config.file
-func (m LowerCaseMapper) Map(key string) string {
-	return strings.ToLower(key)
-}
-
-// MultiMapper applied mupltiple maps to a key.
-// The mappings are applied in the order they are listed in MM.
-type MultiMapper struct {
-	// MM is the set of maps to be applied.
-	MM []Mapper
-}
-
-// Mapper maps a key from one space to another.
-type Mapper interface {
-	Map(key string) string
-}
-
-// Map applies the maps in the order they are listed in MM.
-func (m MultiMapper) Map(key string) string {
-	for _, mapper := range m.MM {
-		key = mapper.Map(key)
+// LowerCaseReplacer is a replacer that that forces keys to lower case.
+func LowerCaseReplacer() ReplacerFunc {
+	return func(key string) string {
+		return strings.ToLower(key)
 	}
-	return key
 }
 
-// NullMapper leaves a key unchanged.
+// NullReplacer is a replacer that leaves a key unchanged.
 // This can be used to override the mapping in Getters that assume
-// a default mapping if none (Mapper(nil)) is provided.
-type NullMapper struct{}
-
-// Map simply returns the key unchanged.
-func (m NullMapper) Map(key string) string {
-	return key
+// a default mapping if none (Replacer(nil)) is provided.
+func NullReplacer() ReplacerFunc {
+	return func(key string) string {
+		return key
+	}
 }
 
-// PrefixMapper adds a prefix to keys.
+// PrefixReplacer adds a prefix to keys.
 // This can be used to logically move the root of a Getter to a
 // node of the config space.
-type PrefixMapper struct {
-	Prefix string
+func PrefixReplacer(prefix string) ReplacerFunc {
+	return func(key string) string {
+		return prefix + key
+	}
 }
 
-// Map returns the key with the prefix prepended.
-func (m PrefixMapper) Map(key string) string {
-	return m.Prefix + key
-}
-
-// ReplaceMapper replaces one string in the key with another.
-// The From is replaced with the To.
+// StringReplacer replaces one string in the key with another.
+// The ols is replaced with the new using strings.Replace.
 // This is typically used to replace tier separators,
 // e.g. "." in config space with "_" in env space,
 // but can also be used for arbitrary substitutions.
-type ReplaceMapper struct {
-	From string
-	To   string
+func StringReplacer(old, new string) ReplacerFunc {
+	return func(key string) string {
+		return strings.Replace(key, old, new, -1)
+	}
 }
 
-// Map performs a replacement of instances of From in the key with To.
-func (m ReplaceMapper) Map(key string) string {
-	return strings.Replace(key, m.From, m.To, -1)
+// UpperCaseReplacer forces keys to upper case.
+func UpperCaseReplacer() ReplacerFunc {
+	return func(key string) string {
+		return strings.ToUpper(key)
+	}
 }
 
-// UpperCaseMapper forces keys to upper case.
-type UpperCaseMapper struct{}
-
-// Map returns the upper case of the key.
-func (m UpperCaseMapper) Map(key string) string {
-	return strings.ToUpper(key)
-}
-
-// CamelCase returns the CamelCase version of a string, i.e. the first
+// camelCase returns the CamelCase version of a string, i.e. the first
 // letter capitalised and other characters lowercase.
-func CamelCase(key string) string {
+func camelCase(key string) string {
 	r, n := utf8.DecodeRuneInString(key)
 	return string(unicode.ToUpper(r)) + strings.ToLower(key[n:])
 }

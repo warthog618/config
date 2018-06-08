@@ -231,7 +231,7 @@ func TestAddAliasNested(t *testing.T) {
 	refuteGet(t, cfg, "e", "sub-tree alias locality")
 	refuteGet(t, cfg, "baz.e", "sub-tree alias locality")
 
-	// Fundamentally is the responsibility of the application to manage the config tree
+	// It is fundamentally the responsibility of the application to manage the config tree
 	// and setup the aliases for any included modules.
 	// In the case above they need to add the baz.d -> bar.c mapping like this...
 	cfg.AddAlias("baz.d", "bar.c")
