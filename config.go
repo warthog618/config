@@ -251,8 +251,8 @@ func (c *Config) GetBool(key string) (bool, error) {
 // GetConfig gets the config corresponding to a subtree of the config,
 // where the node identifies the root node of the config returned.
 func (c *Config) GetConfig(node string) (*Config, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	aliases := make(map[string][]string, len(c.aliases))
 	for k, v := range c.aliases {
 		aliases[k] = append([]string(nil), v...)
