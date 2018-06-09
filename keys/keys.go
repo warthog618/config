@@ -24,7 +24,9 @@ func (r ReplacerFunc) Replace(key string) string {
 func ChainReplacer(rr ...ReplacerFunc) ReplacerFunc {
 	return func(key string) string {
 		for _, r := range rr {
-			key = r.Replace(key)
+			if r != nil {
+				key = r.Replace(key)
+			}
 		}
 		return key
 	}

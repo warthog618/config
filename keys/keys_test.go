@@ -71,6 +71,7 @@ func TestChainReplacer(t *testing.T) {
 		r        []keys.ReplacerFunc
 	}{
 		{"empty", "", "", nil},
+		{"nil", "", "", []keys.ReplacerFunc{nil}},
 		{"none", "a.b.c.d", "a.b.c.d", nil},
 		{"one", "A.B.C.D", "a.b.c.d",
 			[]keys.ReplacerFunc{

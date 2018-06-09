@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// Getter provides the minimal interface for a configuration Getter.
+// Getter specifies the minimal interface for a configuration Getter.
 type Getter interface {
 	// Get the value of the named config leaf key.
 	// Also returns an ok, similar to a map read, to indicate if the value
