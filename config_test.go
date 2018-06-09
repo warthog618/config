@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/warthog618/config/keys"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/warthog618/config"
@@ -114,6 +116,33 @@ func TestNewWithGetters(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, true, c)
 
+}
+
+func TestNewWithKeyReplacer(t *testing.T) {
+	mr := mockGetter{map[string]interface{}{
+		"a.b.c_d": true,
+	}}
+	cfg := config.New(config.WithKeyReplacer(keys.LowerCaseReplacer()))
+	cfg.AppendGetter(mr)
+	c, err := cfg.Get("a.B.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+
+	// subtree config
+	ab, err := cfg.GetConfig("a.b")
+	assert.Nil(t, err)
+	require.NotNil(t, ab)
+	c, err = ab.Get("C_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
+
+	// capped subtree config
+	ab, err = cfg.GetConfig("A.b")
+	assert.Nil(t, err)
+	require.NotNil(t, ab)
+	c, err = ab.Get("C_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, c)
 }
 
 func TestNewWithSeparator(t *testing.T) {
@@ -922,10 +951,10 @@ func TestUnmarshalToMap(t *testing.T) {
 		"nested": map[string]interface{}{"a": int(0), "b": "", "c": []int{}}}
 	n1 := obj["nested"].(map[string]interface{})
 	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		assert.Equal(t, mr.config["foo.a"], obj["a"])
-		assert.Equal(t, mr.config["foo.nested.a"], n1["a"])
-		assert.Equal(t, mr.config["foo.nested.b"], n1["b"])
-		assert.Equal(t, mr.config["foo.nested.c"], n1["c"])
+		assert.Equal(t, mr.config["foo.a"], obj["a"], "foo.a")
+		assert.Equal(t, mr.config["foo.nested.a"], n1["a"], "foo.nested.a")
+		assert.Equal(t, mr.config["foo.nested.b"], n1["b"], "foo.nested.b")
+		assert.Equal(t, mr.config["foo.nested.c"], n1["c"], "foo.nested.c")
 		v, ok := n1["d"]
 		assert.False(t, ok)
 		assert.Nil(t, v)

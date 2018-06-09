@@ -14,6 +14,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/warthog618/config/keys"
+
 	"github.com/warthog618/config/cfgconv"
 )
 
@@ -34,12 +36,6 @@ type Config struct {
 	// It does not prevent concurrent access to the getters themselves,
 	// only to the config fields.
 	mu sync.RWMutex
-	// The prefix common to all keys within this config node.
-	// For the root node this is empty.
-	// For other nodes this indicates the location of the node in the config tree.
-	// The keys passed into the non-root nodes should be local to that node,
-	// i.e. they should treat the node as the root of their own config tree.
-	prefix string
 	// path separator for nested objects.
 	// This is used to split keys into a list of tier names and leaf key.
 	// By default this is ".".
@@ -52,11 +48,20 @@ type Config struct {
 	def Getter
 	// A map to a list of old names for current config keys.
 	aliases map[string][]string
+	// keyReplacer, if set, performs a translation from the config space
+	// presented to the application to the space assumed by the getters.
+	keyReplacer Replacer
+}
+
+// Replacer replaces one string with another.
+type Replacer interface {
+	Replace(string) string
 }
 
 // Option is a function which modifies a Config at construction time.
 type Option func(*Config)
 
+// Getter specifies the minimal interface for a configuration Getter.
 type Getter interface {
 	// Get the value of the named config leaf key.
 	// Also returns an ok, similar to a map read, to indicate if the value
@@ -95,6 +100,13 @@ func WithGetters(gg []Getter) Option {
 		if c.def != nil {
 			c.gg = append(c.gg, c.def)
 		}
+	}
+}
+
+// WithKeyReplacer is an Option that provides the keyReplacer for the Config.
+func WithKeyReplacer(kr Replacer) Option {
+	return func(c *Config) {
+		c.keyReplacer = kr
 	}
 }
 
@@ -142,14 +154,11 @@ func (c *Config) InsertGetter(g Getter) {
 	c.mu.Unlock()
 }
 
-// prefixedKey returns the absolute config key for a key relative to the config node.
-func (c *Config) prefixedKey(key ...string) string {
-	rhs := strings.Join(key, c.separator)
-	if len(c.prefix) == 0 {
-		// we are root.
-		return rhs
+func (c *Config) configKey(key string) string {
+	if c.keyReplacer == nil {
+		return key
 	}
-	return c.prefix + c.separator + rhs
+	return c.keyReplacer.Replace(key)
 }
 
 // AddAlias adds an alias from an old key, which may still be present in legacy config,
@@ -163,8 +172,8 @@ func (c *Config) prefixedKey(key ...string) string {
 func (c *Config) AddAlias(newKey string, oldKey string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	lNewKey := c.prefixedKey(newKey)
-	lOldKey := c.prefixedKey(oldKey)
+	lNewKey := c.configKey(newKey)
+	lOldKey := c.configKey(oldKey)
 	if lNewKey == lOldKey {
 		return
 	}
@@ -186,7 +195,7 @@ func (c *Config) AddAlias(newKey string, oldKey string) {
 func (c *Config) Get(key string) (interface{}, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	fullKey := c.prefixedKey(key)
+	fullKey := c.configKey(key)
 	for _, g := range c.gg {
 		if v, ok := g.Get(fullKey); ok {
 			return v, nil
@@ -257,12 +266,26 @@ func (c *Config) GetConfig(node string) (*Config, error) {
 	for k, v := range c.aliases {
 		aliases[k] = append([]string(nil), v...)
 	}
+	root := c.configKey("")
+	nk := c.configKey(node)[len(root):]
+	if len(nk) > 0 {
+		nk = nk + c.separator
+	}
+	var kr keys.ReplacerFunc
+	if c.keyReplacer != nil {
+		kr = func(key string) string {
+			key = c.keyReplacer.Replace(nk + key)
+			return key
+		}
+	} else {
+		kr = keys.PrefixReplacer(nk)
+	}
 	return &Config{
-		prefix:    c.prefixedKey(node),
-		separator: c.separator,
-		def:       c.def,
-		gg:        append([]Getter(nil), c.gg...),
-		aliases:   aliases,
+		separator:   c.separator,
+		def:         c.def,
+		gg:          append([]Getter(nil), c.gg...),
+		aliases:     aliases,
+		keyReplacer: kr,
 	}, nil
 }
 
@@ -441,7 +464,7 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 				if cv, err := cfgconv.Convert(v, fv.Type()); err == nil {
 					fv.Set(reflect.ValueOf(cv))
 				} else if rerr == nil {
-					rerr = UnmarshalError{c.prefixedKey(node, key), err}
+					rerr = UnmarshalError{c.configKey(node + c.separator + key), err}
 				}
 			}
 		}
@@ -483,7 +506,7 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 			if cv, err := cfgconv.Convert(v, vv.Type()); err == nil {
 				objmap[key] = cv
 			} else if rerr == nil {
-				rerr = UnmarshalError{c.prefixedKey(node, key), err}
+				rerr = UnmarshalError{c.configKey(node + c.separator + key), err}
 			}
 		}
 	}
@@ -491,7 +514,7 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 }
 
 // lowerCamelCase converts the first rune of a string to lower case.
-// The function assumes key is already camel cased. so only
+// The function assumes key is already camel cased, so only
 // lower cases the leading character.
 // This is used to convert Go exported field names to config space keys.
 // e.g. ConfigFile becomes configFile.
