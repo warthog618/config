@@ -30,6 +30,15 @@ float = 3.141
 string = "this is also a string"
 intSlice = [1,2,3,4,5,6]
 stringSlice = ["one","two","three"]
+
+[[animals]]
+name = "Platypus"
+order= "Monotremata"
+
+[[animals]]
+name = "Quoll"
+order = "Dasyuromorphia"
+
 `)
 
 var malformedConfig = []byte(`
@@ -39,6 +48,7 @@ bool: true
 
 // Test that config fields can be read and converted to required types using cfgconv.
 func testGetterGet(t *testing.T, g *toml.Getter) {
+	t.Helper()
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
@@ -66,6 +76,9 @@ func testGetterGet(t *testing.T, g *toml.Getter) {
 		{"nested.string", "this is also a string"},
 		{"nested.intSlice", []interface{}{int64(1), int64(2), int64(3), int64(4), int64(5), int64(6)}},
 		{"nested.stringSlice", []interface{}{"one", "two", "three"}},
+		{"animals", []interface{}{
+			map[string]interface{}{"name": "Platypus", "order": "Monotremata"},
+			map[string]interface{}{"name": "Quoll", "order": "Dasyuromorphia"}}},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
@@ -132,7 +145,7 @@ func TestNewFile(t *testing.T) {
 	cfg.AppendGetter(f)
 }
 
-func TestStringGetterGet(t *testing.T) {
+func TestBytesGetterGet(t *testing.T) {
 	g, err := toml.New(toml.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, g)

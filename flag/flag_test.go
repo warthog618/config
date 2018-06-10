@@ -299,7 +299,7 @@ func TestGetterGet(t *testing.T) {
 	}
 }
 
-func TestNewWithCfgKeyReplacer(t *testing.T) {
+func TestNewWithKeyReplacer(t *testing.T) {
 	args := []string{"-n=44", "--leaf", "42"}
 	shorts := map[byte]string{'n': "nested-leaf"}
 	patterns := []struct {

@@ -17,17 +17,18 @@ import (
 // is effectively immutable.
 type Getter struct {
 	config map[string]interface{}
+	sep    string
 }
 
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	return getFromMapTree(r.config, key, ".")
+	return getFromMapTree(r.config, key, r.sep)
 }
 
 // New returns a JSON Getter.
 func New(options ...Option) (*Getter, error) {
-	g := Getter{}
+	g := Getter{sep: "."}
 	for _, option := range options {
 		if err := option(&g); err != nil {
 			return nil, err

@@ -101,7 +101,11 @@ var validConfig = []byte(`{
 	  "string": "this is also a string",
 	  "intSlice": [1,2,3,4,5,6],
 	  "stringSlice": ["one","two","three"]
-	}
+	},
+	"animals":[
+	  {"Name": "Platypus", "Order": "Monotremata"},
+	  {"Name": "Quoll",    "Order": "Dasyuromorphia"}
+	]
   }`)
 
 var malformedConfig = []byte(`malformed{
@@ -112,6 +116,7 @@ var malformedConfig = []byte(`malformed{
 
 // Test that config fields can be read and converted to required types using cfgconv.
 func testGetterGet(t *testing.T, g *json.Getter) {
+	t.Helper()
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
@@ -137,6 +142,9 @@ func testGetterGet(t *testing.T, g *json.Getter) {
 		{"nested.string", "this is also a string"},
 		{"nested.intSlice", []interface{}{float64(1), float64(2), float64(3), float64(4), float64(5), float64(6)}},
 		{"nested.stringSlice", []interface{}{"one", "two", "three"}},
+		{"animals", []interface{}{
+			map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
+			map[string]interface{}{"Name": "Quoll", "Order": "Dasyuromorphia"}}},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {

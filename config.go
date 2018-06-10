@@ -431,8 +431,8 @@ func (c *Config) GetUintSlice(key string) ([]uint64, error) {
 // struct fields.  Overflow checks are performed during conversion to ensure the
 // value returned by the getter can fit within the designated field.
 //
-// By default the config field names are drawn from the struct field, converted to
-// lowerCamelCase.
+// By default the config field names are drawn from the struct field,
+// converted to lowerCamelCase.
 // This can be overridden using `config:"<name>"` tags.
 //
 // Struct fields which do not have corresponding config fields are ignored,

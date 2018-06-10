@@ -12,3 +12,11 @@ float = 3.141
 string = "this is also a string"
 intSlice = [1,2,3,4,5,6]
 stringSlice = ["one","two","three"]
+
+[[animals]]
+name = "Platypus"
+order= "Monotremata"
+
+[[animals]]
+name = "Quoll"
+order = "Dasyuromorphia"

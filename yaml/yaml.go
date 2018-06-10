@@ -18,11 +18,12 @@ import (
 // is effectively immutable.
 type Getter struct {
 	config map[interface{}]interface{}
+	sep    string
 }
 
 // New returns a YAML Getter.
 func New(options ...Option) (*Getter, error) {
-	r := Getter{}
+	r := Getter{sep: "."}
 	for _, option := range options {
 		err := option(&r)
 		if err != nil {
@@ -35,7 +36,7 @@ func New(options ...Option) (*Getter, error) {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	return getFromMapTree(r.config, key, ".")
+	return getFromMapTree(r.config, key, r.sep)
 }
 
 // Option is a function that modifies the Getter during construction,

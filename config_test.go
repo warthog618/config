@@ -596,7 +596,11 @@ func TestGetUint(t *testing.T) {
 func TestGetSlice(t *testing.T) {
 	cfg := config.New()
 	mr := mockGetter{map[string]interface{}{
-		"slice":       []interface{}{1, 2, 3, 4},
+		"slice": []interface{}{1, 2, 3, 4},
+		"animals": []interface{}{
+			map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
+			map[string]interface{}{"Order": "Dasyuromorphia", "Name": "Quoll"},
+		},
 		"casttoslice": "bogus",
 		"notaslice":   struct{}{},
 	}}
@@ -607,6 +611,10 @@ func TestGetSlice(t *testing.T) {
 		err error
 	}{
 		{"slice", []interface{}{1, 2, 3, 4}, nil},
+		{"animals", []interface{}{
+			map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
+			map[string]interface{}{"Order": "Dasyuromorphia", "Name": "Quoll"},
+		}, nil},
 		{"casttoslice", []interface{}{"bogus"}, nil},
 		{"notaslice", nil, cfgconv.TypeError{}},
 		{"nosuchslice", nil, config.NotFoundError{}},
