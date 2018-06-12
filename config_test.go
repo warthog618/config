@@ -801,209 +801,373 @@ type fooConfig struct {
 	B       string
 	C       []int
 	E       string
+	F       []innerConfig
+	G       [][]int
+	Nested  innerConfig `config:"nested"`
+	p       string
 }
 
 type innerConfig struct {
 	A       int
-	Btagged string `config:"b"`
+	Btagged string `config:"b_inner"`
 	C       []int
 	E       string
 }
 
-type nestedConfig struct {
-	Atagged int `config:"a"`
-	B       string
-	C       []int
-	Nested  innerConfig `config:"nested"`
-}
+type configSetup func(*config.Config)
 
 func TestUnmarshal(t *testing.T) {
-	cfg := config.New()
-	// Root Getter
-	mr := mockGetter{map[string]interface{}{
-		"foo.a": 42,
-		"foo.b": "foo.b",
-		"foo.c": []int{1, 2, 3, 4},
-		"foo.d": "ignored",
-	}}
-	cfg.InsertGetter(&mr)
-	if err := cfg.Unmarshal("foo", 0); err == nil {
-		t.Errorf("failed to reject unmarshal into non-struct")
+	blah := "blah"
+	patterns := []struct {
+		name     string
+		g        config.Getter
+		s        configSetup
+		k        string
+		target   interface{}
+		expected interface{}
+		err      error
+	}{
+		{"non-struct target",
+			&mockGetter{map[string]interface{}{
+				"foo.a": 42,
+			}},
+			nil,
+			"foo",
+			&blah,
+			&blah,
+			config.ErrInvalidStruct},
+		{"non-pointer target",
+			&mockGetter{map[string]interface{}{
+				"foo.a": 42,
+			}},
+			nil,
+			"foo",
+			fooConfig{},
+			fooConfig{},
+			config.ErrInvalidStruct},
+		{"scalars",
+			&mockGetter{map[string]interface{}{
+				"a": 42,
+				"b": "foo.b",
+				"d": "ignored",
+				"p": "non-exported fields can't be set",
+			}},
+			nil,
+			"",
+			&fooConfig{},
+			&fooConfig{
+				Atagged: 42,
+				B:       "foo.b"},
+			nil},
+		{"maltyped",
+			&mockGetter{map[string]interface{}{
+				"a": []int{3, 4},
+			}},
+			nil,
+			"",
+			&fooConfig{},
+			&fooConfig{},
+			config.UnmarshalError{}},
+		{"array of scalar",
+			&mockGetter{map[string]interface{}{
+				"c": []int{1, 2, 3, 4},
+				"d": "ignored",
+			}},
+			nil,
+			"",
+			&fooConfig{},
+			&fooConfig{
+				C: []int{1, 2, 3, 4}},
+			nil},
+		{"array of array",
+			&mockGetter{map[string]interface{}{
+				"g": [][]int{{1, 2}, {3, 4}},
+				"d": "ignored",
+			}},
+			nil,
+			"",
+			&fooConfig{},
+			&fooConfig{
+				G: [][]int{{1, 2}, {3, 4}}},
+			nil},
+		{"array of object",
+			&mockGetter{map[string]interface{}{
+				"foo.f": []map[string]interface{}{
+					{"a": 1},
+					{"a": 2},
+				},
+				"foo.d": "ignored",
+			}},
+			nil,
+			"foo",
+			&fooConfig{F: []innerConfig{{}, {}}},
+			&fooConfig{
+				F: []innerConfig{
+					{A: 1},
+					{A: 2},
+				}},
+			nil},
+		{"nested",
+			&mockGetter{map[string]interface{}{
+				"foo.b":              "foo.b",
+				"foo.nested.a":       43,
+				"foo.nested.b_inner": "foo.nested.b",
+				"foo.nested.c":       []int{5, 6, 7, 8},
+			}},
+			nil,
+			"foo",
+			&fooConfig{},
+			&fooConfig{
+				B: "foo.b",
+				Nested: innerConfig{
+					A:       43,
+					Btagged: "foo.nested.b",
+					C:       []int{5, 6, 7, 8}}},
+			nil},
+		{"nested wrong type",
+			&mockGetter{map[string]interface{}{
+				"foo.nested.a": []int{6, 7}},
+			},
+			nil,
+			"foo",
+			&fooConfig{},
+			&fooConfig{},
+			config.UnmarshalError{}},
+		{"aliased",
+			&mockGetter{map[string]interface{}{
+				"foo.b": "foo.b",
+			}},
+			func(c *config.Config) {
+				c.AddAlias("foo.e", "foo.b")
+			},
+			"foo",
+			&fooConfig{},
+			&fooConfig{
+				B: "foo.b",
+				E: "foo.b"},
+			nil},
+		{"nested aliased",
+			&mockGetter{map[string]interface{}{
+				"foo.b":              "foo.b",
+				"foo.nested.b_inner": "foo.nested.b",
+			}},
+			func(c *config.Config) {
+				c.AddAlias("foo.nested.e", "foo.b")
+				// Alias to tagged name
+				c.AddAlias("foo.e", "foo.nested.b_inner")
+				// aliased alias ignored
+				c.AddAlias("foo.nested.bTagged", "foo.nested.e")
+			},
+			"foo",
+			&fooConfig{},
+			&fooConfig{
+				B: "foo.b",        // from value
+				E: "foo.nested.b", // from alias
+				Nested: innerConfig{
+					Btagged: "foo.nested.b", // from value
+					E:       "foo.b"}},      // from alias
+			nil},
 	}
-	foo := fooConfig{}
-	foo.E = "some useful default"
-	// correctly typed
-	if err := cfg.Unmarshal("foo", &foo); err == nil {
-		assert.Equal(t, mr.config["foo.a"], foo.Atagged)
-		assert.Equal(t, mr.config["foo.b"], foo.B)
-		assert.Equal(t, mr.config["foo.c"], foo.C)
-		assert.Equal(t, "some useful default", foo.E)
-	} else {
-		t.Errorf("failed to unmarshal foo")
-	}
-	// Incorrectly typed
-	mr.config["foo.a"] = []int{1, 2}
-	foo = fooConfig{}
-	if err := cfg.Unmarshal("foo", &foo); err != nil {
-		assert.IsType(t, config.UnmarshalError{}, err)
-		assert.Contains(t, err.Error(), "foo.a")
-		assert.Equal(t, 0, foo.Atagged)
-		assert.Equal(t, mr.config["foo.b"], foo.B)
-		assert.Equal(t, mr.config["foo.c"], foo.C)
-	} else {
-		t.Errorf("successfully unmarshalled mistyped foo")
-	}
-	mr.config["foo.a"] = 42
-
-	// Nested
-	mr.config["foo.nested.a"] = 43
-	mr.config["foo.nested.b"] = "foo.nested.b"
-	mr.config["foo.nested.c"] = []int{1, 2, -3, 4}
-	nc := nestedConfig{}
-	if err := cfg.Unmarshal("foo", &nc); err == nil {
-		assert.Equal(t, mr.config["foo.a"], nc.Atagged)
-		assert.Equal(t, mr.config["foo.b"], nc.B)
-		assert.Equal(t, mr.config["foo.c"], nc.C)
-		assert.Equal(t, mr.config["foo.nested.a"], nc.Nested.A)
-		assert.Equal(t, mr.config["foo.nested.b"], nc.Nested.Btagged)
-		assert.Equal(t, mr.config["foo.nested.c"], nc.Nested.C)
-	} else {
-		t.Errorf("failed to unmarshal foo")
-	}
-
-	// Nested incorrectly typed
-	mr.config["foo.nested.a"] = []int{}
-	nc = nestedConfig{}
-	if err := cfg.Unmarshal("foo", &nc); err != nil {
-		assert.IsType(t, config.UnmarshalError{}, err)
-		assert.Contains(t, err.Error(), "foo.nested.a")
-		assert.Equal(t, mr.config["foo.a"], nc.Atagged)
-		assert.Equal(t, mr.config["foo.b"], nc.B)
-		assert.Equal(t, mr.config["foo.c"], nc.C)
-		assert.Equal(t, 0, nc.Nested.A)
-		assert.Equal(t, mr.config["foo.nested.b"], nc.Nested.Btagged)
-		assert.Equal(t, mr.config["foo.nested.c"], nc.Nested.C)
-	} else {
-		t.Errorf("successfully unmarshalled mistyped foo.nested")
-	}
-	mr.config["foo.nested.a"] = 43
-
-	// Aliased
-	mr.config["foo.b"] = "foo.b"
-	cfg.AddAlias("foo.nested.e", "foo.b")
-	nc = nestedConfig{}
-	if err := cfg.Unmarshal("foo", &nc); err == nil {
-		assert.Equal(t, mr.config["foo.b"], nc.Nested.E)
-	} else {
-		t.Errorf("failed to unmarshal foo")
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			cfg := config.New()
+			cfg.InsertGetter(p.g)
+			if p.s != nil {
+				p.s(cfg)
+			}
+			err := cfg.Unmarshal(p.k, p.target)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.expected, p.target)
+		}
+		t.Run(p.name, f)
 	}
 }
 
 func TestUnmarshalToMap(t *testing.T) {
-	cfg := config.New()
-	// Root Getter
-	mr := mockGetter{map[string]interface{}{
+	mg := mockGetter{map[string]interface{}{
 		"foo.a": 42,
 		"foo.b": "foo.b",
 		"foo.c": []int{1, 2, 3, 4},
 		"foo.d": "ignored",
 	}}
-	cfg.InsertGetter(&mr)
-	// Nil - raw
-	obj := map[string]interface{}{"a": nil, "b": nil, "c": nil, "e": nil}
-	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		assert.Equal(t, mr.config["foo.a"], obj["a"])
-		assert.Equal(t, mr.config["foo.b"], obj["b"])
-		assert.Equal(t, mr.config["foo.c"], obj["c"])
-		v, ok := obj["d"]
-		assert.False(t, ok)
-		assert.Nil(t, v)
-		assert.Nil(t, obj["e"])
-	} else {
-		t.Errorf("failed to unmarshal foo")
+	patterns := []struct {
+		name     string
+		g        config.Getter
+		s        configSetup
+		target   map[string]interface{}
+		expected map[string]interface{}
+		err      error
+	}{
+		{"nil types",
+			mg, nil,
+			map[string]interface{}{"a": nil, "b": nil, "c": nil, "e": nil},
+			map[string]interface{}{
+				"a": 42,
+				"b": "foo.b",
+				"c": []int{1, 2, 3, 4},
+				"e": nil},
+			nil,
+		},
+		{"typed",
+			mg, nil,
+			map[string]interface{}{
+				"a": int(0),
+				"b": "",
+				"c": []int{},
+				"e": "some useful default"},
+			map[string]interface{}{
+				"a": 42,
+				"b": "foo.b",
+				"c": []int{1, 2, 3, 4},
+				"e": "some useful default"},
+			nil,
+		},
+		{"aliased",
+			mg,
+			func(c *config.Config) {
+				c.AddAlias("foo.e", "foo.d")
+			},
+			map[string]interface{}{"e": nil},
+			map[string]interface{}{"e": "ignored"},
+			nil,
+		},
+		{"maltyped int",
+			mg, nil,
+			map[string]interface{}{"a": []int{0}},
+			map[string]interface{}{"a": []int{0}},
+			config.UnmarshalError{},
+		},
+		{"maltyped string",
+			mg, nil,
+			map[string]interface{}{"b": 2},
+			map[string]interface{}{"b": 2},
+			config.UnmarshalError{},
+		},
+		{"maltyped array",
+			mg, nil,
+			map[string]interface{}{"c": 3},
+			map[string]interface{}{"c": 3},
+			config.UnmarshalError{},
+		},
+		{"array of arrays",
+			mockGetter{map[string]interface{}{
+				"foo.aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
+			}}, nil,
+			map[string]interface{}{"aa": nil},
+			map[string]interface{}{
+				"aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
+			},
+			nil,
+		},
+		{"array of objects",
+			&mockGetter{map[string]interface{}{
+				"foo.f": []map[string]interface{}{
+					{"A": 1},
+					{"A": 2},
+				},
+				"foo.d": "ignored",
+			}},
+			nil,
+			map[string]interface{}{"f": nil},
+			map[string]interface{}{
+				"f": []map[string]interface{}{
+					{"A": 1},
+					{"A": 2},
+				},
+			},
+			nil,
+		},
+		{"nested",
+			mockGetter{map[string]interface{}{
+				"foo.a":        42,
+				"foo.b":        "foo.b",
+				"foo.c":        []int{1, 2, 3, 4},
+				"foo.d":        "ignored",
+				"foo.nested.a": 43,
+				"foo.nested.b": "foo.nested.b",
+				"foo.nested.c": []int{1, 2, -3, 4},
+			}},
+			nil,
+			map[string]interface{}{
+				"a": 0,
+				"nested": map[string]interface{}{
+					"a": int(0),
+					"b": "",
+					"c": []int{}},
+			},
+			map[string]interface{}{
+				"a": 42,
+				"nested": map[string]interface{}{
+					"a": 43,
+					"b": "foo.nested.b",
+					"c": []int{1, 2, -3, 4}},
+			},
+			nil,
+		},
+		{"nested maltyped",
+			mockGetter{map[string]interface{}{
+				"foo.a":        42,
+				"foo.b":        "foo.b",
+				"foo.c":        []int{1, 2, 3, 4},
+				"foo.d":        "ignored",
+				"foo.nested.a": []int{},
+				"foo.nested.b": "foo.nested.b",
+				"foo.nested.c": []int{1, 2, -3, 4},
+			}},
+			nil,
+			map[string]interface{}{
+				"a": 0,
+				"nested": map[string]interface{}{
+					"a": int(0),
+					"b": "",
+					"c": []int{}},
+			},
+			map[string]interface{}{
+				"a": 42,
+				"nested": map[string]interface{}{
+					"a": 0,
+					"b": "foo.nested.b",
+					"c": []int{1, 2, -3, 4}},
+			},
+			config.UnmarshalError{},
+		},
+		{"nested alias",
+			mockGetter{map[string]interface{}{
+				"foo.b": "foo.b",
+				"foo.d": "ignored"},
+			},
+			func(c *config.Config) {
+				c.AddAlias("foo.nested.e", "foo.d")
+			},
+			map[string]interface{}{
+				"b": nil,
+				"nested": map[string]interface{}{
+					"e": nil},
+			},
+			map[string]interface{}{
+				"b": "foo.b",
+				"nested": map[string]interface{}{
+					"e": "ignored"},
+			},
+			nil,
+		},
 	}
-	// Typed
-	obj = map[string]interface{}{"a": int(0), "b": "", "c": []int{}, "e": "some useful default"}
-	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		assert.Equal(t, mr.config["foo.a"], obj["a"])
-		assert.Equal(t, mr.config["foo.b"], obj["b"])
-		assert.Equal(t, mr.config["foo.c"], obj["c"])
-		v, ok := obj["d"]
-		assert.False(t, ok)
-		assert.Nil(t, v)
-		assert.Equal(t, "some useful default", obj["e"])
-	} else {
-		t.Errorf("failed to unmarshal foo")
-	}
-	// Mistyped
-	obj = map[string]interface{}{"a": []int{}}
-	err := cfg.UnmarshalToMap("foo", obj)
-	assert.IsType(t, config.UnmarshalError{}, err)
-	assert.Contains(t, err.Error(), "foo.a")
-
-	obj = map[string]interface{}{"b": 44}
-	err = cfg.UnmarshalToMap("foo", obj)
-	assert.IsType(t, config.UnmarshalError{}, err)
-	assert.Contains(t, err.Error(), "foo.b")
-
-	obj = map[string]interface{}{"c": ""}
-	err = cfg.UnmarshalToMap("foo", obj)
-	assert.IsType(t, config.UnmarshalError{}, err)
-	assert.Contains(t, err.Error(), "foo.c")
-
-	// Nested
-	mr.config["foo.nested.a"] = 43
-	mr.config["foo.nested.b"] = "foo.nested.b"
-	mr.config["foo.nested.c"] = []int{1, 2, -3, 4}
-	obj = map[string]interface{}{"a": nil,
-		"nested": map[string]interface{}{"a": int(0), "b": "", "c": []int{}}}
-	n1 := obj["nested"].(map[string]interface{})
-	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		assert.Equal(t, mr.config["foo.a"], obj["a"], "foo.a")
-		assert.Equal(t, mr.config["foo.nested.a"], n1["a"], "foo.nested.a")
-		assert.Equal(t, mr.config["foo.nested.b"], n1["b"], "foo.nested.b")
-		assert.Equal(t, mr.config["foo.nested.c"], n1["c"], "foo.nested.c")
-		v, ok := n1["d"]
-		assert.False(t, ok)
-		assert.Nil(t, v)
-	} else {
-		t.Errorf("failed to unmarshal foo")
-	}
-	// nested - mistyped
-	mr.config["foo.nested.a"] = []int{}
-	mr.config["foo.nested.b"] = "foo.nested.b"
-	mr.config["foo.nested.c"] = []int{1, 2, -3, 4}
-	obj = map[string]interface{}{"a": nil,
-		"nested": map[string]interface{}{"a": int(0), "b": "", "c": []int{}}}
-	n1 = obj["nested"].(map[string]interface{})
-	if err := cfg.UnmarshalToMap("foo", obj); err != nil {
-		assert.IsType(t, config.UnmarshalError{}, err)
-		assert.Contains(t, err.Error(), "foo.nested.a")
-		assert.Equal(t, mr.config["foo.a"], obj["a"])
-		assert.Equal(t, 0, n1["a"])
-		assert.Equal(t, mr.config["foo.nested.b"], n1["b"])
-		assert.Equal(t, mr.config["foo.nested.c"], n1["c"])
-		v, ok := n1["d"]
-		assert.False(t, ok)
-		assert.Nil(t, v)
-	} else {
-		t.Errorf("failed to unmarshal foo")
-	}
-
-	// Aliased
-	cfg.AddAlias("foo.nested.e", "foo.b")
-	obj = map[string]interface{}{"a": nil,
-		"nested": map[string]interface{}{"e": nil}}
-	n1 = obj["nested"].(map[string]interface{})
-	if err := cfg.UnmarshalToMap("foo", obj); err == nil {
-		assert.Equal(t, mr.config["foo.a"], obj["a"])
-		assert.Equal(t, mr.config["foo.b"], n1["e"])
-	} else {
-		t.Errorf("failed to unmarshal foo")
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			cfg := config.New()
+			cfg.InsertGetter(p.g)
+			if p.s != nil {
+				p.s(cfg)
+			}
+			err := cfg.UnmarshalToMap("foo", p.target)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.expected, p.target)
+		}
+		t.Run(p.name, f)
 	}
 }
 
-// A simple mock Getter wrapping an accessible map.
+// A simple mock Getter wrapping a map.
 
 type mockGetter struct {
 	config map[string]interface{}

@@ -21,11 +21,14 @@
 package cfgconv
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 const maxUint = ^uint64(0)
@@ -138,6 +141,9 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 			return ri, err
 		}
 		rv.SetBool(cv)
+	case reflect.Struct:
+		err := Struct(v, rv.Addr().Interface())
+		return rv.Interface(), err
 	case reflect.Slice:
 		et := rt.Elem()
 		vv := reflect.ValueOf(v)
@@ -321,6 +327,34 @@ func String(v interface{}) (string, error) {
 	return "", TypeError{Value: v, Kind: reflect.String}
 }
 
+// Struct converts a generic object to a struct.
+//
+// The obj is a struct with fields corresponding to config values.
+// The config values will be converted to the type defined in the corresponding
+// struct fields.  Overflow checks are performed during conversion to ensure the
+// value returned by the getter can fit within the designated field.
+//
+// By default the map keys are drawn from the struct field names,
+// converted to LowerCamelCase (as per typical JSON naming conventions).
+// This can be overridden using `config:"<name>"` tags.
+//
+// Struct fields which do not have corresponding map keys are ignored,
+// as are map keys which have no corresponding struct field,
+// and non-exported struct fields.
+//
+// The error identifies the first type conversion error, if any.
+//
+// Currently only support conversion from mpa[string]interface{},
+// but may support struct to struct conversions at a later date,
+// hence the wrapper around UnmarshalStructFromMap.
+func Struct(v interface{}, obj interface{}) error {
+	if vm, ok := v.(map[string]interface{}); ok {
+		err := UnmarshalStructFromMap(vm, obj)
+		return err
+	}
+	return TypeError{Value: v, Kind: reflect.Struct}
+}
+
 // Time converts a string to a duration, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Time(v interface{}) (time.Time, error) {
@@ -396,6 +430,66 @@ func Uint(v interface{}) (uint64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Uint}
 }
 
+// UnmarshalStructFromMap populates a struct with the values from a map.
+//
+// The obj is pointer to a struct with fields corresponding to config values.
+// The config values will be converted to the type defined in the corresponding
+// struct fields.  Overflow checks are performed during conversion to ensure the
+// value returned by the getter can fit within the designated field.
+//
+// By default the map keys are drawn from the struct field names,
+// converted to LowerCamelCase (as per typical JSON naming conventions).
+// This can be overridden using `config:"<name>"` tags.
+//
+// Struct fields which do not have corresponding map keys are ignored,
+// as are map keys which have no corresponding struct field,
+// and non-exported struct fields.
+//
+// The error identifies the first type conversion error, if any.
+func UnmarshalStructFromMap(m map[string]interface{}, obj interface{}) (rerr error) {
+	ov := reflect.Indirect(reflect.ValueOf(obj))
+	if ov.Kind() != reflect.Struct {
+		return ErrInvalidStruct
+	}
+	for idx := 0; idx < ov.NumField(); idx++ {
+		fv := ov.Field(idx)
+		if !fv.CanSet() {
+			// ignore unexported fields.
+			continue
+		}
+		ft := ov.Type().Field(idx)
+		key := ft.Tag.Get("config")
+		if len(key) == 0 {
+			key = lowerCamelCase(ft.Name)
+		}
+		v, ok := m[key]
+		if !ok {
+			continue
+		}
+		if fv.Kind() == reflect.Struct {
+			// nested struct
+			if vm, ok := v.(map[string]interface{}); ok {
+				err := UnmarshalStructFromMap(vm, fv.Addr().Interface())
+				if err != nil && rerr == nil {
+					rerr = err
+				}
+			}
+		} else {
+			// else assume a leaf
+			if cv, err := Convert(v, fv.Type()); err == nil {
+				fv.Set(reflect.ValueOf(cv))
+			} else if rerr == nil {
+				rerr = err
+			}
+		}
+	}
+	return rerr
+}
+
+// ErrInvalidStruct indicates UnMarshal was provides an object to populate
+// which is not a pointer to struct.
+var ErrInvalidStruct = errors.New("unmarshal: provided obj is not pointer to struct")
+
 // TypeError indicates a type conversion was not possible.
 // Identifies the value being converted and the kind it
 // couldn't be converted into.
@@ -418,4 +512,14 @@ type OverflowError struct {
 
 func (e OverflowError) Error() string {
 	return fmt.Sprintf("cfgconv: overflow converting '%v' to %s", e.Value, e.Kind)
+}
+
+// lowerCamelCase converts the first rune of a string to lower case.
+// The function assumes key is already camel cased, so only
+// lower cases the leading character.
+// This is used to convert Go exported field names to config space keys.
+// e.g. ConfigFile becomes configFile.
+func lowerCamelCase(key string) string {
+	r, n := utf8.DecodeRuneInString(key)
+	return string(unicode.ToLower(r)) + key[n:]
 }

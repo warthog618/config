@@ -72,6 +72,9 @@ func TestBool(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
+	type aStruct struct {
+		A int
+	}
 	patterns := []struct {
 		name string
 		t    interface{}
@@ -143,6 +146,8 @@ func TestConvert(t *testing.T) {
 		{"uint8 good", uint8(0), "42", uint8(42), nil},
 		{"uint8 overflow", uint8(0), 257, uint8(0), cfgconv.OverflowError{}},
 		{"uint8 parse error", uint8(0), "glob", uint8(0), &strconv.NumError{}},
+		{"struct lower", aStruct{}, map[string]interface{}{"a": 1}, aStruct{1}, nil},
+		{"struct upper", aStruct{}, map[string]interface{}{"A": 1}, aStruct{}, nil},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
@@ -379,6 +384,132 @@ func TestString(t *testing.T) {
 			v, err := cfgconv.String(p.in)
 			assert.IsType(t, p.err, err)
 			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestStruct(t *testing.T) {
+	type testStruct struct {
+		A int
+		B string
+	}
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    interface{}
+		x    interface{}
+		err  error
+	}{
+		{"bad type", "blah", &testStruct{}, &testStruct{}, cfgconv.TypeError{}},
+		{"map",
+			map[string]interface{}{
+				"a": 1,
+				"b": "hello",
+			},
+			&testStruct{},
+			&testStruct{A: 1, B: "hello"},
+			nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v := p.v
+			err := cfgconv.Struct(p.in, v)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, p.v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestUnmarshalStructFromMap(t *testing.T) {
+	type innerConfig struct {
+		A       int
+		Btagged string `config:"b"`
+		C       []int
+		E       string
+	}
+	type testStruct struct {
+		A       int
+		Btagged string `config:"b_good"`
+		C       []int
+		p       int // non-exported fields can't be set
+		Nested  innerConfig
+	}
+
+	patterns := []struct {
+		name string
+		in   map[string]interface{}
+		v    interface{}
+		x    interface{}
+		err  error
+	}{
+		{"bad type", map[string]interface{}{"a": 1}, 3, 3, cfgconv.ErrInvalidStruct},
+		{"scalars",
+			map[string]interface{}{
+				"a":      1,
+				"b_good": "hello",
+				"d":      "ignored",
+				"p":      "non-exported fields can't be set",
+			},
+			&testStruct{},
+			&testStruct{A: 1, Btagged: "hello"},
+			nil},
+		{"arrays",
+			map[string]interface{}{
+				"c": []int{1, 2, 3, 4},
+				"d": "ignored",
+			},
+			&testStruct{},
+			&testStruct{C: []int{1, 2, 3, 4}},
+			nil},
+		{"maltyped array",
+			map[string]interface{}{
+				"a": 42,
+				"c": 43,
+				"d": "ignored",
+			},
+			&testStruct{},
+			&testStruct{A: 42},
+			cfgconv.TypeError{}},
+		{"maltyped int",
+			map[string]interface{}{
+				"a":      "bogus",
+				"b_good": "banana",
+				"d":      "ignored",
+			},
+			&testStruct{},
+			&testStruct{Btagged: "banana"},
+			&strconv.NumError{}},
+		{"nested",
+			map[string]interface{}{
+				"b_good": "foo.b",
+				"nested": map[string]interface{}{
+					"a": 43,
+					"b": "foo.nested.b",
+					"c": []int{5, 6, 7, 8}},
+			},
+			&testStruct{},
+			&testStruct{
+				Btagged: "foo.b",
+				Nested: innerConfig{
+					A:       43,
+					Btagged: "foo.nested.b",
+					C:       []int{5, 6, 7, 8}}},
+			nil},
+		{"nested wrong type",
+			map[string]interface{}{
+				"nested": map[string]interface{}{
+					"a": []int{6, 7}}},
+			&testStruct{},
+			&testStruct{},
+			cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			err := cfgconv.UnmarshalStructFromMap(p.in, p.v)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, p.v)
 		}
 		t.Run(p.name, f)
 	}

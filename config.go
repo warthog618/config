@@ -6,7 +6,7 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 	"strings"
 	"sync"
@@ -426,13 +426,13 @@ func (c *Config) GetUintSlice(key string) ([]uint64, error) {
 // Unmarshal a section of the config tree into a struct.
 //
 // The node identifies the section of the tree to unmarshal.
-// The obj is a struct with fields corresponding to config values.
+// The obj is a pointer to a struct with fields corresponding to config values.
 // The config values will be converted to the type defined in the corresponding
 // struct fields.  Overflow checks are performed during conversion to ensure the
 // value returned by the getter can fit within the designated field.
 //
 // By default the config field names are drawn from the struct field,
-// converted to lowerCamelCase.
+// converted to LowerCamelCase (as per typical JSON naming conventions).
 // This can be overridden using `config:"<name>"` tags.
 //
 // Struct fields which do not have corresponding config fields are ignored,
@@ -440,13 +440,21 @@ func (c *Config) GetUintSlice(key string) ([]uint64, error) {
 //
 // The error identifies the first type conversion error, if any.
 func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
-	nodeCfg, _ := c.GetConfig(node)
-	ov := reflect.Indirect(reflect.ValueOf(obj))
-	if ov.Kind() != reflect.Struct {
-		return fmt.Errorf("Unmarshal: obj is not a struct - %v", obj)
+	ov := reflect.ValueOf(obj)
+	if ov.Kind() != reflect.Ptr {
+		return ErrInvalidStruct
 	}
+	ov = reflect.Indirect(reflect.ValueOf(obj))
+	if ov.Kind() != reflect.Struct {
+		return ErrInvalidStruct
+	}
+	nodeCfg, _ := c.GetConfig(node)
 	for idx := 0; idx < ov.NumField(); idx++ {
 		fv := ov.Field(idx)
+		if !fv.CanSet() {
+			// ignore unexported fields.
+			continue
+		}
 		ft := ov.Type().Field(idx)
 		key := ft.Tag.Get("config")
 		if len(key) == 0 {
@@ -471,6 +479,10 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 	}
 	return rerr
 }
+
+// ErrInvalidStruct indicates UnMarshal was provides an object to populate
+// which is not a pointer to struct.
+var ErrInvalidStruct = errors.New("unmarshal: provided obj is not pointer to struct")
 
 // UnmarshalToMap unmarshals a section of the config tree into a map[string]interface{}.
 //
