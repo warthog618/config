@@ -43,14 +43,14 @@ func (r *Getter) Get(key string) (interface{}, bool) {
 // returning any error that may have occurred.
 type Option func(*Getter) error
 
-// FromBytes uses the []bytes as the source of TOML configuration.
+// FromBytes uses the []bytes as the source of YAML configuration.
 func FromBytes(cfg []byte) Option {
 	return func(g *Getter) error {
 		return fromBytes(g, cfg)
 	}
 }
 
-// FromFile uses filename as the source of TOML configuration.
+// FromFile uses filename as the source of YAML configuration.
 func FromFile(filename string) Option {
 	return func(g *Getter) error {
 		b, err := ioutil.ReadFile(filename)
