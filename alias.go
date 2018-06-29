@@ -13,13 +13,13 @@ import (
 
 // NewAlias creates an Alias.
 func NewAlias(options ...aliasOption) *Alias {
-	a := Alias{
+	a := &Alias{
 		aa:      map[string][]string{},
 		pathSep: "."}
 	for _, option := range options {
-		option.applyAliasOption(&a)
+		option.applyAliasOption(a)
 	}
-	return &a
+	return a
 }
 
 // WithAlias provides a decorator that calls the Getter, and falls back
