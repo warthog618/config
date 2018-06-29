@@ -126,9 +126,7 @@ func TestNewFromBytes(t *testing.T) {
 	b, err = properties.New(properties.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, b)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(b)
+	assert.Implements(t, (*config.Getter)(nil), b)
 }
 
 func TestNewFromFile(t *testing.T) {
@@ -141,9 +139,7 @@ func TestNewFromFile(t *testing.T) {
 	f, err = properties.New(properties.FromFile("config.properties"))
 	assert.Nil(t, err)
 	require.NotNil(t, f)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(f)
+	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
 func TestStringGetterGet(t *testing.T) {

@@ -28,9 +28,7 @@ func TestNew(t *testing.T) {
 	e, err := env.New()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(e)
+	assert.Implements(t, (*config.Getter)(nil), e)
 }
 
 func TestGetterGet(t *testing.T) {

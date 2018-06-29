@@ -6,12 +6,12 @@
 package config_test
 
 import (
+	"bytes"
+	"encoding/gob"
 	"errors"
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/warthog618/config/keys"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,414 +19,33 @@ import (
 	"github.com/warthog618/config/cfgconv"
 )
 
-func TestNew(t *testing.T) {
-	cfg := config.New()
-	c, err := cfg.Get("")
+func TestNewConfig(t *testing.T) {
+	mr := mockGetter{"a.b.c_d": true}
+	c := config.NewConfig(&mr)
+	v, err := c.Get("")
 	assert.IsType(t, config.NotFoundError{}, err)
-	assert.Equal(t, nil, c)
-	// demonstrate nesting separation by "."
-	mr := mockGetter{map[string]interface{}{
-		"a.b.c_d": true,
-	}}
-	cfg.InsertGetter(&mr)
-	c, err = cfg.Get("a.b.c_d")
+	assert.Equal(t, nil, v)
+	v, err = c.Get("a.b.c_d")
 	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-	cfg.AddAlias("e", "a.b") // node alias uses "." nesting separator
-	c, err = cfg.Get("e.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
+	assert.Equal(t, true, v)
 }
 
-func TestNewWithDefault(t *testing.T) {
-	def := mockGetter{map[string]interface{}{
-		"a.b.c": 43,
-	}}
-	cfg := config.New(config.WithDefault(&def))
-	c, err := cfg.Get("a.b.c")
-	assert.Nil(t, err)
-	assert.Equal(t, 43, c)
-
-	// After WithGetters
-	mr := mockGetter{map[string]interface{}{
-		"a.b.c_d": true,
-	}}
-	cfg = config.New(
-		config.WithGetters([]config.Getter{&mr}),
-		config.WithDefault(&def))
-	c, err = cfg.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-	c, err = cfg.Get("a.b.c")
-	assert.Nil(t, err)
-	assert.Equal(t, 43, c)
-
-	// After WithGetters AND WithDefault
-	def2 := mockGetter{map[string]interface{}{
-		"a.b.d": 43,
-	}}
-	cfg = config.New(
-		config.WithGetters([]config.Getter{&mr}),
-		config.WithDefault(&def),
-		config.WithDefault(&def2),
-	)
-	c, err = cfg.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-	c, err = cfg.Get("a.b.c")
-	assert.IsType(t, config.NotFoundError{}, err)
-	assert.Nil(t, c)
-	c, err = cfg.Get("a.b.d")
-	assert.Nil(t, err)
-	assert.Equal(t, 43, c)
-
-}
-
-func TestNewWithGetters(t *testing.T) {
-	mr := mockGetter{map[string]interface{}{
-		"a.b.c_d": true,
-	}}
-	gg := []config.Getter{&mr}
-	cfg := config.New(config.WithGetters(gg))
-	c, err := cfg.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-	// show getters copied
-	gg[0] = mockGetter{}
-	c, err = cfg.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-	// show getter not copied
-	mr.config["a.b.c_d"] = 43
-	c, err = cfg.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, 43, c)
-
-	// after WithDefault
-	def := mockGetter{map[string]interface{}{
-		"def": true,
-	}}
-	cfg = config.New(
-		config.WithDefault(&def),
-		config.WithGetters([]config.Getter{&mr}))
-	c, err = cfg.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, 43, c)
-	c, err = cfg.Get("def")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-
-}
-
-func TestNewWithKeyReplacer(t *testing.T) {
-	mr := mockGetter{map[string]interface{}{
-		"a.b.c_d": true,
-	}}
-	cfg := config.New(config.WithKeyReplacer(keys.LowerCaseReplacer()))
-	cfg.AppendGetter(mr)
-	c, err := cfg.Get("a.B.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-
-	// subtree config
-	ab, err := cfg.GetConfig("a.b")
-	assert.Nil(t, err)
-	require.NotNil(t, ab)
-	c, err = ab.Get("C_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-
-	// capped subtree config
-	ab, err = cfg.GetConfig("A.b")
-	assert.Nil(t, err)
-	require.NotNil(t, ab)
-	c, err = ab.Get("C_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-}
-
-func TestNewWithSeparator(t *testing.T) {
-	cfg := config.New(config.WithSeparator("_"))
-	c, err := cfg.Get("")
-	assert.IsType(t, config.NotFoundError{}, err)
-	assert.Equal(t, nil, c)
-	// demonstrate nesting separation by "_"
-	mr := mockGetter{map[string]interface{}{
-		"a.b.c_d": true,
-	}}
-	cfg.InsertGetter(&mr)
-	c, err = cfg.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-	cfg.AddAlias("e", "a.b.c") // node alias uses "_" nesting separator
-	c, err = cfg.Get("e_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, c)
-}
-
-func TestAddAlias(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{}}
-	cfg.InsertGetter(&mr)
-
-	// alias maps newKey (requested) -> oldKey (in config)
-	mr.config["oldthing"] = "an old config string"
-	cfg.AddAlias("newthing", "oldthing")
-	v, err := cfg.Get("oldthing")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr.config["oldthing"], v)
-	v, err = cfg.Get("newthing")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr.config["oldthing"], v)
-
-	// alias ignored if newKey exists
-	mr.config["newthing"] = "a new config string"
-	v, err = cfg.Get("oldthing")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr.config["oldthing"], v)
-	v, err = cfg.Get("newthing")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr.config["newthing"], v)
-}
-
-func TestAddAliasNested(t *testing.T) {
-	mr := mockGetter{map[string]interface{}{
-		"a":     "a",
-		"foo.a": "foo.a",
-		"foo.b": "foo.b",
-		"bar.b": "bar.b",
-		"bar.c": "bar.c",
-	}}
-	type alias struct {
-		new string
-		old string
-	}
-	aliases := []struct {
-		name     string
-		aa       []alias
-		tp       string
-		expected interface{}
-		err      error
-	}{
-		{"alias to alias", []alias{{"c", "foo.b"}, {"d", "c"}}, "d", nil, config.NotFoundError{}},
-		{"alias to node alias", []alias{{"baz", "bar"}, {"blob", "baz"}}, "blob.b", nil, config.NotFoundError{}},
-		{"leaf alias has priority over node alias", []alias{{"baz", "bar"}, {"baz.b", "a"}}, "baz.b", "a", nil},
-		{"leaf has priority over alias", []alias{{"a", "foo.a"}}, "a", "a", nil},
-		{"nested leaf to root leaf", []alias{{"baz.b", "a"}}, "baz.b", "a", nil},
-		{"nested leaf to self (ignored)", []alias{{"foo.a", "foo.a"}}, "foo.a", "foo.a", nil},
-		{"nested node to nested node", []alias{{"baz", "bar"}}, "baz.b", "bar.b", nil},
-		{"nested node to root node", []alias{{"node.a", "a"}}, "node.a", "a", nil},
-		{"root leaf to nested leaf", []alias{{"c", "foo.b"}}, "c", "foo.b", nil},
-		{"root node to nested node", []alias{{"", "foo"}}, "b", "foo.b", nil},
-	}
-	for _, a := range aliases {
-		f := func(t *testing.T) {
-			cfg := config.New()
-			cfg.InsertGetter(&mr)
-			for _, al := range a.aa {
-				cfg.AddAlias(al.new, al.old)
-			}
-			v, err := cfg.Get(a.tp)
-			assert.IsType(t, a.err, err)
-			assert.Equal(t, a.expected, v)
-		}
-		t.Run(a.name, f)
-	}
-	// sub-tree config
-	cfg := config.New()
-	cfg.InsertGetter(&mr)
-	barCfg, err := cfg.GetConfig("bar")
-	assertGet(t, barCfg, "b", "bar.b", "sub-tree leaf")
-	assertGet(t, barCfg, "c", "bar.c", "sub-tree leaf")
-	barCfg.AddAlias("d", "c")
-	assertGet(t, barCfg, "d", "bar.c", "sub-tree local leaf alias")
-
-	barCfg.AddAlias("e", "b")
-	refuteGet(t, cfg, "e", "sub-tree alias locality")
-	refuteGet(t, cfg, "bar.e", "sub-tree alias locality")
-
-	// aliased sub-tree config
-	cfg.AddAlias("baz", "bar")
-	cfg.AddAlias("baz.b", "a")
-	bazCfg, err := cfg.GetConfig("baz")
-	assert.Nil(t, err)
-	require.NotNil(t, bazCfg)
-	assertGet(t, bazCfg, "b", "a", "sub-tree node leaf alias")
-	assertGet(t, bazCfg, "c", "bar.c", "sub-tree leaf")
-	bazCfg.AddAlias("d", "c") // gets turned into baz.d -> baz.c which will fail as it is an alias to an alias
-	refuteGet(t, bazCfg, "d", "aliased sub-tree local leaf alias")
-	bazCfg.AddAlias("e", "b")
-
-	refuteGet(t, cfg, "e", "sub-tree alias locality")
-	refuteGet(t, cfg, "baz.e", "sub-tree alias locality")
-
-	// It is fundamentally the responsibility of the application to manage the config tree
-	// and setup the aliases for any included modules.
-	// In the case above they need to add the baz.d -> bar.c mapping like this...
-	cfg.AddAlias("baz.d", "bar.c")
-	assertGet(t, cfg, "baz.d", "bar.c", "sub-tree leaf")
-	bazCfg, err = cfg.GetConfig("baz")
-	assert.Nil(t, err)
-	require.NotNil(t, bazCfg)
-	bazCfg.AddAlias("d", "c") // this is pointless as noted above, but the baz.g -> bar.c alias should still work...
-	assertGet(t, bazCfg, "d", "bar.c", "sub-tree leaf alias")
-}
-
-func TestAppendGetter(t *testing.T) {
-	cfg := config.New()
-	mr1 := mockGetter{map[string]interface{}{}}
-	cfg.AppendGetter(nil) // should be ignored
-	cfg.InsertGetter(&mr1)
-	mr1.config["something"] = "a test string"
-	v, err := cfg.Get("something")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr1.config["something"], v)
-
-	// append a second reader
-	mr2 := mockGetter{map[string]interface{}{
-		"something":      "another test string",
-		"something else": "yet another test string",
-	}}
-	cfg.AppendGetter(&mr2)
-	v, err = cfg.Get("something")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr1.config["something"], v)
-	v, err = cfg.Get("something else")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr2.config["something else"], v)
-
-	// with a default getter
-	def := mockGetter{map[string]interface{}{
-		"something":      "a default string",
-		"something else": "yet another test string",
-	}}
-	cfg = config.New(config.WithDefault(def))
-	v, err = cfg.Get("something")
-	assert.Nil(t, err)
-	assert.Exactly(t, def.config["something"], v)
-	cfg.InsertGetter(&mr1)
-	cfg.AppendGetter(&mr2)
-	v, err = cfg.Get("something")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr1.config["something"], v)
-	v, err = cfg.Get("something else")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr2.config["something else"], v)
-}
-
-func TestInsertGetter(t *testing.T) {
-	cfg := config.New()
-	mr1 := mockGetter{map[string]interface{}{
-		"something":      "a test string",
-		"something else": "yet another test string",
-	}}
-	cfg.InsertGetter(nil) // should be ignored
-	cfg.InsertGetter(&mr1)
-	v, err := cfg.Get("something")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr1.config["something"], v)
-	v, err = cfg.Get("something else")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr1.config["something else"], v)
-
-	// insert a second reader
-	mr2 := mockGetter{map[string]interface{}{}}
-	cfg.InsertGetter(&mr2)
-	v, err = cfg.Get("something")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr1.config["something"], v)
-	mr2.config["something"] = "another test string"
-	v, err = cfg.Get("something")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr2.config["something"], v)
-	v, err = cfg.Get("something else")
-	assert.Nil(t, err)
-	assert.Exactly(t, mr1.config["something else"], v)
-}
-
-func assertGet(t *testing.T, cfg *config.Config, key string, expected interface{}, comment string) {
-	v, err := cfg.Get(key)
-	assert.Nil(t, err)
-	assert.Equal(t, expected, v, comment)
-}
-
-func refuteGet(t *testing.T, cfg *config.Config, key string, comment string) {
-	v, err := cfg.Get(key)
-	assert.IsType(t, config.NotFoundError{}, err, comment)
-	assert.Equal(t, nil, v, comment)
-}
-
-func TestGetOverlayed(t *testing.T) {
-	mr1 := mockGetter{map[string]interface{}{
-		"a": "a - tier 1",
-		"b": "b - tier 1",
-		"c": "c - tier 1",
-	}}
-	mr2 := mockGetter{map[string]interface{}{
-		"b": "b - tier 2",
-		"d": "d - tier 2",
-	}}
-	mr3 := mockGetter{map[string]interface{}{
-		"c": "c - tier 3",
-		"d": "d - tier 3",
-	}}
-	type kv struct {
-		k   string
-		v   interface{}
-		err error
-	}
-	patterns := []struct {
-		name     string
-		readers  []mockGetter
-		expected []kv
-	}{
-		{"one", []mockGetter{mr1}, []kv{
-			{"a", "a - tier 1", nil},
-			{"b", "b - tier 1", nil},
-			{"c", "c - tier 1", nil},
-			{"d", nil, config.NotFoundError{Key: "d"}},
-			{"e", nil, config.NotFoundError{Key: "e"}},
-		}},
-		{"two", []mockGetter{mr1, mr2}, []kv{
-			{"a", "a - tier 1", nil},
-			{"b", "b - tier 2", nil},
-			{"c", "c - tier 1", nil},
-			{"d", "d - tier 2", nil},
-			{"e", nil, config.NotFoundError{Key: "e"}},
-		}},
-		{"three", []mockGetter{mr1, mr2, mr3}, []kv{
-			{"a", "a - tier 1", nil},
-			{"b", "b - tier 2", nil},
-			{"c", "c - tier 3", nil},
-			{"d", "d - tier 3", nil},
-			{"e", nil, config.NotFoundError{Key: "e"}},
-		}},
-	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			cfg := config.New()
-			for _, r := range p.readers {
-				cfg.InsertGetter(r)
-			}
-			for _, x := range p.expected {
-				v, err := cfg.Get(x.k)
-				assert.Equal(t, x.err, err, x.k)
-				assert.Equal(t, x.v, v, x.k)
-			}
-		}
-		t.Run(p.name, f)
-	}
+func TestNewMust(t *testing.T) {
+	mr := mockGetter{"a.b.c_d": true}
+	c := config.NewMust(&mr)
+	v := c.Get("")
+	assert.Equal(t, nil, v)
+	v = c.Get("a.b.c_d")
+	assert.Equal(t, true, v)
 }
 
 func TestGetBool(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"bool":       true,
 		"boolString": "true",
 		"boolInt":    1,
 		"notabool":   "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   bool
@@ -438,20 +57,36 @@ func TestGetBool(t *testing.T) {
 		{"notabool", false, &strconv.NumError{}},
 		{"notsuchbool", false, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetBool(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetBool(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetBool(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetDuration(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"duration":     "123ms",
 		"notaduration": "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   time.Duration
@@ -461,22 +96,38 @@ func TestGetDuration(t *testing.T) {
 		{"notaduration", time.Duration(0), errors.New("")},
 		{"nosuchduration", time.Duration(0), config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetDuration(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetDuration(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetDuration(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetFloat(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"float":        3.1415,
 		"floatString":  "3.1415",
 		"floatInt":     1,
 		"notafloatInt": "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   float64
@@ -488,21 +139,37 @@ func TestGetFloat(t *testing.T) {
 		{"notafloatInt", 0, &strconv.NumError{}},
 		{"nosuchfloat", 0, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetFloat(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetFloat(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetFloat(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetInt(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"int":       42,
 		"intString": "43",
 		"notaint":   "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   int64
@@ -513,21 +180,37 @@ func TestGetInt(t *testing.T) {
 		{"notaint", 0, &strconv.NumError{}},
 		{"nosuchint", 0, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetInt(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetInt(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetInt(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetString(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"string":     "a string",
 		"stringInt":  42,
 		"notastring": struct{}{},
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   string
@@ -538,20 +221,36 @@ func TestGetString(t *testing.T) {
 		{"notastring", "", cfgconv.TypeError{}},
 		{"nosuchstring", "", config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetString(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetString(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetString(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetTime(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"time":     "2017-03-01T01:02:03Z",
 		"notatime": "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   time.Time
@@ -561,21 +260,37 @@ func TestGetTime(t *testing.T) {
 		{"notatime", time.Time{}, &time.ParseError{}},
 		{"nosuchtime", time.Time{}, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetTime(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetTime(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetTime(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetUint(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"uint":       42,
 		"uintString": "43",
 		"notaUint":   "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   uint64
@@ -586,16 +301,33 @@ func TestGetUint(t *testing.T) {
 		{"notaUint", 0, &strconv.NumError{}},
 		{"nosuchUint", 0, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetUint(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetUint(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetUint(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetSlice(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"slice": []interface{}{1, 2, 3, 4},
 		"animals": []interface{}{
 			map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
@@ -603,8 +335,7 @@ func TestGetSlice(t *testing.T) {
 		},
 		"casttoslice": "bogus",
 		"notaslice":   struct{}{},
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
 		v   []interface{}
@@ -619,123 +350,185 @@ func TestGetSlice(t *testing.T) {
 		{"notaslice", nil, cfgconv.TypeError{}},
 		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetSlice(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetSlice(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.v, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetSlice(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v, p.k)
+		}
+	}
+	t.Run("Must", f)
+
 }
 
 func TestGetIntSlice(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"slice":       []int64{1, 2, -3, 4},
 		"casttoslice": "42",
 		"stringslice": []string{"one", "two", "three"},
 		"notaslice":   "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
-		v   []int64
+		x   []int64
 		err error
 	}{
 		{"slice", []int64{1, 2, -3, 4}, nil},
 		{"casttoslice", []int64{42}, nil},
-		{"stringslice", nil, &strconv.NumError{}},
-		{"notaslice", nil, &strconv.NumError{}},
+		{"stringslice", []int64{0, 0, 0}, &strconv.NumError{}},
+		{"notaslice", []int64{0}, &strconv.NumError{}},
 		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetIntSlice(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetIntSlice(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.x, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetIntSlice(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetStringSlice(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"intslice":        []int64{1, 2, -3, 4},
 		"stringslice":     []string{"one", "two", "three"},
 		"uintslice":       []uint64{1, 2, 3, 4},
 		"notastringslice": []interface{}{1, 2, struct{}{}},
 		"casttoslice":     "bogus",
 		"notaslice":       struct{}{},
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
-		v   []string
+		x   []string
 		err error
 	}{
 		{"intslice", []string{"1", "2", "-3", "4"}, nil},
 		{"uintslice", []string{"1", "2", "3", "4"}, nil},
 		{"stringslice", []string{"one", "two", "three"}, nil},
 		{"casttoslice", []string{"bogus"}, nil},
-		{"notastringslice", nil, cfgconv.TypeError{}},
+		{"notastringslice", []string{"1", "2", ""}, cfgconv.TypeError{}},
 		{"notaslice", nil, cfgconv.TypeError{}},
 		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetStringSlice(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetStringSlice(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.x, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetStringSlice(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetUintSlice(t *testing.T) {
-	cfg := config.New()
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"slice":       []uint64{1, 2, 3, 4},
 		"casttoslice": "42",
 		"intslice":    []int64{1, 2, -3, 4},
 		"stringslice": []string{"one", "two", "three"},
 		"notaslice":   "bogus",
-	}}
-	cfg.InsertGetter(&mr)
+	}
 	patterns := []struct {
 		k   string
-		v   []uint64
+		x   []uint64
 		err error
 	}{
 		{"slice", []uint64{1, 2, 3, 4}, nil},
 		{"casttoslice", []uint64{42}, nil},
-		{"intslice", nil, cfgconv.TypeError{}},
-		{"stringslice", nil, &strconv.NumError{}},
-		{"notaslice", nil, &strconv.NumError{}},
+		{"intslice", []uint64{1, 2, 0, 4}, cfgconv.TypeError{}},
+		{"stringslice", []uint64{0, 0, 0}, &strconv.NumError{}},
+		{"notaslice", []uint64{0}, &strconv.NumError{}},
 		{"nosuchslice", nil, config.NotFoundError{}},
 	}
-	for _, p := range patterns {
-		v, err := cfg.GetUintSlice(p.k)
-		assert.IsType(t, p.err, err, p.k)
-		assert.Equal(t, p.v, v, p.k)
+	c := config.NewConfig(&mr)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			v, err := c.GetUintSlice(p.k)
+			assert.IsType(t, p.err, err, p.k)
+			assert.Equal(t, p.x, v, p.k)
+		}
 	}
+	t.Run("Config", f)
+	var err error
+	m := config.NewMust(&mr, config.WithErrorHandler(
+		func(e error) {
+			err = e
+		}))
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			err = nil
+			v := m.GetUintSlice(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, v, p.k)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestGetConfig(t *testing.T) {
-	cfg := config.New()
 	// Single Getter
-	mr := mockGetter{map[string]interface{}{
+	mr := mockGetter{
 		"foo.a": "foo.a",
 		"foo.b": "foo.b",
 		"bar.b": "bar.b",
 		"bar.c": "bar.c",
 		"baz.a": "baz.a",
 		"baz.c": "baz.c",
-	}}
-	cfg.InsertGetter(&mr)
-	cfg.AddAlias("foo.d", "bar.c") // leaf alias
-	cfg.AddAlias("fuz", "foo")     // node alias
+	}
+	a := config.NewAlias()
+	a.Append("foo.d", "bar.c") // leaf alias
+	a.Append("fuz", "foo")     // node alias
 
 	type testPoint struct {
 		k   string
 		v   interface{}
 		err error
-	}
-	type alias struct {
-		new string
-		old string
 	}
 	patterns := []struct {
 		name    string
@@ -781,19 +574,97 @@ func TestGetConfig(t *testing.T) {
 			{"e", nil, config.NotFoundError{}},
 		}},
 	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			for _, tp := range p.tp {
-				c, err := cfg.GetConfig(p.subtree)
-				assert.Nil(t, err)
-				require.NotNil(t, c)
-				v, err := c.Get(tp.k)
-				assert.IsType(t, tp.err, err, tp.k)
-				assert.Equal(t, tp.v, v, tp.k)
-			}
-		}
-		t.Run(p.name, f)
+	type getNode interface {
+		GetConfig(node string, options ...config.ConfigOption) *config.Config
+		GetMust(node string, options ...config.MustOption) *config.Must
 	}
+	configs := []struct {
+		name string
+		c    getNode
+	}{{"config", config.NewConfig(config.Decorate(&mr, config.WithAlias(a)))},
+		{"must", config.NewMust(config.Decorate(&mr, config.WithAlias(a)))},
+	}
+	for _, cfg := range configs {
+		for _, p := range patterns {
+			f := func(t *testing.T) {
+				for _, tp := range p.tp {
+					subc := cfg.c.GetConfig(p.subtree)
+					require.NotNil(t, subc)
+					v, err := subc.Get(tp.k)
+					assert.IsType(t, tp.err, err, tp.k)
+					assert.Equal(t, tp.v, v, tp.k)
+				}
+			}
+			t.Run(cfg.name+"-Config-"+p.name, f)
+			f = func(t *testing.T) {
+				for _, tp := range p.tp {
+					subc := cfg.c.GetMust(p.subtree)
+					require.NotNil(t, subc)
+					v := subc.Get(tp.k)
+					assert.Equal(t, tp.v, v, tp.k)
+				}
+			}
+			t.Run(cfg.name+"-Must-"+p.name, f)
+		}
+	}
+}
+
+func TestGetConfigWithSeparator(t *testing.T) {
+	mr := mockGetter{
+		"a.b.c_d": true,
+	}
+	c := config.NewConfig(&mr)
+	v, err := c.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
+	cfg := c.GetConfig("a", config.WithSeparator("_"))
+	v, err = cfg.Get("b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
+	cfg = cfg.GetConfig("b.c")
+	v, err = cfg.Get("d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
+
+	m := config.NewMust(&mr)
+	v = m.Get("a.b.c_d")
+	assert.Equal(t, true, v)
+	cfg = m.GetConfig("a", config.WithSeparator("_"))
+	v, err = cfg.Get("b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
+	cfg = cfg.GetConfig("b.c")
+	v, err = cfg.Get("d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
+}
+
+func TestGetMustWithSeparator(t *testing.T) {
+	mr := mockGetter{
+		"a.b.c_d": true,
+	}
+	c := config.NewConfig(&mr)
+	v, err := c.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
+	cfg := c.GetMust("a", config.WithSeparator("_"))
+	v = cfg.Get("b.c_d")
+	assert.Equal(t, true, v)
+	cfg = cfg.GetMust("b.c")
+	v = cfg.Get("d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
+
+	m := config.NewMust(&mr)
+	v = m.Get("a.b.c_d")
+	assert.Equal(t, true, v)
+	cfg = m.GetMust("a", config.WithSeparator("_"))
+	v = cfg.Get("b.c_d")
+	assert.Equal(t, true, v)
+	cfg = cfg.GetMust("b.c")
+	v = cfg.Get("d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v)
 }
 
 type fooConfig struct {
@@ -814,45 +685,41 @@ type innerConfig struct {
 	E       string
 }
 
-type configSetup func(*config.Config)
+type aliasSetup func(*config.Alias)
 
 func TestUnmarshal(t *testing.T) {
 	blah := "blah"
 	patterns := []struct {
-		name     string
-		g        config.Getter
-		s        configSetup
-		k        string
-		target   interface{}
-		expected interface{}
-		err      error
+		name   string
+		g      config.Getter
+		k      string
+		target interface{}
+		cx     interface{}
+		err    error
 	}{
 		{"non-struct target",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"foo.a": 42,
-			}},
-			nil,
+			},
 			"foo",
 			&blah,
 			&blah,
 			config.ErrInvalidStruct},
 		{"non-pointer target",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"foo.a": 42,
-			}},
-			nil,
+			},
 			"foo",
 			fooConfig{},
 			fooConfig{},
 			config.ErrInvalidStruct},
 		{"scalars",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"a": 42,
 				"b": "foo.b",
 				"d": "ignored",
 				"p": "non-exported fields can't be set",
-			}},
-			nil,
+			},
 			"",
 			&fooConfig{},
 			&fooConfig{
@@ -860,45 +727,41 @@ func TestUnmarshal(t *testing.T) {
 				B:       "foo.b"},
 			nil},
 		{"maltyped",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"a": []int{3, 4},
-			}},
-			nil,
+			},
 			"",
 			&fooConfig{},
 			&fooConfig{},
 			config.UnmarshalError{}},
 		{"array of scalar",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"c": []int{1, 2, 3, 4},
 				"d": "ignored",
-			}},
-			nil,
+			},
 			"",
 			&fooConfig{},
 			&fooConfig{
 				C: []int{1, 2, 3, 4}},
 			nil},
 		{"array of array",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"g": [][]int{{1, 2}, {3, 4}},
 				"d": "ignored",
-			}},
-			nil,
+			},
 			"",
 			&fooConfig{},
 			&fooConfig{
 				G: [][]int{{1, 2}, {3, 4}}},
 			nil},
 		{"array of object",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"foo.f": []map[string]interface{}{
 					{"a": 1},
 					{"a": 2},
 				},
 				"foo.d": "ignored",
-			}},
-			nil,
+			},
 			"foo",
 			&fooConfig{F: []innerConfig{{}, {}}},
 			&fooConfig{
@@ -908,13 +771,12 @@ func TestUnmarshal(t *testing.T) {
 				}},
 			nil},
 		{"nested",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"foo.b":              "foo.b",
 				"foo.nested.a":       43,
 				"foo.nested.b_inner": "foo.nested.b",
 				"foo.nested.c":       []int{5, 6, 7, 8},
-			}},
-			nil,
+			},
 			"foo",
 			&fooConfig{},
 			&fooConfig{
@@ -925,81 +787,60 @@ func TestUnmarshal(t *testing.T) {
 					C:       []int{5, 6, 7, 8}}},
 			nil},
 		{"nested wrong type",
-			&mockGetter{map[string]interface{}{
-				"foo.nested.a": []int{6, 7}},
+			&mockGetter{
+				"foo.nested.a": []int{6, 7},
 			},
-			nil,
 			"foo",
 			&fooConfig{},
 			&fooConfig{},
 			config.UnmarshalError{}},
-		{"aliased",
-			&mockGetter{map[string]interface{}{
-				"foo.b": "foo.b",
-			}},
-			func(c *config.Config) {
-				c.AddAlias("foo.e", "foo.b")
-			},
-			"foo",
-			&fooConfig{},
-			&fooConfig{
-				B: "foo.b",
-				E: "foo.b"},
-			nil},
-		{"nested aliased",
-			&mockGetter{map[string]interface{}{
-				"foo.b":              "foo.b",
-				"foo.nested.b_inner": "foo.nested.b",
-			}},
-			func(c *config.Config) {
-				c.AddAlias("foo.nested.e", "foo.b")
-				// Alias to tagged name
-				c.AddAlias("foo.e", "foo.nested.b_inner")
-				// aliased alias ignored
-				c.AddAlias("foo.nested.bTagged", "foo.nested.e")
-			},
-			"foo",
-			&fooConfig{},
-			&fooConfig{
-				B: "foo.b",        // from value
-				E: "foo.nested.b", // from alias
-				Nested: innerConfig{
-					Btagged: "foo.nested.b", // from value
-					E:       "foo.b"}},      // from alias
-			nil},
 	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			cfg := config.New()
-			cfg.InsertGetter(p.g)
-			if p.s != nil {
-				p.s(cfg)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			f := func(t *testing.T) {
+				c := config.NewConfig(p.g)
+				err := c.Unmarshal(p.k, p.target)
+				assert.IsType(t, p.err, err)
+				assert.Equal(t, p.cx, p.target)
 			}
-			err := cfg.Unmarshal(p.k, p.target)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.expected, p.target)
+			t.Run(p.name, f)
 		}
-		t.Run(p.name, f)
 	}
+	t.Run("Config", f)
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			f := func(t *testing.T) {
+				var err error
+				m := config.NewMust(p.g, config.WithErrorHandler(
+					func(e error) {
+						err = e
+					}))
+				m.Unmarshal(p.k, p.target)
+				assert.IsType(t, p.err, err)
+				assert.Equal(t, p.cx, p.target)
+			}
+			t.Run(p.name, f)
+		}
+	}
+	t.Run("Must", f)
 }
 
 func TestUnmarshalToMap(t *testing.T) {
-	mg := mockGetter{map[string]interface{}{
+	mg := mockGetter{
 		"foo.a": 42,
 		"foo.b": "foo.b",
 		"foo.c": []int{1, 2, 3, 4},
 		"foo.d": "ignored",
-	}}
+	}
 	patterns := []struct {
-		name     string
-		g        config.Getter
-		s        configSetup
-		target   map[string]interface{}
-		expected map[string]interface{}
-		err      error
+		name   string
+		g      config.Getter
+		target map[string]interface{}
+		cx     map[string]interface{}
+		err    error
 	}{
 		{"nil types",
-			mg, nil,
+			mg,
 			map[string]interface{}{"a": nil, "b": nil, "c": nil, "e": nil},
 			map[string]interface{}{
 				"a": 42,
@@ -1009,7 +850,7 @@ func TestUnmarshalToMap(t *testing.T) {
 			nil,
 		},
 		{"typed",
-			mg, nil,
+			mg,
 			map[string]interface{}{
 				"a": int(0),
 				"b": "",
@@ -1022,37 +863,28 @@ func TestUnmarshalToMap(t *testing.T) {
 				"e": "some useful default"},
 			nil,
 		},
-		{"aliased",
-			mg,
-			func(c *config.Config) {
-				c.AddAlias("foo.e", "foo.d")
-			},
-			map[string]interface{}{"e": nil},
-			map[string]interface{}{"e": "ignored"},
-			nil,
-		},
 		{"maltyped int",
-			mg, nil,
+			mg,
 			map[string]interface{}{"a": []int{0}},
 			map[string]interface{}{"a": []int{0}},
 			config.UnmarshalError{},
 		},
 		{"maltyped string",
-			mg, nil,
+			mg,
 			map[string]interface{}{"b": 2},
 			map[string]interface{}{"b": 2},
 			config.UnmarshalError{},
 		},
 		{"maltyped array",
-			mg, nil,
+			mg,
 			map[string]interface{}{"c": 3},
 			map[string]interface{}{"c": 3},
 			config.UnmarshalError{},
 		},
 		{"array of arrays",
-			mockGetter{map[string]interface{}{
+			mockGetter{
 				"foo.aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
-			}}, nil,
+			},
 			map[string]interface{}{"aa": nil},
 			map[string]interface{}{
 				"aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
@@ -1060,14 +892,13 @@ func TestUnmarshalToMap(t *testing.T) {
 			nil,
 		},
 		{"array of objects",
-			&mockGetter{map[string]interface{}{
+			&mockGetter{
 				"foo.f": []map[string]interface{}{
 					{"A": 1},
 					{"A": 2},
 				},
 				"foo.d": "ignored",
-			}},
-			nil,
+			},
 			map[string]interface{}{"f": nil},
 			map[string]interface{}{
 				"f": []map[string]interface{}{
@@ -1078,7 +909,7 @@ func TestUnmarshalToMap(t *testing.T) {
 			nil,
 		},
 		{"nested",
-			mockGetter{map[string]interface{}{
+			mockGetter{
 				"foo.a":        42,
 				"foo.b":        "foo.b",
 				"foo.c":        []int{1, 2, 3, 4},
@@ -1086,8 +917,7 @@ func TestUnmarshalToMap(t *testing.T) {
 				"foo.nested.a": 43,
 				"foo.nested.b": "foo.nested.b",
 				"foo.nested.c": []int{1, 2, -3, 4},
-			}},
-			nil,
+			},
 			map[string]interface{}{
 				"a": 0,
 				"nested": map[string]interface{}{
@@ -1105,7 +935,7 @@ func TestUnmarshalToMap(t *testing.T) {
 			nil,
 		},
 		{"nested maltyped",
-			mockGetter{map[string]interface{}{
+			mockGetter{
 				"foo.a":        42,
 				"foo.b":        "foo.b",
 				"foo.c":        []int{1, 2, 3, 4},
@@ -1113,8 +943,7 @@ func TestUnmarshalToMap(t *testing.T) {
 				"foo.nested.a": []int{},
 				"foo.nested.b": "foo.nested.b",
 				"foo.nested.c": []int{1, 2, -3, 4},
-			}},
-			nil,
+			},
 			map[string]interface{}{
 				"a": 0,
 				"nested": map[string]interface{}{
@@ -1131,49 +960,67 @@ func TestUnmarshalToMap(t *testing.T) {
 			},
 			config.UnmarshalError{},
 		},
-		{"nested alias",
-			mockGetter{map[string]interface{}{
-				"foo.b": "foo.b",
-				"foo.d": "ignored"},
-			},
-			func(c *config.Config) {
-				c.AddAlias("foo.nested.e", "foo.d")
-			},
-			map[string]interface{}{
-				"b": nil,
-				"nested": map[string]interface{}{
-					"e": nil},
-			},
-			map[string]interface{}{
-				"b": "foo.b",
-				"nested": map[string]interface{}{
-					"e": "ignored"},
-			},
-			nil,
-		},
 	}
-	for _, p := range patterns {
-		f := func(t *testing.T) {
-			cfg := config.New()
-			cfg.InsertGetter(p.g)
-			if p.s != nil {
-				p.s(cfg)
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			f := func(t *testing.T) {
+				c := config.NewConfig(p.g)
+				target, err := deepcopy(p.target)
+				assert.Nil(t, err)
+				require.NotNil(t, target)
+				err = c.UnmarshalToMap("foo", target)
+				assert.IsType(t, p.err, err)
+				assert.Equal(t, p.cx, target)
 			}
-			err := cfg.UnmarshalToMap("foo", p.target)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.expected, p.target)
+			t.Run(p.name, f)
 		}
-		t.Run(p.name, f)
 	}
+	t.Run("Config", f)
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			f := func(t *testing.T) {
+				var err error
+				m := config.NewMust(p.g, config.WithErrorHandler(
+					func(e error) {
+						err = e
+					}))
+				target, err := deepcopy(p.target)
+				assert.Nil(t, err)
+				require.NotNil(t, target)
+				m.UnmarshalToMap("foo", target)
+				assert.IsType(t, p.err, err)
+				assert.Equal(t, p.cx, target)
+			}
+			t.Run(p.name, f)
+		}
+	}
+	t.Run("Must", f)
 }
 
-// A simple mock Getter wrapping a map.
-
-type mockGetter struct {
-	config map[string]interface{}
-}
+type mockGetter map[string]interface{}
 
 func (m mockGetter) Get(key string) (interface{}, bool) {
-	v, ok := m.config[key]
+	v, ok := m[key]
 	return v, ok
+}
+
+func init() {
+	gob.Register(map[string]interface{}{})
+}
+
+// deepcopy performs a deep copy of the given map m.
+func deepcopy(m map[string]interface{}) (map[string]interface{}, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	dec := gob.NewDecoder(&buf)
+	err := enc.Encode(m)
+	if err != nil {
+		return nil, err
+	}
+	var copy map[string]interface{}
+	err = dec.Decode(&copy)
+	if err != nil {
+		return nil, err
+	}
+	return copy, nil
 }

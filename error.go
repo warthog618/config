@@ -5,6 +5,8 @@
 
 package config
 
+import "errors"
+
 // NotFoundError indicates that the Key could not be found in the config tree.
 type NotFoundError struct {
 	Key string
@@ -25,3 +27,7 @@ type UnmarshalError struct {
 func (e UnmarshalError) Error() string {
 	return "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
 }
+
+// ErrInvalidStruct indicates Unmarshal was provided an object to populate
+// which is not a pointer to struct.
+var ErrInvalidStruct = errors.New("unmarshal: provided obj is not pointer to struct")

@@ -15,11 +15,9 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	g := dict.New()
-	require.NotNil(t, g)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(g)
+	d := dict.New()
+	require.NotNil(t, d)
+	assert.Implements(t, (*config.Getter)(nil), d)
 }
 
 func TestGetter(t *testing.T) {

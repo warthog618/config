@@ -60,8 +60,8 @@ var defaultConfig = []byte(`{
 // Config defines the config interface used by this module.
 type Config interface {
 	GetBool(key string) (bool, error)
-	GetConfig(node string) (*config.Config, error)
 	GetInt(key string) (int64, error)
+	GetMust(node string, options ...config.MustOption) *config.Must
 	GetString(key string) (string, error)
 	Unmarshal(node string, obj interface{}) (rerr error)
 }
@@ -71,9 +71,6 @@ func loadConfig() Config {
 	if err != nil {
 		panic(err)
 	}
-	cfg := config.New(config.WithDefault(def))
-
-	// highest priority first - flags override environment
 	shortFlags := map[byte]string{
 		'b': "module2.bool",
 		'c': "config-file",
@@ -83,14 +80,14 @@ func loadConfig() Config {
 	if err != nil {
 		panic(err)
 	}
-	cfg.AppendGetter(fget)
-
 	// environment next
 	eget, err := env.New(env.WithEnvPrefix("APP_"))
 	if err != nil {
 		panic(err)
 	}
-	cfg.AppendGetter(eget)
+	// highest priority sources first - flags override environment
+	sources := config.NewStack(fget, eget)
+	cfg := config.NewConfig(config.Decorate(sources, config.WithDefault(def)))
 
 	// config file may be specified via flag or env, so check for it
 	// and if present add it with lower priority than flag and env.
@@ -101,12 +98,12 @@ func loadConfig() Config {
 		if err != nil {
 			panic(err)
 		}
-		cfg.AppendGetter(jget)
+		sources.Append(jget)
 	} else {
 		// implicit and optional default config file
 		jget, err := json.New(json.FromFile("app.json"))
 		if err == nil {
-			cfg.AppendGetter(jget)
+			sources.Append(jget)
 		} else {
 			if _, ok := err.(*os.PathError); !ok {
 				panic(err)
@@ -123,23 +120,23 @@ func dumpConfig(cfg Config) {
 	log.Println("unmarshal", unmarshal)
 	modules := []string{"module1", "module2"}
 	for _, module := range modules {
-		mCfg, _ := cfg.GetConfig(module)
+		mCfg := cfg.GetMust(module)
 		ints := []string{
 			"int",
 			"bool",
 		}
 		for _, v := range ints {
-			cint, _ := mCfg.GetInt(v)
+			cint := mCfg.GetInt(v)
 			log.Printf("%s.%s %v\n", module, v, cint)
 		}
 		v := "string"
-		cstr, _ := mCfg.GetString(v)
+		cstr := mCfg.GetString(v)
 		log.Printf("%s.%s %v\n", module, v, cstr)
 		v = "bool"
-		cbool, _ := mCfg.GetBool(v)
+		cbool := mCfg.GetBool(v)
 		log.Printf("%s.%s %v\n", module, v, cbool)
 		v = "slice"
-		cslice, _ := mCfg.GetSlice(v)
+		cslice := mCfg.GetSlice(v)
 		log.Printf("%s.%s %v\n", module, v, cslice)
 	}
 }

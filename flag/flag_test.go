@@ -24,9 +24,7 @@ func TestNew(t *testing.T) {
 	v, ok := f.Get("config.file")
 	assert.False(t, ok)
 	assert.Nil(t, v)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(f)
+	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
 // TestArgs tests the Args and Narg functions.
@@ -340,9 +338,7 @@ func TestNewWithCommandLine(t *testing.T) {
 	v, ok := f.Get("config.file")
 	assert.True(t, ok)
 	assert.Equal(t, "woot", v)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(f)
+	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
 func TestNewWithListSeparator(t *testing.T) {
@@ -386,9 +382,7 @@ func TestNewWithShortFlags(t *testing.T) {
 	v, ok := f.Get("config.file")
 	assert.True(t, ok)
 	assert.Equal(t, "woot", v)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(f)
+	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
 func BenchmarkGet(b *testing.B) {

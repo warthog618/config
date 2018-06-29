@@ -102,9 +102,7 @@ func TestNew(t *testing.T) {
 	v, ok := b.Get("bogus")
 	assert.False(t, ok)
 	assert.Nil(t, v)
-	// test b provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(b)
+	assert.Implements(t, (*config.Getter)(nil), b)
 }
 
 func TestNewFromBytes(t *testing.T) {
@@ -114,9 +112,7 @@ func TestNewFromBytes(t *testing.T) {
 	b, err = yaml.New(yaml.FromBytes(validConfig))
 	assert.Nil(t, err)
 	require.NotNil(t, b)
-	// test provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(b)
+	assert.Implements(t, (*config.Getter)(nil), b)
 }
 
 func TestNewFromFile(t *testing.T) {
@@ -129,8 +125,7 @@ func TestNewFromFile(t *testing.T) {
 	f, err = yaml.New(yaml.FromFile("config.yaml"))
 	assert.Nil(t, err)
 	require.NotNil(t, f)
-	cfg := config.New()
-	cfg.AppendGetter(f)
+	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
 func TestBytesGetterGet(t *testing.T) {

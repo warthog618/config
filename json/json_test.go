@@ -19,15 +19,13 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	b, err := json.New()
+	j, err := json.New()
 	assert.Nil(t, err)
-	require.NotNil(t, b)
-	v, ok := b.Get("bogus")
+	require.NotNil(t, j)
+	v, ok := j.Get("bogus")
 	assert.False(t, ok)
 	assert.Nil(t, v)
-	// test b provides config.Getter interface.
-	cfg := config.New()
-	cfg.AppendGetter(b)
+	assert.Implements(t, (*config.Getter)(nil), j)
 }
 
 func TestNewFromBytes(t *testing.T) {
