@@ -344,7 +344,7 @@ func String(v interface{}) (string, error) {
 //
 // The error identifies the first type conversion error, if any.
 //
-// Currently only support conversion from mpa[string]interface{},
+// Currently only support conversion from map[string]interface{},
 // but may support struct to struct conversions at a later date,
 // hence the wrapper around UnmarshalStructFromMap.
 func Struct(v interface{}, obj interface{}) error {
