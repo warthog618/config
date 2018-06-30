@@ -8,8 +8,8 @@ package yaml
 
 import (
 	"io/ioutil"
-	"strings"
 
+	"github.com/warthog618/config/tree"
 	"gopkg.in/yaml.v2"
 )
 
@@ -36,7 +36,7 @@ func New(options ...Option) (*Getter, error) {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	return getFromMapTree(r.config, key, r.sep)
+	return tree.GetFromMII(r.config, key, r.sep)
 }
 
 // Option is a function that modifies the Getter during construction,
@@ -69,23 +69,4 @@ func fromBytes(g *Getter, b []byte) error {
 	}
 	g.config = config
 	return nil
-}
-
-func getFromMapTree(node map[interface{}]interface{}, key string, pathSep string) (interface{}, bool) {
-	// full key match - also handles leaves
-	if v, ok := node[key]; ok {
-		if _, ok := v.(map[interface{}]interface{}); !ok {
-			return v, true
-		}
-	}
-	// nested path match
-	path := strings.Split(key, pathSep)
-	if v, ok := node[path[0]]; ok {
-		switch vt := v.(type) {
-		case map[interface{}]interface{}:
-			return getFromMapTree(vt, strings.Join(path[1:], pathSep), pathSep)
-		}
-	}
-	// no match
-	return nil, false
 }

@@ -22,6 +22,7 @@ float=  3.1415
 string = "this is a string"
 intSlice = [1,2,3,4]
 stringSlice = ["one","two","three","four"]
+sliceslice = [[1,2,3,4],[5,6,7,8]]
 
 [nested]
 bool = false
@@ -52,6 +53,7 @@ func testGetterGet(t *testing.T, g *toml.Getter) {
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
+		"animals[0]",
 	}
 	for _, key := range bogusKeys {
 		if v, ok := g.Get(key); ok {
@@ -69,16 +71,29 @@ func testGetterGet(t *testing.T, g *toml.Getter) {
 		{"float", 3.1415},
 		{"string", "this is a string"},
 		{"intSlice", []interface{}{int64(1), int64(2), int64(3), int64(4)}},
+		{"intSlice[]", 4},
+		{"intSlice[2]", float64(3)},
 		{"stringSlice", []interface{}{"one", "two", "three", "four"}},
+		{"stringSlice[]", 4},
+		{"stringSlice[2]", "three"},
+		{"sliceslice", []interface{}{
+			[]interface{}{int64(1), int64(2), int64(3), int64(4)},
+			[]interface{}{int64(5), int64(6), int64(7), int64(8)}}},
+		{"sliceslice[]", 2},
+		{"sliceslice[0][]", 4},
+		{"sliceslice[1]", []interface{}{int64(5), int64(6), int64(7), int64(8)}},
+		{"sliceslice[1][2]", 7},
 		{"nested.bool", false},
 		{"nested.int", 18},
 		{"nested.float", 3.141},
 		{"nested.string", "this is also a string"},
 		{"nested.intSlice", []interface{}{int64(1), int64(2), int64(3), int64(4), int64(5), int64(6)}},
 		{"nested.stringSlice", []interface{}{"one", "two", "three"}},
-		{"animals", []interface{}{
-			map[string]interface{}{"name": "Platypus", "order": "Monotremata"},
-			map[string]interface{}{"name": "Quoll", "order": "Dasyuromorphia"}}},
+		{"nested.stringSlice[]", 3},
+		{"nested.stringSlice[0]", "one"},
+		{"animals", []interface{}{nil, nil}},
+		{"animals[]", 2},
+		{"animals[0].name", "Platypus"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {

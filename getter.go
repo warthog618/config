@@ -16,8 +16,21 @@ type Getter interface {
 	// was found.
 	// The type underlying the returned interface{} must be convertable to
 	// the expected type by cfgconv.
-	// For arrays a []interface{} should be returned.
-	// For objects a map[string]interface{} should be returned.
+	//
+	// Get does not need to support getting of objects, as returning
+	// of complete objects is neither supported nor required.
+	//
+	// But it does support getting of arrays.
+	// For arrays, referenced by the array name say "ax", a []interface{}
+	// must be returned.
+	// Array elements are referenced using keys of form "ax[idx]",
+	// where idx is the zero-based index into the array.
+	// The length of the array is returned by a key of form "ax[]".
+	// If the getter only contains part of the array then it should return
+	// only the elements it contains, not "ax" or "ax[]".
+	//
+	// For arrays of objects the array must be returned, to be consistent
+	// with other arrays, but the elements may be nil.
 	//
 	// Must be safe to call from multiple goroutines.
 	Get(key string) (value interface{}, found bool)

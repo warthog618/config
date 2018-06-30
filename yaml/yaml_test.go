@@ -22,6 +22,7 @@ float: 3.1415
 string: this is a string
 intSlice: [1,2,3,4]
 stringSlice: [one,two,three,four]
+sliceslice: [[1,2,3,4],[5,6,7,8]]
 nested:
   bool: false
   int: 18
@@ -29,6 +30,11 @@ nested:
   string: this is also a string
   intSlice: [1,2,3,4,5,6]
   stringSlice: [one,two,three]
+animals:
+  - Name: Platypus
+    Order: Monotremata
+  - Name: Quoll
+    Order: Dasyuromorphia
 `)
 
 var malformedConfig = []byte(`
@@ -43,6 +49,7 @@ func testGetterGet(t *testing.T, g *yaml.Getter) {
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
+		"animals[0]",
 	}
 	for _, key := range bogusKeys {
 		if v, ok := g.Get(key); ok {
@@ -60,13 +67,31 @@ func testGetterGet(t *testing.T, g *yaml.Getter) {
 		{"float", 3.1415},
 		{"string", "this is a string"},
 		{"intSlice", []interface{}{int(1), int(2), int(3), int(4)}},
+		{"intSlice[]", 4},
+		{"intSlice[2]", int(3)},
 		{"stringSlice", []interface{}{"one", "two", "three", "four"}},
+		{"stringSlice[]", 4},
+		{"stringSlice[2]", "three"},
+		{"sliceslice", []interface{}{
+			[]interface{}{int(1), int(2), int(3), int(4)},
+			[]interface{}{int(5), int(6), int(7), int(8)}}},
+		{"sliceslice[]", 2},
+		{"sliceslice[0][]", 4},
+		{"sliceslice[1]", []interface{}{int(5), int(6), int(7), int(8)}},
+		{"sliceslice[1][2]", 7},
 		{"nested.bool", false},
 		{"nested.int", 18},
 		{"nested.float", 3.141},
 		{"nested.string", "this is also a string"},
 		{"nested.intSlice", []interface{}{int(1), int(2), int(3), int(4), int(5), int(6)}},
+		{"nested.intSlice[]", 6},
+		{"nested.intSlice[3]", float64(4)},
 		{"nested.stringSlice", []interface{}{"one", "two", "three"}},
+		{"nested.stringSlice[]", 3},
+		{"nested.stringSlice[0]", "one"},
+		{"animals", []interface{}{nil, nil}},
+		{"animals[]", 2},
+		{"animals[0].Name", "Platypus"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
@@ -149,6 +174,7 @@ float: 3.1415
 string: this is a string
 intSlice: [1,2,3,4]
 stringSlice: [one,two,three,four]
+sliceslice: [[1,2,3,4],[5,6,7,8]]
 nested:
   bool: false
   int: 18

@@ -694,7 +694,7 @@ func TestUnmarshal(t *testing.T) {
 		g      config.Getter
 		k      string
 		target interface{}
-		cx     interface{}
+		x      interface{}
 		err    error
 	}{
 		{"non-struct target",
@@ -756,14 +756,13 @@ func TestUnmarshal(t *testing.T) {
 			nil},
 		{"array of object",
 			&mockGetter{
-				"foo.f": []map[string]interface{}{
-					{"a": 1},
-					{"a": 2},
-				},
-				"foo.d": "ignored",
+				"foo.f[]":    2,
+				"foo.f[0].a": 1,
+				"foo.f[1].a": 2,
+				"foo.d":      "ignored",
 			},
 			"foo",
-			&fooConfig{F: []innerConfig{{}, {}}},
+			&fooConfig{F: []innerConfig{}},
 			&fooConfig{
 				F: []innerConfig{
 					{A: 1},
@@ -801,7 +800,7 @@ func TestUnmarshal(t *testing.T) {
 				c := config.NewConfig(p.g)
 				err := c.Unmarshal(p.k, p.target)
 				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.cx, p.target)
+				assert.Equal(t, p.x, p.target)
 			}
 			t.Run(p.name, f)
 		}
@@ -817,7 +816,7 @@ func TestUnmarshal(t *testing.T) {
 					}))
 				m.Unmarshal(p.k, p.target)
 				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.cx, p.target)
+				assert.Equal(t, p.x, p.target)
 			}
 			t.Run(p.name, f)
 		}
@@ -836,7 +835,7 @@ func TestUnmarshalToMap(t *testing.T) {
 		name   string
 		g      config.Getter
 		target map[string]interface{}
-		cx     map[string]interface{}
+		x      map[string]interface{}
 		err    error
 	}{
 		{"nil types",
@@ -881,7 +880,7 @@ func TestUnmarshalToMap(t *testing.T) {
 			map[string]interface{}{"c": 3},
 			config.UnmarshalError{},
 		},
-		{"array of arrays",
+		{"raw array of arrays",
 			mockGetter{
 				"foo.aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
 			},
@@ -891,15 +890,49 @@ func TestUnmarshalToMap(t *testing.T) {
 			},
 			nil,
 		},
+		{"array of array of int",
+			mockGetter{
+				"foo.aa": [][]int64{{1, 2, 3, 4}, {4, 5, 6, 7}},
+			},
+			map[string]interface{}{"aa": [][]int{}},
+			map[string]interface{}{
+				"aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
+			},
+			nil,
+		},
+
+		{"array of interface",
+			mockGetter{
+				"foo.aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
+			},
+			map[string]interface{}{"aa": []interface{}{}},
+			map[string]interface{}{
+				"aa": []interface{}{[]int{1, 2, 3, 4}, []int{4, 5, 6, 7}},
+			},
+			nil,
+		},
+		{"array of arrays",
+			mockGetter{
+				"foo.aa": [][]int{{1, 2, 3, 4}, {4, 5, 6, 7}},
+			},
+			map[string]interface{}{"aa": [][]interface{}{}},
+			map[string]interface{}{
+				"aa": [][]interface{}{{1, 2, 3, 4}, {4, 5, 6, 7}},
+			},
+			nil,
+		},
 		{"array of objects",
 			&mockGetter{
-				"foo.f": []map[string]interface{}{
-					{"A": 1},
-					{"A": 2},
-				},
-				"foo.d": "ignored",
+				"foo.f[]":    2,
+				"foo.f[0].A": 1,
+				"foo.f[1].A": 2,
+				"foo.d":      "ignored",
 			},
-			map[string]interface{}{"f": nil},
+			map[string]interface{}{
+				"f": []map[string]interface{}{
+					{"A": 0},
+				},
+			},
 			map[string]interface{}{
 				"f": []map[string]interface{}{
 					{"A": 1},
@@ -970,7 +1003,7 @@ func TestUnmarshalToMap(t *testing.T) {
 				require.NotNil(t, target)
 				err = c.UnmarshalToMap("foo", target)
 				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.cx, target)
+				assert.Equal(t, p.x, target)
 			}
 			t.Run(p.name, f)
 		}
@@ -989,7 +1022,7 @@ func TestUnmarshalToMap(t *testing.T) {
 				require.NotNil(t, target)
 				m.UnmarshalToMap("foo", target)
 				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.cx, target)
+				assert.Equal(t, p.x, target)
 			}
 			t.Run(p.name, f)
 		}
@@ -1005,7 +1038,11 @@ func (m mockGetter) Get(key string) (interface{}, bool) {
 }
 
 func init() {
+	gob.Register([]interface{}{})
+	gob.Register([][]interface{}{})
+	gob.Register([][]int{})
 	gob.Register(map[string]interface{}{})
+	gob.Register([]map[string]interface{}{})
 }
 
 // deepcopy performs a deep copy of the given map m.

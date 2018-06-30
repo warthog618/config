@@ -119,6 +119,8 @@ func TestConvert(t *testing.T) {
 		{"slice parse error string", []int{}, "glob", []int(nil), &strconv.NumError{}},
 		{"slice parse error", []int{}, []string{"1", "2", "3", "glob"}, []int(nil), &strconv.NumError{}},
 		{"slice slice", []int{}, []string{"1", "2", "3"}, []int{1, 2, 3}, nil},
+		{"slice if slice", []interface{}{}, []int{1, 2, 3}, []interface{}{1, 2, 3}, nil},
+		{"if good", interface{}(nil), 1, 1, nil},
 		{"slice string", []int{}, "42", []int{42}, nil},
 		{"string bad", "", []int{}, "", cfgconv.TypeError{}},
 		{"string good", "", 42, "42", nil},

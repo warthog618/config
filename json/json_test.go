@@ -92,6 +92,7 @@ var validConfig = []byte(`{
 	"string": "this is a string",
 	"intSlice": [1,2,3,4],
 	"stringSlice": ["one","two","three","four"],
+	"sliceslice": [[1,2,3,4],[5,6,7,8]],
 	"nested": {
 	  "bool": false,
 	  "int": 18,
@@ -118,11 +119,12 @@ func testGetterGet(t *testing.T, g *json.Getter) {
 	bogusKeys := []string{
 		"intslice", "stringslice", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
+		"animals[0]",
 	}
 	for _, key := range bogusKeys {
 		v, ok := g.Get(key)
-		assert.False(t, ok)
-		assert.Nil(t, v)
+		assert.False(t, ok, key)
+		assert.Nil(t, v, key)
 	}
 	patterns := []struct {
 		k string
@@ -133,16 +135,31 @@ func testGetterGet(t *testing.T, g *json.Getter) {
 		{"float", 3.1415},
 		{"string", "this is a string"},
 		{"intSlice", []interface{}{float64(1), float64(2), float64(3), float64(4)}},
+		{"intSlice[]", 4},
+		{"intSlice[2]", float64(3)},
 		{"stringSlice", []interface{}{"one", "two", "three", "four"}},
+		{"stringSlice[]", 4},
+		{"stringSlice[2]", "three"},
+		{"sliceslice", []interface{}{
+			[]interface{}{float64(1), float64(2), float64(3), float64(4)},
+			[]interface{}{float64(5), float64(6), float64(7), float64(8)}}},
+		{"sliceslice[]", 2},
+		{"sliceslice[0][]", 4},
+		{"sliceslice[1]", []interface{}{float64(5), float64(6), float64(7), float64(8)}},
+		{"sliceslice[1][2]", 7},
 		{"nested.bool", false},
 		{"nested.int", 18},
 		{"nested.float", 3.141},
 		{"nested.string", "this is also a string"},
 		{"nested.intSlice", []interface{}{float64(1), float64(2), float64(3), float64(4), float64(5), float64(6)}},
+		{"nested.intSlice[]", 6},
+		{"nested.intSlice[3]", float64(4)},
 		{"nested.stringSlice", []interface{}{"one", "two", "three"}},
-		{"animals", []interface{}{
-			map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
-			map[string]interface{}{"Name": "Quoll", "Order": "Dasyuromorphia"}}},
+		{"nested.stringSlice[]", 3},
+		{"nested.stringSlice[0]", "one"},
+		{"animals", []interface{}{nil, nil}},
+		{"animals[]", 2},
+		{"animals[0].Name", "Platypus"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
@@ -161,6 +178,8 @@ func testGetterGet(t *testing.T, g *json.Getter) {
 				cv, err = cfgconv.String(v)
 			case []interface{}:
 				cv, err = cfgconv.Slice(v)
+			case nil:
+				cv = v
 			default:
 				assert.Fail(t, "unsupported value type")
 			}

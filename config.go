@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 	"unicode"
@@ -289,13 +290,38 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 		if len(key) == 0 {
 			key = lowerCamelCase(ft.Name)
 		}
-		if fv.Kind() == reflect.Struct {
+		switch fv.Kind() {
+		case reflect.Struct:
 			// nested struct
 			err := nodeCfg.Unmarshal(key, fv.Addr().Interface())
 			if err != nil && rerr == nil {
 				rerr = err
 			}
-		} else {
+		case reflect.Array, reflect.Slice:
+			if fv.Type().Elem().Kind() == reflect.Struct {
+				if v, err := nodeCfg.Get(key + "[]"); err == nil {
+					al64, err := cfgconv.Int(v)
+					if err != nil {
+						if rerr == nil {
+							rerr = err
+						}
+						continue
+					}
+					al := int(al64)
+					a := reflect.MakeSlice(fv.Type(), al, al)
+					for i := 0; i < al; i++ {
+						k := fmt.Sprintf("%s[%d]", key, i)
+						err := nodeCfg.Unmarshal(k, a.Index(i).Addr().Interface())
+						if err != nil && rerr == nil {
+							rerr = err
+						}
+					}
+					fv.Set(a)
+					continue
+				}
+			}
+			fallthrough
+		default:
 			// else assume a leaf
 			if v, err := nodeCfg.Get(key); err == nil {
 				if cv, err := cfgconv.Convert(v, fv.Type()); err == nil {
@@ -337,6 +363,33 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 			err := nodeCfg.UnmarshalToMap(key, v)
 			if err != nil && rerr == nil {
 				rerr = err
+			}
+		} else if v, ok := objmap[key].([]map[string]interface{}); ok {
+			// array of objects
+			if len(v) == 0 {
+				continue
+			}
+			if alv, err := nodeCfg.Get(key + "[]"); err == nil {
+				al64, err := cfgconv.Int(alv)
+				if err != nil {
+					if rerr == nil {
+						rerr = err
+					}
+				}
+				al := int(al64)
+				a := make([]map[string]interface{}, al, al)
+				for i := 0; i < al; i++ {
+					a[i] = make(map[string]interface{}, len(v[0]))
+					for k, v := range v[0] {
+						a[i][k] = v
+					}
+					k := fmt.Sprintf("%s[%d]", key, i)
+					err := nodeCfg.UnmarshalToMap(k, a[i])
+					if err != nil && rerr == nil {
+						rerr = err
+					}
+				}
+				objmap[key] = a
 			}
 		} else if v, err := nodeCfg.Get(key); err == nil {
 			// else assume a leaf

@@ -81,6 +81,9 @@ func Bool(v interface{}) (bool, error) {
 // Returned errors are typically TypeErrors or OverflowErrors,
 // but can also be errors from underlying type converters.
 func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
+	if rt == nil {
+		return v, nil
+	}
 	rv := reflect.Indirect(reflect.New(rt))
 	ri := rv.Interface()
 	// First handle specific types.
@@ -168,6 +171,8 @@ func Convert(v interface{}, rt reflect.Type) (interface{}, error) {
 		default:
 			return ri, TypeError{Value: v, Kind: reflect.Slice}
 		}
+	case reflect.Interface:
+		return v, nil
 	}
 	return rv.Interface(), nil
 }
