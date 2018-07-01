@@ -270,11 +270,7 @@ func (c *Config) GetUintSlice(key string) (retval []uint64, rerr error) {
 //
 // The error identifies the first type conversion error, if any.
 func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
-	ov := reflect.ValueOf(obj)
-	if ov.Kind() != reflect.Ptr {
-		return ErrInvalidStruct
-	}
-	ov = reflect.Indirect(reflect.ValueOf(obj))
+	ov := getStructFromPtr(obj)
 	if ov.Kind() != reflect.Struct {
 		return ErrInvalidStruct
 	}
@@ -286,7 +282,7 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 			continue
 		}
 		ft := ov.Type().Field(idx)
-		key := ft.Tag.Get("config")
+		key := ft.Tag.Get(nodeCfg.tag)
 		if len(key) == 0 {
 			key = lowerCamelCase(ft.Name)
 		}
@@ -294,31 +290,19 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 		case reflect.Struct:
 			// nested struct
 			err := nodeCfg.Unmarshal(key, fv.Addr().Interface())
-			if err != nil && rerr == nil {
+			if rerr == nil {
 				rerr = err
 			}
 		case reflect.Array, reflect.Slice:
 			if fv.Type().Elem().Kind() == reflect.Struct {
-				if v, err := nodeCfg.Get(key + "[]"); err == nil {
-					al64, err := cfgconv.Int(v)
-					if err != nil {
-						if rerr == nil {
-							rerr = err
-						}
-						continue
-					}
-					al := int(al64)
-					a := reflect.MakeSlice(fv.Type(), al, al)
-					for i := 0; i < al; i++ {
-						k := fmt.Sprintf("%s[%d]", key, i)
-						err := nodeCfg.Unmarshal(k, a.Index(i).Addr().Interface())
-						if err != nil && rerr == nil {
-							rerr = err
-						}
-					}
-					fv.Set(a)
-					continue
+				a, err := unmarshalObjectArray(nodeCfg, key, fv.Type())
+				if rerr == nil {
+					rerr = err
 				}
+				if !a.IsNil() {
+					fv.Set(a)
+				}
+				continue
 			}
 			fallthrough
 		default:
@@ -333,6 +317,34 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 		}
 	}
 	return rerr
+}
+
+func getStructFromPtr(obj interface{}) reflect.Value {
+	ov := reflect.ValueOf(obj)
+	if ov.Kind() != reflect.Ptr {
+		return reflect.Value{}
+	}
+	return reflect.Indirect(reflect.ValueOf(obj))
+}
+
+func unmarshalObjectArray(node *Config, key string, t reflect.Type) (a reflect.Value, rerr error) {
+	if v, err := node.Get(key + "[]"); err == nil {
+		al64, err := cfgconv.Int(v)
+		if err != nil {
+			return reflect.Zero(t), err
+		}
+		al := int(al64)
+		a = reflect.MakeSlice(t, al, al)
+		for i := 0; i < al; i++ {
+			k := fmt.Sprintf("%s[%d]", key, i)
+			err := node.Unmarshal(k, a.Index(i).Addr().Interface())
+			if rerr == nil {
+				rerr = err
+			}
+		}
+		return a, rerr
+	}
+	return reflect.Zero(t), nil
 }
 
 // UnmarshalToMap unmarshals a section of the config tree into a map[string]interface{}.
@@ -358,49 +370,62 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 			if v, err := nodeCfg.Get(key); err == nil {
 				objmap[key] = v
 			}
-		} else if v, ok := objmap[key].(map[string]interface{}); ok {
+			continue
+		}
+		switch v := objmap[key].(type) {
+		case map[string]interface{}:
 			// nested map
 			err := nodeCfg.UnmarshalToMap(key, v)
-			if err != nil && rerr == nil {
+			if rerr == nil {
 				rerr = err
 			}
-		} else if v, ok := objmap[key].([]map[string]interface{}); ok {
+		case []map[string]interface{}:
 			// array of objects
-			if len(v) == 0 {
-				continue
+			a, err := unmarshalObjectArrayToMap(nodeCfg, key, v)
+			if rerr == nil {
+				rerr = err
 			}
-			if alv, err := nodeCfg.Get(key + "[]"); err == nil {
-				al64, err := cfgconv.Int(alv)
-				if err != nil {
-					if rerr == nil {
-						rerr = err
-					}
-				}
-				al := int(al64)
-				a := make([]map[string]interface{}, al, al)
-				for i := 0; i < al; i++ {
-					a[i] = make(map[string]interface{}, len(v[0]))
-					for k, v := range v[0] {
-						a[i][k] = v
-					}
-					k := fmt.Sprintf("%s[%d]", key, i)
-					err := nodeCfg.UnmarshalToMap(k, a[i])
-					if err != nil && rerr == nil {
-						rerr = err
-					}
-				}
+			if a != nil {
 				objmap[key] = a
 			}
-		} else if v, err := nodeCfg.Get(key); err == nil {
-			// else assume a leaf
-			if cv, err := cfgconv.Convert(v, vv.Type()); err == nil {
-				objmap[key] = cv
-			} else if rerr == nil {
-				rerr = UnmarshalError{node + c.pathSep + key, err}
+		default:
+			if v, err := nodeCfg.Get(key); err == nil {
+				// else assume a leaf
+				if cv, err := cfgconv.Convert(v, vv.Type()); err == nil {
+					objmap[key] = cv
+				} else if rerr == nil {
+					rerr = UnmarshalError{node + c.pathSep + key, err}
+				}
 			}
 		}
 	}
 	return rerr
+}
+
+func unmarshalObjectArrayToMap(node *Config, key string, tmpl []map[string]interface{}) (a []map[string]interface{}, rerr error) {
+	if len(tmpl) == 0 {
+		return
+	}
+	if alv, err := node.Get(key + "[]"); err == nil {
+		al64, err := cfgconv.Int(alv)
+		if err != nil {
+			rerr = err
+		}
+		al := int(al64)
+		a = make([]map[string]interface{}, al, al)
+		for i := 0; i < al; i++ {
+			a[i] = make(map[string]interface{}, len(tmpl[0]))
+			for k, v := range tmpl[0] {
+				a[i][k] = v
+			}
+			k := fmt.Sprintf("%s[%d]", key, i)
+			err := node.UnmarshalToMap(k, a[i])
+			if rerr == nil {
+				rerr = err
+			}
+		}
+	}
+	return a, rerr
 }
 
 // Get gets the raw value corresponding to the key.
