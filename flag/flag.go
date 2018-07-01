@@ -144,15 +144,37 @@ func (r *Getter) NFlag() int {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	v, ok := r.config[key]
-	if ok && len(r.listSeparator) > 0 {
-		if vstr, sok := v.(string); sok {
-			if strings.Contains(vstr, r.listSeparator) {
-				return strings.Split(vstr, r.listSeparator), ok
+	if v, ok := r.config[key]; ok {
+		if len(r.listSeparator) > 0 {
+			if vstr, sok := v.(string); sok {
+				if strings.Contains(vstr, r.listSeparator) {
+					return strings.Split(vstr, r.listSeparator), ok
+				}
+			}
+		}
+		return v, ok
+	}
+	if p, ok := keys.IsArrayLen(key); ok {
+		if v, ok := r.config[p]; ok {
+			if vstr, sok := v.(string); sok {
+				return strings.Count(vstr, r.listSeparator) + 1, ok
 			}
 		}
 	}
-	return v, ok
+	if p, i := keys.ParseArrayElement(key); len(i) == 1 {
+		if v, ok := r.config[p]; ok {
+			if vstr, sok := v.(string); sok {
+				if len(r.listSeparator) > 0 && strings.Contains(vstr, r.listSeparator) {
+					l := strings.Split(vstr, r.listSeparator)
+					if i[0] < len(l) {
+						return l[i[0]], true
+					}
+					return nil, false
+				}
+			}
+		}
+	}
+	return nil, false
 }
 
 func incrementFlag(config map[string]interface{}, key string) {

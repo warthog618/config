@@ -7,6 +7,7 @@
 package keys
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -55,6 +56,16 @@ func CamelCaseSepReplacer(sep string) ReplacerFunc {
 	}
 }
 
+// IsArrayLen determines if the key corresponds to an array length.
+// i.e. is of the form a[].
+// If so IsArrayLen returns true and the name of the array.
+func IsArrayLen(key string) (string, bool) {
+	if strings.HasSuffix(key, "[]") {
+		return key[:len(key)-2], true
+	}
+	return key, false
+}
+
 // LowerCamelCaseReplacer is a replacer that that forces keys to camel case,
 // so each word begins with a capital letter, except the first word which
 // is all lower case.
@@ -95,6 +106,29 @@ func NullReplacer() ReplacerFunc {
 	return func(key string) string {
 		return key
 	}
+}
+
+// ParseArrayElement determines if the key corresponds to an array element.
+// i.e. is of the form a[i].
+// Returns the name of the array and the a list of indicies into the array.
+func ParseArrayElement(key string) (string, []int) {
+	if !strings.HasSuffix(key, "]") {
+		return key, nil
+	}
+	start := strings.Index(key, "[")
+	if start == -1 {
+		return key, nil
+	}
+	i := strings.Split(key[start+1:len(key)-1], "][")
+	ii := make([]int, len(i))
+	for i, is := range i {
+		idx, err := strconv.Atoi(is)
+		if err != nil {
+			return key, nil
+		}
+		ii[i] = idx
+	}
+	return key[0:start], ii
 }
 
 // PrefixReplacer adds a prefix to keys.

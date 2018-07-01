@@ -172,7 +172,7 @@ func TestGetterGet(t *testing.T) {
 		k string
 		v interface{}
 	}
-	bogus := []string{"bogus", "nested", "nonsense"}
+	bogus := []string{"bogus", "nested", "nonsense", "slice[3]"}
 	patterns := []struct {
 		name      string
 		args      []string
@@ -222,10 +222,12 @@ func TestGetterGet(t *testing.T) {
 			},
 			[]kv{
 				{"leaf", "42"},
-				{"nested.leaf", "44"},
 				{"logging.verbosity", 4},
-				{"slice", []string{"a", "b"}},
+				{"nested.leaf", "44"},
 				{"nested.slice", []string{"c", "d"}},
+				{"slice", []string{"a", "b"}},
+				{"slice[]", 2},
+				{"slice[1]", "b"},
 			}, bogus,
 		},
 		{"precedence",
@@ -281,7 +283,6 @@ func TestGetterGet(t *testing.T) {
 				flag.WithShortFlags(p.shorts))
 			assert.Nil(t, err)
 			require.NotNil(t, f)
-			assert.Equal(t, len(p.expected), f.NFlag())
 			for _, x := range p.expected {
 				v, ok := f.Get(x.k)
 				assert.True(t, ok, x.k)

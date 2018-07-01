@@ -7,8 +7,9 @@
 package tree
 
 import (
-	"strconv"
 	"strings"
+
+	"github.com/warthog618/config/keys"
 )
 
 // Get returns the element identified by key from configuration stored
@@ -39,12 +40,12 @@ func getFromMII(node map[interface{}]interface{}, key string, pathSep string) (i
 			return getNestedElement(v, path[1], pathSep)
 		}
 	} else {
-		if a, ok := isArrayLen(path[0]); ok {
+		if a, ok := keys.IsArrayLen(path[0]); ok {
 			lenreq = true
 			path[0] = a
 		}
 	}
-	a, idx := parseArrayElement(path[0])
+	a, idx := keys.ParseArrayElement(path[0])
 	if lenreq || idx != nil {
 		if v, ok := node[a]; ok {
 			return getArrayElement(v, path, pathSep, idx, lenreq)
@@ -69,12 +70,12 @@ func getFromMSI(node map[string]interface{}, key string, pathSep string) (interf
 			return getNestedElement(v, path[1], pathSep)
 		}
 	} else {
-		if a, ok := isArrayLen(path[0]); ok {
+		if a, ok := keys.IsArrayLen(path[0]); ok {
 			lenreq = true
 			path[0] = a
 		}
 	}
-	a, idx := parseArrayElement(path[0])
+	a, idx := keys.ParseArrayElement(path[0])
 	if lenreq || idx != nil {
 		if v, ok := node[a]; ok {
 			return getArrayElement(v, path, pathSep, idx, lenreq)
@@ -143,37 +144,4 @@ func getNestedElement(v interface{}, key string, pathSep string) (interface{}, b
 	default:
 		return v, true
 	}
-}
-
-// isArrayLen determines if the key corresponds to an array length.
-// i.e. is of the form a[].
-// If so isArrayLen returns true and the name of the array.
-func isArrayLen(key string) (string, bool) {
-	if strings.HasSuffix(key, "[]") {
-		return key[:len(key)-2], true
-	}
-	return key, false
-}
-
-// parseArrayElement determines if the key corresponds to an array element.
-// i.e. is of the form a[i].
-// The name of the array and the a list of indicies into the array.
-func parseArrayElement(key string) (string, []int) {
-	if !strings.HasSuffix(key, "]") {
-		return key, nil
-	}
-	start := strings.Index(key, "[")
-	if start == -1 {
-		return key, nil
-	}
-	i := strings.Split(key[start+1:len(key)-1], "][")
-	ii := make([]int, len(i))
-	for i, is := range i {
-		idx, err := strconv.Atoi(is)
-		if err != nil {
-			return key, nil
-		}
-		ii[i] = idx
-	}
-	return key[0:start], ii
 }

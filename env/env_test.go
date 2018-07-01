@@ -39,12 +39,15 @@ func TestGetterGet(t *testing.T) {
 		ok   bool
 	}{
 		{"leaf", "leaf", "42", true},
-		{"slice", "slice", []string{"a", "b"}, true},
-		{"nested", "nested", nil, false},
 		{"nested leaf", "nested.leaf", "44", true},
-		{"nested slice", "nested.slice", []string{"c", "d"}, true},
-		{"nonsense", "nonsense", nil, false},
 		{"nested nonsense", "nested.nonsense", nil, false},
+		{"nested slice", "nested.slice", []string{"c", "d"}, true},
+		{"nested", "nested", nil, false},
+		{"nonsense", "nonsense", nil, false},
+		{"slice", "slice", []string{"a", "b"}, true},
+		{"slice[]", "slice[]", 2, true},
+		{"slice[1]", "slice[1]", "b", true},
+		{"slice[4]", "slice[3]", nil, false},
 	}
 	prefix := "CFGENV_"
 	setup(prefix)

@@ -100,6 +100,27 @@ func TestChainReplacer(t *testing.T) {
 	}
 }
 
+func TestIsArrayLen(t *testing.T) {
+	patterns := []struct {
+		k  string
+		x  string
+		ok bool
+	}{
+		{"a", "a", false},
+		{"a[]", "a", true},
+		{"a[][]", "a[]", true},
+		{"a[2][]", "a[2]", true},
+		{"a[", "a[", false},
+		{"a]", "a]", false},
+		{"[]a", "[]a", false},
+	}
+	for _, p := range patterns {
+		v, ok := keys.IsArrayLen(p.k)
+		assert.Equal(t, p.ok, ok, p.k)
+		assert.Equal(t, p.x, v, p.k)
+	}
+}
+
 func TestLowerCamelCaseReplacer(t *testing.T) {
 	patterns := []struct {
 		in       string
@@ -192,6 +213,26 @@ func TestNullReplacer(t *testing.T) {
 			assert.Equal(t, p.expected, v)
 		}
 		t.Run(p.in, f)
+	}
+}
+
+func TestParseArrayElement(t *testing.T) {
+	patterns := []struct {
+		k string
+		x string
+		i []int
+	}{
+		{"", "", nil},
+		{"a", "a", nil},
+		{"a[0]", "a", []int{0}},
+		{"a[1][2]", "a", []int{1, 2}},
+		{"a]", "a]", nil},
+		{"a[1][notint]", "a[1][notint]", nil},
+	}
+	for _, p := range patterns {
+		v, i := keys.ParseArrayElement(p.k)
+		assert.Equal(t, p.i, i, p.k)
+		assert.Equal(t, p.x, v, p.k)
 	}
 }
 
