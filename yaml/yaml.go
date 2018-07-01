@@ -36,7 +36,7 @@ func New(options ...Option) (*Getter, error) {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	return tree.GetFromMII(r.config, key, r.sep)
+	return tree.Get(r.config, key, r.sep)
 }
 
 // Option is a function that modifies the Getter during construction,

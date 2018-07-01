@@ -11,33 +11,30 @@ import (
 	"strings"
 )
 
-// GetFromMII performs a get from a config tree structures as a map[interface{}]interface{},
+func Get(node interface{}, key string, pathSep string) (interface{}, bool) {
+	switch nt := node.(type) {
+	case map[string]interface{}:
+		return getFromMSI(nt, key, pathSep)
+	case map[interface{}]interface{}:
+		return getFromMII(nt, key, pathSep)
+	default:
+		return nil, false
+	}
+}
+
+// getFromMII performs a get from a config tree structures as a map[interface{}]interface{},
 // as returned by yaml.Unmarshal.
-func GetFromMII(node map[interface{}]interface{}, key string, pathSep string) (interface{}, bool) {
+func getFromMII(node map[interface{}]interface{}, key string, pathSep string) (interface{}, bool) {
 	// full key match - also handles leaves
 	if v, ok := node[key]; ok {
-		switch vt := v.(type) {
-		case map[interface{}]interface{}:
-			return nil, false
-		case []interface{}:
-			if len(vt) > 0 {
-				if _, ok := vt[0].(map[interface{}]interface{}); ok {
-					return make([]interface{}, len(vt)), true
-				}
-			}
-		}
-		return v, true
+		return getLeafElement(v)
 	}
 	lenreq := false
 	path := strings.SplitN(key, pathSep, 2)
 	if len(path) > 1 {
 		// nested path match
 		if v, ok := node[path[0]]; ok {
-			switch vt := v.(type) {
-			case map[interface{}]interface{}:
-				return GetFromMII(vt, path[1], pathSep)
-			}
-			return v, true
+			return getNestedElement(v, path[1], pathSep)
 		}
 	} else {
 		if a, ok := isArrayLen(path[0]); ok {
@@ -48,65 +45,26 @@ func GetFromMII(node map[interface{}]interface{}, key string, pathSep string) (i
 	a, idx := parseArrayElement(path[0])
 	if lenreq || idx != nil {
 		if v, ok := node[a]; ok {
-			for _, i := range idx {
-				if av, ok := v.([]interface{}); ok {
-					if i < len(av) {
-						v = av[i]
-						continue
-					}
-				}
-				return nil, false
-			}
-			switch vt := v.(type) {
-			case map[interface{}]interface{}:
-				if len(path) > 1 {
-					return GetFromMII(vt, path[1], pathSep)
-				}
-				return nil, false
-			case []interface{}:
-				if lenreq {
-					return len(vt), true
-				}
-				if len(vt) > 0 {
-					if _, ok := vt[0].(map[interface{}]interface{}); ok {
-						return make([]interface{}, len(vt)), true
-					}
-				}
-			}
-			return v, true
+			return getArrayElement(v, path, pathSep, idx, lenreq)
 		}
 	}
 	// no match
 	return nil, false
 }
 
-// GetFromMSI performs a get from a config tree structures as a map[string]interface{},
+// getFromMSI performs a get from a config tree structures as a map[string]interface{},
 // as returned by json.Unmarshal.
-func GetFromMSI(node map[string]interface{}, key string, pathSep string) (interface{}, bool) {
+func getFromMSI(node map[string]interface{}, key string, pathSep string) (interface{}, bool) {
 	// full key match - also handles leaves
 	if v, ok := node[key]; ok {
-		switch vt := v.(type) {
-		case map[string]interface{}:
-			return nil, false
-		case []interface{}:
-			if len(vt) > 0 {
-				if _, ok := vt[0].(map[string]interface{}); ok {
-					return make([]interface{}, len(vt)), true
-				}
-			}
-		}
-		return v, true
+		return getLeafElement(v)
 	}
 	lenreq := false
 	path := strings.SplitN(key, pathSep, 2)
 	if len(path) > 1 {
 		// nested path match
 		if v, ok := node[path[0]]; ok {
-			switch vt := v.(type) {
-			case map[string]interface{}:
-				return GetFromMSI(vt, path[1], pathSep)
-			}
-			return v, true
+			return getNestedElement(v, path[1], pathSep)
 		}
 	} else {
 		if a, ok := isArrayLen(path[0]); ok {
@@ -117,36 +75,72 @@ func GetFromMSI(node map[string]interface{}, key string, pathSep string) (interf
 	a, idx := parseArrayElement(path[0])
 	if lenreq || idx != nil {
 		if v, ok := node[a]; ok {
-			for _, i := range idx {
-				if av, ok := v.([]interface{}); ok {
-					if i < len(av) {
-						v = av[i]
-						continue
-					}
-				}
-				return nil, false
-			}
-			switch vt := v.(type) {
-			case map[string]interface{}:
-				if len(path) > 1 {
-					return GetFromMSI(vt, path[1], pathSep)
-				}
-				return nil, false
-			case []interface{}:
-				if lenreq {
-					return len(vt), true
-				}
-				if len(vt) > 0 {
-					if _, ok := vt[0].(map[string]interface{}); ok {
-						return make([]interface{}, len(vt)), true
-					}
-				}
-			}
-			return v, true
+			return getArrayElement(v, path, pathSep, idx, lenreq)
 		}
 	}
 	// no match
 	return nil, false
+}
+
+func getArrayElement(v interface{}, path []string, pathSep string, idx []int, lenreq bool) (interface{}, bool) {
+	for _, i := range idx {
+		if av, ok := v.([]interface{}); ok {
+			if i < len(av) {
+				v = av[i]
+				continue
+			}
+		}
+		return nil, false
+	}
+	switch vt := v.(type) {
+	case map[interface{}]interface{}:
+		if len(path) > 1 {
+			return getFromMII(vt, path[1], pathSep)
+		}
+		return nil, false
+	case map[string]interface{}:
+		if len(path) > 1 {
+			return getFromMSI(vt, path[1], pathSep)
+		}
+		return nil, false
+	case []interface{}:
+		if lenreq {
+			return len(vt), true
+		}
+		if len(vt) > 0 {
+			switch vt[0].(type) {
+			case map[interface{}]interface{}, map[string]interface{}:
+				return make([]interface{}, len(vt)), true
+			}
+		}
+	}
+	return v, true
+}
+
+func getLeafElement(v interface{}) (interface{}, bool) {
+	switch vt := v.(type) {
+	case map[string]interface{}, map[interface{}]interface{}:
+		return nil, false
+	case []interface{}:
+		if len(vt) > 0 {
+			switch vt[0].(type) {
+			case map[interface{}]interface{}, map[string]interface{}:
+				return make([]interface{}, len(vt)), true
+			}
+		}
+	}
+	return v, true
+}
+
+func getNestedElement(v interface{}, key string, pathSep string) (interface{}, bool) {
+	switch vt := v.(type) {
+	case map[string]interface{}:
+		return getFromMSI(vt, key, pathSep)
+	case map[interface{}]interface{}:
+		return getFromMII(vt, key, pathSep)
+	default:
+		return v, true
+	}
 }
 
 // isArrayLen determines if the key corresponds to an array length.

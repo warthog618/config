@@ -24,7 +24,7 @@ type Getter struct {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	return tree.GetFromMSI(r.config, key, r.sep)
+	return tree.Get(r.config, key, r.sep)
 }
 
 // New returns a JSON Getter.
