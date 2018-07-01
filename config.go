@@ -411,6 +411,9 @@ func unmarshalObjectArrayToMap(node *Config, key string, tmpl []map[string]inter
 		if err != nil {
 			rerr = err
 		}
+		if al64 == 0 {
+			return a, rerr
+		}
 		al := int(al64)
 		a = make([]map[string]interface{}, al, al)
 		for i := 0; i < al; i++ {

@@ -670,7 +670,7 @@ func TestGetMustWithSeparator(t *testing.T) {
 type fooConfig struct {
 	Atagged int `config:"a"`
 	B       string
-	C       []int
+	C       []int `cfg:"ctag"`
 	E       string
 	F       []innerConfig
 	G       [][]int
@@ -769,6 +769,18 @@ func TestUnmarshal(t *testing.T) {
 					{A: 2},
 				}},
 			nil},
+		{"bad array of object",
+			&mockGetter{
+				"foo.f[]":    "notint",
+				"foo.f[0].a": 1,
+				"foo.f[1].a": 2,
+				"foo.d":      "ignored",
+			},
+			"foo",
+			&fooConfig{F: []innerConfig{}},
+			&fooConfig{
+				F: []innerConfig{}},
+			&strconv.NumError{}},
 		{"nested",
 			&mockGetter{
 				"foo.b":              "foo.b",
@@ -814,6 +826,59 @@ func TestUnmarshal(t *testing.T) {
 					func(e error) {
 						err = e
 					}))
+				m.Unmarshal(p.k, p.target)
+				assert.IsType(t, p.err, err)
+				assert.Equal(t, p.x, p.target)
+			}
+			t.Run(p.name, f)
+		}
+	}
+	t.Run("Must", f)
+}
+
+func TestUnmarshalWithTag(t *testing.T) {
+	patterns := []struct {
+		name   string
+		g      config.Getter
+		k      string
+		target interface{}
+		x      interface{}
+		err    error
+	}{
+		{"array of scalar",
+			&mockGetter{
+				"c":    []int{5, 6, 7, 8},
+				"ctag": []int{1, 2, 3, 4},
+				"d":    "ignored",
+			},
+			"",
+			&fooConfig{},
+			&fooConfig{
+				C: []int{1, 2, 3, 4}},
+			nil},
+	}
+	f := func(t *testing.T) {
+		for _, p := range patterns {
+			f := func(t *testing.T) {
+				c := config.NewConfig(p.g, config.WithTag("cfg"))
+				err := c.Unmarshal(p.k, p.target)
+				assert.IsType(t, p.err, err)
+				assert.Equal(t, p.x, p.target)
+			}
+			t.Run(p.name, f)
+		}
+	}
+	t.Run("Config", f)
+	f = func(t *testing.T) {
+		for _, p := range patterns {
+			f := func(t *testing.T) {
+				var err error
+				m := config.NewMust(p.g,
+					config.WithTag("cfg"),
+					config.WithErrorHandler(
+						func(e error) {
+							err = e
+						}))
 				m.Unmarshal(p.k, p.target)
 				assert.IsType(t, p.err, err)
 				assert.Equal(t, p.x, p.target)
@@ -938,6 +1003,55 @@ func TestUnmarshalToMap(t *testing.T) {
 					{"A": 1},
 					{"A": 2},
 				},
+			},
+			nil,
+		},
+		{"bad array of objects",
+			&mockGetter{
+				"foo.f[]":    "notint",
+				"foo.f[0].A": 1,
+				"foo.f[1].A": 2,
+				"foo.d":      "ignored",
+			},
+			map[string]interface{}{
+				"f": []map[string]interface{}{
+					{"A": 0},
+				},
+			},
+			map[string]interface{}{
+				"f": []map[string]interface{}{
+					{"A": 0},
+				},
+			},
+			&strconv.NumError{},
+		},
+		{"empty array of objects",
+			&mockGetter{
+				"foo.f[]":    2,
+				"foo.f[0].A": 1,
+				"foo.f[1].A": 2,
+				"foo.d":      "ignored",
+			},
+			map[string]interface{}{
+				"f": []map[string]interface{}{},
+			},
+			map[string]interface{}{
+				"f": []map[string]interface{}(nil),
+			},
+			nil,
+		},
+		{"nil array of objects",
+			&mockGetter{
+				"foo.f[]":    2,
+				"foo.f[0].A": 1,
+				"foo.f[1].A": 2,
+				"foo.d":      "ignored",
+			},
+			map[string]interface{}{
+				"f": []map[string]interface{}(nil),
+			},
+			map[string]interface{}{
+				"f": []map[string]interface{}(nil),
 			},
 			nil,
 		},
