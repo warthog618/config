@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+// Get returns the element identified by key from configuration stored
+// in a map[string]interface{} or map[interface{}]interface{} tree.
 func Get(node interface{}, key string, pathSep string) (interface{}, bool) {
 	switch nt := node.(type) {
 	case map[string]interface{}:
