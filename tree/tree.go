@@ -150,7 +150,7 @@ func isArrayLen(key string) (string, bool) {
 	if strings.HasSuffix(key, "[]") {
 		return key[:len(key)-2], true
 	}
-	return "", false
+	return key, false
 }
 
 // parseArrayElement determines if the key corresponds to an array element.
