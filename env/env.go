@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/warthog618/config/keys"
+	"github.com/warthog618/config/tree"
 )
 
 // New creates an environment variable Getter.
@@ -33,7 +34,7 @@ func New(options ...Option) (*Getter, error) {
 // is effectively immutable.
 type Getter struct {
 	// config key=value
-	config map[string]string
+	config map[string]interface{}
 	// prefix in env space used to identify variables of interest.
 	// This must include any separator.
 	envPrefix string
@@ -54,29 +55,7 @@ type Replacer interface {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	if v, ok := r.config[key]; ok {
-		if len(r.listSeparator) > 0 && strings.Contains(v, r.listSeparator) {
-			return strings.Split(v, r.listSeparator), ok
-		}
-		return v, ok
-	}
-	if p, ok := keys.IsArrayLen(key); ok {
-		if v, ok := r.config[p]; ok {
-			return strings.Count(v, r.listSeparator) + 1, ok
-		}
-	}
-	if p, i := keys.ParseArrayElement(key); len(i) == 1 {
-		if v, ok := r.config[p]; ok {
-			if len(r.listSeparator) > 0 && strings.Contains(v, r.listSeparator) {
-				l := strings.Split(v, r.listSeparator)
-				if i[0] < len(l) {
-					return l[i[0]], true
-				}
-				return nil, false
-			}
-		}
-	}
-	return nil, false
+	return tree.Get(r.config, key, "")
 }
 
 // Option is a function which modifies a Getter at construction time.
@@ -109,14 +88,20 @@ func WithListSeparator(separator string) Option {
 }
 
 func (r *Getter) load() {
-	config := map[string]string{}
+	config := map[string]interface{}{}
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, r.envPrefix) {
 			keyValue := strings.SplitN(env, "=", 2)
 			if len(keyValue) == 2 {
 				envKey := keyValue[0][len(r.envPrefix):]
 				cfgKey := r.keyReplacer.Replace(envKey)
-				config[cfgKey] = keyValue[1]
+				if len(r.listSeparator) > 0 &&
+					strings.Contains(keyValue[1], r.listSeparator) {
+					config[cfgKey] = strings.Split(keyValue[1], r.listSeparator)
+				} else {
+					config[cfgKey] = keyValue[1]
+				}
+
 			}
 		}
 	}
