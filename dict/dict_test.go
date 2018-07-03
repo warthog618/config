@@ -84,8 +84,40 @@ func TestGetterSet(t *testing.T) {
 }
 
 func BenchmarkGet(b *testing.B) {
-	g := dict.New(dict.WithMap(map[string]interface{}{"nested.leaf": "44"}))
+	g := dict.New(dict.WithMap(map[string]interface{}{"leaf": "44"}))
+	for n := 0; n < b.N; n++ {
+		g.Get("leaf")
+	}
+}
+
+func BenchmarkGetNested(b *testing.B) {
+	g := dict.New(dict.WithMap(map[string]interface{}{
+		"nested": map[string]interface{}{"leaf": "44"}}))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkGetArray(b *testing.B) {
+	g := dict.New(dict.WithMap(map[string]interface{}{
+		"leaf": []int{1, 2, 3, 4}}))
+	for n := 0; n < b.N; n++ {
+		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkGetArrayLen(b *testing.B) {
+	g := dict.New(dict.WithMap(map[string]interface{}{
+		"leaf": []int{1, 2, 3, 4}}))
+	for n := 0; n < b.N; n++ {
+		g.Get("leaf[]")
+	}
+}
+
+func BenchmarkGetArrayElement(b *testing.B) {
+	g := dict.New(dict.WithMap(map[string]interface{}{
+		"leaf": []int{1, 2, 3, 4}}))
+	for n := 0; n < b.N; n++ {
+		g.Get("leaf[2]")
 	}
 }

@@ -211,6 +211,34 @@ var benchConfig = []byte(`{
 func BenchmarkGet(b *testing.B) {
 	g, _ := json.New(json.FromBytes(benchConfig))
 	for n := 0; n < b.N; n++ {
+		g.Get("int")
+	}
+}
+
+func BenchmarkGetNested(b *testing.B) {
+	g, _ := json.New(json.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkGetArray(b *testing.B) {
+	g, _ := json.New(json.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("intSlice")
+	}
+}
+
+func BenchmarkGetArrayLen(b *testing.B) {
+	g, _ := json.New(json.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("intSlice[]")
+	}
+}
+
+func BenchmarkGetArrayElement(b *testing.B) {
+	g, _ := json.New(json.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("intSlice[2]")
 	}
 }

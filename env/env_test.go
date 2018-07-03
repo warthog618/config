@@ -167,7 +167,43 @@ func BenchmarkGet(b *testing.B) {
 	setup(prefix)
 	g, _ := env.New(env.WithEnvPrefix(prefix))
 	for n := 0; n < b.N; n++ {
+		g.Get("leaf")
+	}
+}
+
+func BenchmarkGetNested(b *testing.B) {
+	prefix := "CFGENV_"
+	setup(prefix)
+	g, _ := env.New(env.WithEnvPrefix(prefix))
+	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkGetArray(b *testing.B) {
+	prefix := "CFGENV_"
+	setup(prefix)
+	g, _ := env.New(env.WithEnvPrefix(prefix))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice")
+	}
+}
+
+func BenchmarkGetArrayLen(b *testing.B) {
+	prefix := "CFGENV_"
+	setup(prefix)
+	g, _ := env.New(env.WithEnvPrefix(prefix))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice[]")
+	}
+}
+
+func BenchmarkGetArrayElement(b *testing.B) {
+	prefix := "CFGENV_"
+	setup(prefix)
+	g, _ := env.New(env.WithEnvPrefix(prefix))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice[1]")
 	}
 }
 

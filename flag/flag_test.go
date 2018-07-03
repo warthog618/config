@@ -387,9 +387,37 @@ func TestNewWithShortFlags(t *testing.T) {
 }
 
 func BenchmarkGet(b *testing.B) {
+	g, _ := flag.New(flag.WithCommandLine([]string{"--leaf", "44"}))
+	for n := 0; n < b.N; n++ {
+		g.Get("leaf")
+	}
+}
+
+func BenchmarkGetNested(b *testing.B) {
 	g, _ := flag.New(flag.WithCommandLine([]string{"--nested-leaf", "44"}))
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkGetArray(b *testing.B) {
+	g, _ := flag.New(flag.WithCommandLine([]string{"--slice", "42,44"}))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice")
+	}
+}
+
+func BenchmarkGetArrayLen(b *testing.B) {
+	g, _ := flag.New(flag.WithCommandLine([]string{"--slice", "42,44"}))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice[]")
+	}
+}
+
+func BenchmarkGetArrayElement(b *testing.B) {
+	g, _ := flag.New(flag.WithCommandLine([]string{"--slice", "42,44"}))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice[1]")
 	}
 }
 

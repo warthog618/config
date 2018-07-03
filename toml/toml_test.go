@@ -189,6 +189,34 @@ stringSlice = ["one","two","three"]
 func BenchmarkGet(b *testing.B) {
 	g, _ := toml.New(toml.FromBytes(benchConfig))
 	for n := 0; n < b.N; n++ {
+		g.Get("string")
+	}
+}
+
+func BenchmarkGetNested(b *testing.B) {
+	g, _ := toml.New(toml.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkGetArray(b *testing.B) {
+	g, _ := toml.New(toml.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("intSlice")
+	}
+}
+
+func BenchmarkGetArrayLen(b *testing.B) {
+	g, _ := toml.New(toml.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("intSlice[]")
+	}
+}
+
+func BenchmarkGetArrayElement(b *testing.B) {
+	g, _ := toml.New(toml.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("intSlice[2]")
 	}
 }
