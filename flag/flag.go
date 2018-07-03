@@ -38,6 +38,7 @@ import (
 	"strings"
 
 	"github.com/warthog618/config/keys"
+	"github.com/warthog618/config/tree"
 )
 
 // New creates a new Getter.
@@ -144,47 +145,7 @@ func (r *Getter) NFlag() int {
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
 func (r *Getter) Get(key string) (interface{}, bool) {
-	if v, ok := r.config[key]; ok {
-		if len(r.listSeparator) > 0 {
-			if vstr, sok := v.(string); sok {
-				if strings.Contains(vstr, r.listSeparator) {
-					return strings.Split(vstr, r.listSeparator), ok
-				}
-			}
-		}
-		return v, ok
-	}
-	if p, ok := keys.IsArrayLen(key); ok {
-		if v, ok := r.config[p]; ok {
-			if vstr, sok := v.(string); sok {
-				return strings.Count(vstr, r.listSeparator) + 1, ok
-			}
-		}
-	}
-	if p, i := keys.ParseArrayElement(key); len(i) == 1 {
-		if v, ok := r.config[p]; ok {
-			if vstr, sok := v.(string); sok {
-				if len(r.listSeparator) > 0 && strings.Contains(vstr, r.listSeparator) {
-					l := strings.Split(vstr, r.listSeparator)
-					if i[0] < len(l) {
-						return l[i[0]], true
-					}
-					return nil, false
-				}
-			}
-		}
-	}
-	return nil, false
-}
-
-func incrementFlag(config map[string]interface{}, key string) {
-	if v, ok := config[key]; ok {
-		if vint, ok := v.(int); ok {
-			config[key] = vint + 1
-			return
-		}
-	}
-	config[key] = 1
+	return tree.Get(r.config, key, "")
 }
 
 func (r *Getter) parse() {
@@ -202,7 +163,8 @@ func (r *Getter) parse() {
 			if strings.Contains(arg, "=") {
 				// split on = and process complete in place
 				s := strings.SplitN(arg, "=", 2)
-				config[r.keyReplacer.Replace(s[0])] = s[1]
+				key := r.keyReplacer.Replace(s[0])
+				config[key] = splitList(s[1], r.listSeparator)
 			} else {
 				key := r.keyReplacer.Replace(arg)
 				if idx < len(r.cmdArgs)-1 {
@@ -210,7 +172,7 @@ func (r *Getter) parse() {
 					if strings.HasPrefix(val, "-") {
 						incrementFlag(config, key)
 					} else {
-						config[key] = val
+						config[key] = splitList(val, r.listSeparator)
 						idx++
 					}
 				} else {
@@ -249,7 +211,7 @@ func (r *Getter) parse() {
 				if val == "" {
 					incrementFlag(config, key)
 				} else {
-					config[key] = val
+					config[key] = splitList(val, r.listSeparator)
 				}
 			}
 		} else {
@@ -259,4 +221,23 @@ func (r *Getter) parse() {
 		}
 	}
 	r.config = config
+}
+
+func incrementFlag(config map[string]interface{}, key string) {
+	if v, ok := config[key]; ok {
+		if vint, ok := v.(int); ok {
+			config[key] = vint + 1
+			return
+		}
+	}
+	config[key] = 1
+}
+
+func splitList(v interface{}, l string) interface{} {
+	if vstr, ok := v.(string); ok {
+		if len(l) > 0 && strings.Contains(vstr, l) {
+			return strings.Split(vstr, l)
+		}
+	}
+	return v
 }
