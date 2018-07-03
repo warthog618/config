@@ -20,16 +20,42 @@ func TestNew(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), d)
 }
 
-func TestGetter(t *testing.T) {
-	g := dict.New()
-	require.NotNil(t, g)
-	v, ok := g.Get("a")
-	assert.False(t, ok)
-	assert.Nil(t, v)
-	g.Set("a", 1)
-	v, ok = g.Get("a")
-	assert.True(t, ok)
-	assert.Equal(t, 1, v)
+func TestGetterGet(t *testing.T) {
+	patterns := []struct {
+		name string
+		k    string
+		v    interface{}
+		ok   bool
+	}{
+		{"leaf", "leaf", 42, true},
+		{"nested leaf", "nested.leaf", 44, true},
+		{"nested nonsense", "nested.nonsense", nil, false},
+		{"nested slice", "nested.slice", []interface{}{"c", "d"}, true},
+		{"nested", "nested", nil, false},
+		{"nonsense", "nonsense", nil, false},
+		{"slice", "slice", []string{"a", "b"}, true},
+		{"bogusslice[]", "bogusslice[]", 3, true},
+		{"slice[]", "slice[]", 2, true},
+		{"slice[1]", "slice[1]", "b", true},
+		{"slice[4]", "slice[3]", nil, false},
+	}
+	d := dict.New(dict.WithMap(map[string]interface{}{
+		"leaf":         42,
+		"bogusslice[]": 3,
+		"slice":        []string{"a", "b"},
+		"nested": map[string]interface{}{
+			"leaf":  44,
+			"slice": []interface{}{"c", "d"},
+		},
+	}))
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, ok := d.Get(p.k)
+			assert.Equal(t, p.ok, ok)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
 }
 
 func TestGetterWithConfig(t *testing.T) {

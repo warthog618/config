@@ -32,79 +32,55 @@ func TestGet(t *testing.T) {
 	}
 }
 
-func TestGetFromMII(t *testing.T) {
-	m := map[interface{}]interface{}{
-		"a":      1,
-		"nested": map[interface{}]interface{}{"b": 2},
-		"array":  []interface{}{1, 2, 3, 4},
-	}
+func TestGetFromFunc(t *testing.T) {
 	patterns := []struct {
 		name string
-		n    map[interface{}]interface{}
 		k    string
 		x    interface{}
 		ok   bool
 	}{
-		{"leaf", m, "a", 1, true},
-		{"nested", m, "nested.b", 2, true},
-		{"array", m, "array", []interface{}{1, 2, 3, 4}, true},
-		{"array length", m, "array[]", 4, true},
-		{"array element", m, "array[2]", 3, true},
-		{"array element", m, "array[5]", nil, false},
-		{"miss", m, "b", nil, false},
+		{"leaf", "a", 1, true},
+		{"nested", "nested.b", 2, true},
+		{"array", "array", []uint{1, 2, 3, 4}, true},
+		{"array length", "array[]", 4, true},
+		{"array element", "array[2]", uint(3), true},
+		{"array element", "array[5]", nil, false},
+		{"miss", "b", nil, false},
+		{"overshoot", "nested.b.c", nil, false},
 	}
-	for _, p := range patterns {
-		v, ok := getFromMII(p.n, p.k, ".")
-		assert.Equal(t, p.ok, ok, p.k)
-		assert.Equal(t, p.x, v, p.k)
-	}
-}
-
-func TestGetFromMSI(t *testing.T) {
 	m := map[string]interface{}{
 		"a":      1,
 		"nested": map[string]interface{}{"b": 2},
-		"array":  []interface{}{1, 2, 3, 4},
+		"array":  []uint{1, 2, 3, 4},
 	}
-	patterns := []struct {
-		name string
-		n    map[string]interface{}
-		k    string
-		x    interface{}
-		ok   bool
-	}{
-		{"leaf", m, "a", 1, true},
-		{"nested", m, "nested.b", 2, true},
-		{"array", m, "array", []interface{}{1, 2, 3, 4}, true},
-		{"array length", m, "array[]", 4, true},
-		{"array element", m, "array[2]", 3, true},
-		{"array element", m, "array[5]", nil, false},
-		{"miss", m, "b", nil, false},
+	f := func(k string) (interface{}, bool) {
+		v, ok := m[k]
+		return v, ok
 	}
 	for _, p := range patterns {
-		v, ok := getFromMSI(p.n, p.k, ".")
+		v, ok := getFromFunc(f, p.k, ".")
 		assert.Equal(t, p.ok, ok, p.k)
 		assert.Equal(t, p.x, v, p.k)
 	}
 }
 
 func TestGetArrayElement(t *testing.T) {
-	a := []interface{}{1, 2, 3, 4, 5}
+	a := []int{1, 2, 3, 4, 5}
 	b := []interface{}{
 		[]interface{}{1, 2, 3, 4, 5},
-		[]interface{}{5, 6, 7, 8}}
+		[]int{5, 6, 7, 8}}
 	c := []interface{}{
 		map[string]interface{}{"a": 1},
 		map[interface{}]interface{}{"b": 2},
 	}
-	d := []interface{}{[]interface{}{
-		map[string]interface{}{"a": 1},
-		map[interface{}]interface{}{"b": 2},
+	d := []interface{}{[]map[string]interface{}{
+		{"a": 1},
+		{"b": 2},
 	}}
 
 	patterns := []struct {
 		name string
-		n    []interface{}
+		n    interface{}
 		p    []string
 		i    []int
 		l    bool
@@ -120,6 +96,8 @@ func TestGetArrayElement(t *testing.T) {
 		{"msi object", c, []string{"a"}, []int{0}, false, nil, false},
 		{"array of object", d, []string{"a"}, []int{0}, false,
 			[]interface{}{nil, nil}, true},
+		{"path overshoot", c, []string{"a", "b.c"}, []int{1}, false, nil, false},
+		{"index overshoot", c, []string{"a"}, []int{1, 1, 1}, false, nil, false},
 	}
 	for _, p := range patterns {
 		v, ok := getArrayElement(p.n, p.p, ".", p.i, p.l)
@@ -154,23 +132,37 @@ func TestGetLeafElement(t *testing.T) {
 	}
 }
 
-func TestGetNestedElement(t *testing.T) {
-	patterns := []struct {
-		name string
-		n    interface{}
-		k    string
-		x    interface{}
-		ok   bool
-	}{
-		{"mii", map[interface{}]interface{}{"a": 1}, "a", 1, true},
-		{"msi", map[string]interface{}{"a": 1}, "a", 1, true},
-		{"mii miss", map[interface{}]interface{}{"a": 1}, "b", nil, false},
-		{"msi miss", map[string]interface{}{"a": 1}, "b", nil, false},
-		{"neither", map[int]interface{}{1: 1}, "a", map[int]interface{}{1: 1}, true},
+func BenchmarkGet(b *testing.B) {
+	g := mockGetter{"nested": map[string]interface{}{"leaf": "44"}}
+	for n := 0; n < b.N; n++ {
+		Get(g, "nested.leaf", ".")
 	}
-	for _, p := range patterns {
-		v, ok := getNestedElement(p.n, p.k, ".")
-		assert.Equal(t, p.ok, ok, p.name)
-		assert.Equal(t, p.x, v, p.name)
+}
+
+func BenchmarkGetArray(b *testing.B) {
+	g := mockGetter{"nested": map[string]interface{}{"leaf": []int{1, 2, 3, 4}}}
+	for n := 0; n < b.N; n++ {
+		Get(g, "nested.leaf", ".")
 	}
+}
+
+func BenchmarkGetArrayLen(b *testing.B) {
+	g := mockGetter{"nested": map[string]interface{}{"leaf": []int{1, 2, 3, 4}}}
+	for n := 0; n < b.N; n++ {
+		Get(g, "nested.leaf[]", ".")
+	}
+}
+
+func BenchmarkGetArrayElement(b *testing.B) {
+	g := mockGetter{"nested": map[string]interface{}{"leaf": []int{1, 2, 3, 4}}}
+	for n := 0; n < b.N; n++ {
+		Get(g, "nested.leaf[2]", ".")
+	}
+}
+
+type mockGetter map[string]interface{}
+
+func (m mockGetter) Get(key string) (interface{}, bool) {
+	v, ok := m[key]
+	return v, ok
 }

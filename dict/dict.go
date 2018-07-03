@@ -6,7 +6,11 @@
 // Package dict provides a simple Getter that wraps a key/value map.
 package dict
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/warthog618/config/tree"
+)
 
 // Getter is a simple getter that wraps a key/value map.
 // The Getter is mutable, though only by setting keys, and
@@ -54,7 +58,7 @@ func (r *Getter) Set(key string, v interface{}) {
 // Get returns the value from the dict config.
 func (r *Getter) Get(key string) (interface{}, bool) {
 	r.mu.RLock()
-	v, ok := r.config[key]
+	v, ok := tree.Get(r.config, key, ".")
 	r.mu.RUnlock()
 	return v, ok
 }
