@@ -59,13 +59,21 @@ func testGetterGet(t *testing.T, g *properties.Getter) {
 		{"float", 3.1415},
 		{"string", "this is a string"},
 		{"intSlice", []interface{}{"1", "2", "3", "4"}},
+		{"intSlice[]", 4},
+		{"intSlice[2]", float64(3)},
 		{"stringSlice", []interface{}{"one", "two", "three", "four"}},
+		{"stringSlice[]", 4},
+		{"stringSlice[2]", "three"},
 		{"nested.bool", false},
 		{"nested.int", 18},
 		{"nested.float", 3.141},
 		{"nested.string", "this is also a string"},
 		{"nested.intSlice", []interface{}{"1", "2", "3", "4", "5", "6"}},
+		{"nested.intSlice[]", 6},
+		{"nested.intSlice[3]", float64(4)},
 		{"nested.stringSlice", []interface{}{"one", "two", "three"}},
+		{"nested.stringSlice[]", 3},
+		{"nested.stringSlice[0]", "one"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
@@ -178,6 +186,34 @@ nested.stringSlice = one,two,three
 func BenchmarkGet(b *testing.B) {
 	g, _ := properties.New(properties.FromBytes(benchConfig))
 	for n := 0; n < b.N; n++ {
+		g.Get("int")
+	}
+}
+
+func BenchmarkGetNested(b *testing.B) {
+	g, _ := properties.New(properties.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
+	}
+}
+
+func BenchmarkGetArray(b *testing.B) {
+	g, _ := properties.New(properties.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice")
+	}
+}
+
+func BenchmarkGetArrayLen(b *testing.B) {
+	g, _ := properties.New(properties.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice[]")
+	}
+}
+
+func BenchmarkGetArrayElement(b *testing.B) {
+	g, _ := properties.New(properties.FromBytes(benchConfig))
+	for n := 0; n < b.N; n++ {
+		g.Get("slice[1]")
 	}
 }

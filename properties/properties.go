@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/magiconair/properties"
+	"github.com/warthog618/config/keys"
 )
 
 // Getter provides the mapping from a properties file to a config.Getter.
@@ -42,6 +43,23 @@ func (r *Getter) Get(key string) (interface{}, bool) {
 		}
 		return v, true
 	}
+	if p, ok := keys.IsArrayLen(key); ok {
+		if v, ok := r.config.Get(p); ok {
+			return strings.Count(v, r.listSeparator) + 1, ok
+		}
+	}
+	if p, i := keys.ParseArrayElement(key); len(i) == 1 {
+		if v, ok := r.config.Get(p); ok {
+			if len(r.listSeparator) > 0 && strings.Contains(v, r.listSeparator) {
+				l := strings.Split(v, r.listSeparator)
+				if i[0] < len(l) {
+					return l[i[0]], true
+				}
+				return nil, false
+			}
+		}
+	}
+
 	return nil, false
 }
 
