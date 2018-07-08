@@ -7,6 +7,9 @@
 package toml
 
 import (
+	"io"
+	"io/ioutil"
+
 	gotoml "github.com/pelletier/go-toml"
 	"github.com/warthog618/config/tree"
 )
@@ -44,12 +47,7 @@ type Option func(*Getter) error
 // FromBytes uses the []bytes as the source of TOML configuration.
 func FromBytes(cfg []byte) Option {
 	return func(g *Getter) error {
-		config, err := gotoml.Load(string(cfg))
-		if err != nil {
-			return err
-		}
-		g.config = config.ToMap()
-		return nil
+		return fromBytes(g, cfg)
 	}
 }
 
@@ -63,4 +61,24 @@ func FromFile(filename string) Option {
 		g.config = config.ToMap()
 		return nil
 	}
+}
+
+// FromReader uses an io.Reader as the source of TOML configuration.
+func FromReader(r io.Reader) Option {
+	return func(g *Getter) error {
+		b, err := ioutil.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		return fromBytes(g, b)
+	}
+}
+
+func fromBytes(g *Getter, cfg []byte) error {
+	config, err := gotoml.Load(string(cfg))
+	if err != nil {
+		return err
+	}
+	g.config = config.ToMap()
+	return nil
 }

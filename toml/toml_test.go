@@ -6,6 +6,10 @@
 package toml_test
 
 import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -132,27 +136,77 @@ func TestNew(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), b)
 }
 
-func TestNewBytes(t *testing.T) {
-	b, err := toml.New(toml.FromBytes(malformedConfig))
-	assert.NotNil(t, err)
-	assert.Nil(t, b)
-	b, err = toml.New(toml.FromBytes(validConfig))
-	assert.Nil(t, err)
-	require.NotNil(t, b)
-	assert.Implements(t, (*config.Getter)(nil), b)
+func TestNewFromBytes(t *testing.T) {
+	patterns := []struct {
+		name    string
+		in      []byte
+		errType interface{}
+	}{
+		{"malformed", malformedConfig, errors.New("")},
+		{"valid", validConfig, nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := toml.New(toml.FromBytes(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
+			}
+		}
+		t.Run(p.name, f)
+	}
 }
 
-func TestNewFile(t *testing.T) {
-	f, err := toml.New(toml.FromFile("no_such.toml"))
-	assert.NotNil(t, err)
-	assert.Nil(t, f)
-	f, err = toml.New(toml.FromFile("malformed.toml"))
-	assert.NotNil(t, err)
-	assert.Nil(t, f)
-	f, err = toml.New(toml.FromFile("config.toml"))
-	assert.Nil(t, err)
-	require.NotNil(t, f)
-	assert.Implements(t, (*config.Getter)(nil), f)
+func TestNewFromFile(t *testing.T) {
+	patterns := []struct {
+		name    string
+		in      string
+		errType interface{}
+	}{
+		{"no such", "no_such.toml", &os.PathError{}},
+		{"malformed", "malformed.toml", errors.New("")},
+		{"valid", "config.toml", nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := toml.New(toml.FromFile(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestNewFromReader(t *testing.T) {
+	patterns := []struct {
+		name    string
+		in      io.Reader
+		errType interface{}
+	}{
+		{"failed", failReader(0), errors.New("")},
+		{"malformed", bytes.NewReader(malformedConfig), errors.New("")},
+		{"valid", bytes.NewReader(validConfig), nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := toml.New(toml.FromReader(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+type failReader int
+
+func (r failReader) Read(b []byte) (n int, err error) {
+	return 0, errors.New("read failed")
 }
 
 func TestBytesGetterGet(t *testing.T) {

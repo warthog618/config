@@ -6,7 +6,10 @@
 package json_test
 
 import (
+	"bytes"
 	gojson "encoding/json"
+	"errors"
+	"io"
 	"os"
 	"testing"
 
@@ -43,6 +46,7 @@ func TestNewFromBytes(t *testing.T) {
 			assert.IsType(t, p.errType, err)
 			if err == nil {
 				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
 			}
 		}
 		t.Run(p.name, f)
@@ -65,10 +69,39 @@ func TestNewFromFile(t *testing.T) {
 			assert.IsType(t, p.errType, err)
 			if err == nil {
 				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
 			}
 		}
 		t.Run(p.name, f)
 	}
+}
+
+func TestNewFromReader(t *testing.T) {
+	patterns := []struct {
+		name    string
+		in      io.Reader
+		errType interface{}
+	}{
+		{"failed", failReader(0), errors.New("")},
+		{"malformed", bytes.NewReader(malformedConfig), &gojson.SyntaxError{Offset: 0}},
+		{"valid", bytes.NewReader(validConfig), nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := json.New(json.FromReader(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+type failReader int
+
+func (r failReader) Read(b []byte) (n int, err error) {
+	return 0, errors.New("read failed")
 }
 
 func TestBytesGetterGet(t *testing.T) {

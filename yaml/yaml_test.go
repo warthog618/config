@@ -6,6 +6,10 @@
 package yaml_test
 
 import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -131,26 +135,76 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewFromBytes(t *testing.T) {
-	b, err := yaml.New(yaml.FromBytes(malformedConfig))
-	assert.NotNil(t, err)
-	assert.Nil(t, b)
-	b, err = yaml.New(yaml.FromBytes(validConfig))
-	assert.Nil(t, err)
-	require.NotNil(t, b)
-	assert.Implements(t, (*config.Getter)(nil), b)
+	patterns := []struct {
+		name    string
+		in      []byte
+		errType interface{}
+	}{
+		{"malformed", malformedConfig, errors.New("")},
+		{"valid", validConfig, nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := yaml.New(yaml.FromBytes(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
+			}
+		}
+		t.Run(p.name, f)
+	}
 }
 
 func TestNewFromFile(t *testing.T) {
-	f, err := yaml.New(yaml.FromFile("no_such.yaml"))
-	assert.NotNil(t, err)
-	assert.Nil(t, f)
-	f, err = yaml.New(yaml.FromFile("malformed.yaml"))
-	assert.NotNil(t, err)
-	assert.Nil(t, f)
-	f, err = yaml.New(yaml.FromFile("config.yaml"))
-	assert.Nil(t, err)
-	require.NotNil(t, f)
-	assert.Implements(t, (*config.Getter)(nil), f)
+	patterns := []struct {
+		name    string
+		in      string
+		errType interface{}
+	}{
+		{"no such", "no_such.yaml", &os.PathError{}},
+		{"malformed", "malformed.yaml", errors.New("")},
+		{"valid", "config.yaml", nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := yaml.New(yaml.FromFile(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestNewFromReader(t *testing.T) {
+	patterns := []struct {
+		name    string
+		in      io.Reader
+		errType interface{}
+	}{
+		{"failed", failReader(0), errors.New("")},
+		{"malformed", bytes.NewReader(malformedConfig), errors.New("")},
+		{"valid", bytes.NewReader(validConfig), nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := yaml.New(yaml.FromReader(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+type failReader int
+
+func (r failReader) Read(b []byte) (n int, err error) {
+	return 0, errors.New("read failed")
 }
 
 func TestBytesGetterGet(t *testing.T) {

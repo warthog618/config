@@ -7,6 +7,8 @@
 package properties
 
 import (
+	"io"
+	"io/ioutil"
 	"strings"
 
 	"github.com/magiconair/properties"
@@ -79,12 +81,7 @@ func WithListSeparator(separator string) Option {
 // FromBytes uses the []bytes as the source of properties configuration.
 func FromBytes(cfg []byte) Option {
 	return func(g *Getter) error {
-		config, err := properties.Load(cfg, properties.UTF8)
-		if err != nil {
-			return err
-		}
-		g.config = config
-		return nil
+		return fromBytes(g, cfg)
 	}
 }
 
@@ -98,4 +95,24 @@ func FromFile(filename string) Option {
 		g.config = config
 		return nil
 	}
+}
+
+// FromReader uses an io.Reader as the source of properties configuration.
+func FromReader(r io.Reader) Option {
+	return func(g *Getter) error {
+		b, err := ioutil.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		return fromBytes(g, b)
+	}
+}
+
+func fromBytes(g *Getter, cfg []byte) error {
+	config, err := properties.Load(cfg, properties.UTF8)
+	if err != nil {
+		return err
+	}
+	g.config = config
+	return nil
 }

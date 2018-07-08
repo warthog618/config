@@ -6,6 +6,10 @@
 package properties_test
 
 import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,8 +43,9 @@ bool: true
 
 // Test that config fields can be read and converted to required types using cfgconv.
 func testGetterGet(t *testing.T, g *properties.Getter) {
+	t.Helper()
 	bogusKeys := []string{
-		"intslice", "stringslice", "bogus",
+		"intslice", "stringslice", "stringSlice[4]", "bogus",
 		"nested", "nested.bogus", "nested.stringslice",
 	}
 	for _, key := range bogusKeys {
@@ -128,26 +133,77 @@ func TestGetterWithListSeparator(t *testing.T) {
 }
 
 func TestNewFromBytes(t *testing.T) {
-	b, err := properties.New(properties.FromBytes(malformedConfig))
-	assert.NotNil(t, err)
-	assert.Nil(t, b)
-	b, err = properties.New(properties.FromBytes(validConfig))
-	assert.Nil(t, err)
-	require.NotNil(t, b)
-	assert.Implements(t, (*config.Getter)(nil), b)
+	patterns := []struct {
+		name    string
+		in      []byte
+		errType interface{}
+	}{
+		{"malformed", malformedConfig, errors.New("")},
+		{"valid", validConfig, nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := properties.New(properties.FromBytes(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
+			}
+		}
+		t.Run(p.name, f)
+	}
 }
 
 func TestNewFromFile(t *testing.T) {
-	f, err := properties.New(properties.FromFile("no_such.properties"))
-	assert.NotNil(t, err)
-	assert.Nil(t, f)
-	f, err = properties.New(properties.FromFile("malformed.properties"))
-	assert.NotNil(t, err)
-	assert.Nil(t, f)
-	f, err = properties.New(properties.FromFile("config.properties"))
-	assert.Nil(t, err)
-	require.NotNil(t, f)
-	assert.Implements(t, (*config.Getter)(nil), f)
+	patterns := []struct {
+		name    string
+		in      string
+		errType interface{}
+	}{
+		{"no such", "no_such.properties", &os.PathError{}},
+		{"malformed", "malformed.properties", errors.New("")},
+		{"valid", "config.properties", nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := properties.New(properties.FromFile(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestNewFromReader(t *testing.T) {
+	patterns := []struct {
+		name    string
+		in      io.Reader
+		errType interface{}
+	}{
+		{"failed", failReader(0), errors.New("")},
+		{"malformed", bytes.NewReader(malformedConfig), errors.New("")},
+		{"valid", bytes.NewReader(validConfig), nil},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			b, err := properties.New(properties.FromReader(p.in))
+			assert.IsType(t, p.errType, err)
+			if err == nil {
+				require.NotNil(t, b)
+				assert.Implements(t, (*config.Getter)(nil), b)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+type failReader int
+
+func (r failReader) Read(b []byte) (n int, err error) {
+	return 0, errors.New("read failed")
 }
 
 func TestStringGetterGet(t *testing.T) {

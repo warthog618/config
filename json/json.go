@@ -8,6 +8,7 @@ package json
 
 import (
 	"encoding/json"
+	"io"
 	"io/ioutil"
 
 	"github.com/warthog618/config/tree"
@@ -53,6 +54,17 @@ func FromBytes(cfg []byte) Option {
 func FromFile(filename string) Option {
 	return func(g *Getter) error {
 		b, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+		return fromBytes(g, b)
+	}
+}
+
+// FromReader uses an io.Reader as the source of JSON configuration.
+func FromReader(r io.Reader) Option {
+	return func(g *Getter) error {
+		b, err := ioutil.ReadAll(r)
 		if err != nil {
 			return err
 		}
