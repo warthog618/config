@@ -36,17 +36,19 @@ func TestGetFromFunc(t *testing.T) {
 	patterns := []struct {
 		name string
 		k    string
+		sep  string
 		x    interface{}
 		ok   bool
 	}{
-		{"leaf", "a", 1, true},
-		{"nested", "nested.b", 2, true},
-		{"array", "array", []uint{1, 2, 3, 4}, true},
-		{"array length", "array[]", 4, true},
-		{"array element", "array[2]", uint(3), true},
-		{"array element", "array[5]", nil, false},
-		{"miss", "b", nil, false},
-		{"overshoot", "nested.b.c", nil, false},
+		{"leaf", "a", "", 1, true},
+		{"nested", "nested.b", ".", 2, true},
+		{"nested np sep", "nested.b", "", nil, false},
+		{"array", "array", "", []uint{1, 2, 3, 4}, true},
+		{"array length", "array[]", ".", 4, true},
+		{"array element", "array[2]", ".", uint(3), true},
+		{"array element", "array[5]", ".", nil, false},
+		{"miss", "b", "", nil, false},
+		{"overshoot", "nested.b.c", ".", nil, false},
 	}
 	m := map[string]interface{}{
 		"a":      1,
@@ -58,7 +60,7 @@ func TestGetFromFunc(t *testing.T) {
 		return v, ok
 	}
 	for _, p := range patterns {
-		v, ok := getFromFunc(f, p.k, ".")
+		v, ok := getFromFunc(f, p.k, p.sep)
 		assert.Equal(t, p.ok, ok, p.k)
 		assert.Equal(t, p.x, v, p.k)
 	}
