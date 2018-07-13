@@ -239,36 +239,52 @@ nested:
   stringSlice: [one,two,three]
 `)
 
+func BenchmarkNew(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		yaml.New(yaml.FromBytes(benchConfig))
+	}
+}
+
 func BenchmarkGet(b *testing.B) {
+	b.StopTimer()
 	g, _ := yaml.New(yaml.FromBytes(benchConfig))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("int")
 	}
 }
 
 func BenchmarkGetNested(b *testing.B) {
+	b.StopTimer()
 	g, _ := yaml.New(yaml.FromBytes(benchConfig))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}
 }
 
 func BenchmarkGetArray(b *testing.B) {
+	b.StopTimer()
 	g, _ := yaml.New(yaml.FromBytes(benchConfig))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("intSlice")
 	}
 }
 
 func BenchmarkGetArrayLen(b *testing.B) {
+	b.StopTimer()
 	g, _ := yaml.New(yaml.FromBytes(benchConfig))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("intSlice[]")
 	}
 }
 
 func BenchmarkGetArrayElement(b *testing.B) {
+	b.StopTimer()
 	g, _ := yaml.New(yaml.FromBytes(benchConfig))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("intSlice[2]")
 	}

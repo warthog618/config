@@ -179,6 +179,18 @@ func TestNewWithListSeparator(t *testing.T) {
 	}
 }
 
+func BenchmarkNew(b *testing.B) {
+	b.StopTimer()
+	oldArgs := os.Args
+	os.Args = append([]string{"flagTest"}, "--leaf", "44")
+	goflag.Parse()
+	os.Args = oldArgs
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		flag.New()
+	}
+}
+
 func BenchmarkGet(b *testing.B) {
 	b.StopTimer()
 	oldArgs := os.Args

@@ -162,9 +162,21 @@ func TestNewWithEnvPrefix(t *testing.T) {
 	}
 }
 
-func BenchmarkGet(b *testing.B) {
+func BenchmarkNew(b *testing.B) {
+	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
+	b.StartTimer()
+	for n := 0; n < b.N; n++ {
+		env.New(env.WithEnvPrefix(prefix))
+	}
+}
+
+func BenchmarkGet(b *testing.B) {
+	b.StopTimer()
+	prefix := "CFGENV_"
+	setup(prefix)
+	b.StartTimer()
 	g, _ := env.New(env.WithEnvPrefix(prefix))
 	for n := 0; n < b.N; n++ {
 		g.Get("leaf")
@@ -172,46 +184,55 @@ func BenchmarkGet(b *testing.B) {
 }
 
 func BenchmarkGetNested(b *testing.B) {
+	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
 	g, _ := env.New(env.WithEnvPrefix(prefix))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}
 }
 
 func BenchmarkGetArray(b *testing.B) {
+	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
 	g, _ := env.New(env.WithEnvPrefix(prefix))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice")
 	}
 }
 
 func BenchmarkGetArrayLen(b *testing.B) {
+	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
 	g, _ := env.New(env.WithEnvPrefix(prefix))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice[]")
 	}
 }
 
 func BenchmarkGetArrayElement(b *testing.B) {
+	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
 	g, _ := env.New(env.WithEnvPrefix(prefix))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice[1]")
 	}
 }
 
 func BenchmarkDefaultReplacer(b *testing.B) {
+	b.StopTimer()
 	r := keys.ChainReplacer(
 		keys.StringReplacer("_", "."),
 		keys.LowerCaseReplacer())
-
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		r.Replace("apple_Banana_Cantelope_date_Eggplant_fig")
 	}

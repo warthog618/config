@@ -83,40 +83,56 @@ func TestGetterSet(t *testing.T) {
 	assert.Equal(t, 32, v)
 }
 
+func BenchmarkNew(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		dict.New(dict.WithMap(map[string]interface{}{"leaf": "44"}))
+	}
+}
+
 func BenchmarkGet(b *testing.B) {
+	b.StopTimer()
 	g := dict.New(dict.WithMap(map[string]interface{}{"leaf": "44"}))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("leaf")
 	}
 }
 
 func BenchmarkGetNested(b *testing.B) {
+	b.StopTimer()
 	g := dict.New(dict.WithMap(map[string]interface{}{
 		"nested": map[string]interface{}{"leaf": "44"}}))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}
 }
 
 func BenchmarkGetArray(b *testing.B) {
+	b.StopTimer()
 	g := dict.New(dict.WithMap(map[string]interface{}{
 		"leaf": []int{1, 2, 3, 4}}))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
 	}
 }
 
 func BenchmarkGetArrayLen(b *testing.B) {
+	b.StopTimer()
 	g := dict.New(dict.WithMap(map[string]interface{}{
 		"leaf": []int{1, 2, 3, 4}}))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("leaf[]")
 	}
 }
 
 func BenchmarkGetArrayElement(b *testing.B) {
+	b.StopTimer()
 	g := dict.New(dict.WithMap(map[string]interface{}{
 		"leaf": []int{1, 2, 3, 4}}))
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("leaf[2]")
 	}

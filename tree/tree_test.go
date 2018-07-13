@@ -135,43 +135,36 @@ func TestGetLeafElement(t *testing.T) {
 }
 
 func BenchmarkGet(b *testing.B) {
-	g := mockGetter{"leaf": "44"}
+	g := map[string]interface{}{"leaf": "44"}
 	for n := 0; n < b.N; n++ {
 		Get(g, "leaf", ".")
 	}
 }
 
 func BenchmarkGetNested(b *testing.B) {
-	g := mockGetter{"nested": map[string]interface{}{"leaf": "44"}}
+	g := map[string]interface{}{"nested": map[string]interface{}{"leaf": "44"}}
 	for n := 0; n < b.N; n++ {
 		Get(g, "nested.leaf", ".")
 	}
 }
 
 func BenchmarkGetArray(b *testing.B) {
-	g := mockGetter{"leaf": []int{1, 2, 3, 4}}
+	g := map[string]interface{}{"leaf": []int{1, 2, 3, 4}}
 	for n := 0; n < b.N; n++ {
 		Get(g, "leaf", ".")
 	}
 }
 
 func BenchmarkGetArrayLen(b *testing.B) {
-	g := mockGetter{"leaf": []int{1, 2, 3, 4}}
+	g := map[string]interface{}{"leaf": []int{1, 2, 3, 4}}
 	for n := 0; n < b.N; n++ {
 		Get(g, "nested.leaf[]", ".")
 	}
 }
 
 func BenchmarkGetArrayElement(b *testing.B) {
-	g := mockGetter{"leaf": []int{1, 2, 3, 4}}
+	g := map[string]interface{}{"leaf": []int{1, 2, 3, 4}}
 	for n := 0; n < b.N; n++ {
 		Get(g, "nested.leaf[2]", ".")
 	}
-}
-
-type mockGetter map[string]interface{}
-
-func (m mockGetter) Get(key string) (interface{}, bool) {
-	v, ok := m[key]
-	return v, ok
 }

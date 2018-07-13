@@ -386,6 +386,12 @@ func TestNewWithShortFlags(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
+func BenchmarkNew(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		pflag.New(pflag.WithCommandLine([]string{"--leaf", "44"}))
+	}
+}
+
 func BenchmarkGet(b *testing.B) {
 	b.StopTimer()
 	g, _ := pflag.New(pflag.WithCommandLine([]string{"--leaf", "44"}))
