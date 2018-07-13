@@ -14,7 +14,7 @@ consistent API to access configuration parameters, independent of the
 underlying configuration storage formats, locations or technologies.
 
 **config** is lightweight as it has no dependencies itself - your application
-will only depend on the getters you explicitly include.  A collection of getters for common configuration sources is provided, each in its own subpackage, or you can roll your own.
+will only depend on the getters you explicitly include.  A collection of getters for common configuration sources is provided, each in its own sub-package, or you can roll your own.
 
 **config** is versatile as it allows you to control all aspects of your configuration, including the configuration sources, their location, format,
 and the order in which they are searched.
@@ -27,10 +27,10 @@ A couple of steps are required to setup and use **config**:
 - Create a Config to provide type conversions for values from the getter
 - Read configuration from the Config
 
-A minimal setup to access configuration from command line flags might look like:
+A minimal setup to access configuration from POSIX style command line flags might look like:
 
 ```go
-    flags, _ = flag.New()
+    flags, _ = pflag.New()
     c := config.NewConfig(flags)
 ```
 
@@ -43,7 +43,7 @@ myapp --config-file=myfile.json
 could then be read using:
 
 ```go
-   cfgFile := c.GetString("config.file")
+   cfgFile, _ := c.GetString("config.file")
 ```
 
 Multiple configuration sources can be setup and customised to suit your application requirements.  The [Example Usage](#example-usage) section provides a more extensive example.
@@ -99,16 +99,16 @@ Both flavours also provide methods to return the other flavour in case different
 The int and float types return the maximum possible width to prevent loss of information.  The returned values can be range checked and assigned to
 narrower types by the application as required.
 
-The [**cfgconv**](https://godoc.org/github.com/warthog618/config/cfgconv) subpackage provides the functions **config** uses to perform the conversions from the *interface{}* returned by the getter to the type requested by the application code.  The **cfgconv** package is similar to the standard
+The [**cfgconv**](https://godoc.org/github.com/warthog618/config/cfgconv) sub-package provides the functions **config** uses to perform the conversions from the *interface{}* returned by the getter to the type requested by the application code.  The **cfgconv** package is similar to the standard
 [**strconv**](https://golang.org/pkg/strconv/) package, but converts from *interface{}* instead of *string*.  The conversions performed by **cfgconv** are as permissive as possible, given the data types involved, to allow for getters mapping from formats that may not directly support the requested type.
 
-Direct gets of maps and structs are not supported, but both can be unmarshalled from the configuration, with the configuration keys being drawn from struct field names or map keys. Unmarshalling into nested structs is supported, as is overidding struct field names using tags.
+Direct gets of maps and structs are not supported, but both can be unmarshalled from the configuration, with the configuration keys being drawn from struct field names or map keys. Unmarshalling into nested structs is supported, as is overiding struct field names using tags.
 
 ## Concepts
 
 ### Config Tree
 
-The configuration is presented to the application as a key/value store.  Conceptually the configuration parameters are located in a tree, where the key defines the path to the parameter from the root of the tree.  The key is a list of nodes followed by the name of the leaf.  The node and leaf names are joined with a separator, which by default is '.', to form the key.  e.g. *log.verbosity* idenfities the *verbosity* leaf in the *log* node.
+The configuration is presented to the application as a key/value store.  Conceptually the configuration parameters are located in a tree, where the key defines the path to the parameter from the root of the tree.  The key is a list of nodes followed by the name of the leaf.  The node and leaf names are joined with a separator, which by default is '.', to form the key.  e.g. *log.verbosity* identifies the *verbosity* leaf in the *log* node.
 
 Simple configurations may contain only a root node.  More complex configurations may include nodes corresponding to the configuration of contained objects or subsystems.
 
@@ -124,7 +124,7 @@ Arrays, other than arrays of structs, are considered leaves and can be retrieved
     size := m.GetUInt("ports[]")
     for i := 0; i < size; i++ {
         // get each port sequentially...
-        port := m.GetUint("ports[i]")
+        port := m.GetUint(fmt.Sprintf("ports[%d]",i))
     }
 ```
 
@@ -136,7 +136,7 @@ As described in [API](#api), the [Config](https://godoc.org/github.com/warthog61
 
 The sources of configuration parameters are referred to as *getters*.
 
-A getter must safisfy a simple interface:
+A getter must satisfy a simple interface:
 
 ```go
 type Getter interface {
@@ -146,25 +146,32 @@ type Getter interface {
 
 The source of configuration may be local or remote.
 
-A number of getters for common configuration sources are provided in subpackages:
-
-- [Environment](#environment)
-- [Flag](#command-line-flags)
-- [JSON](#json)
-- [TOML](#toml)
-- [YAML](#yaml)
-- [Dictionary](#dictionary)
- 
-Alternatively you can roll your own.
-
 A collection of getters can be formed into a [Stack](https://godoc.org/github.com/warthog618/config#Stack).  A stack forms an overlay of configuration parameters, the view from the top of which is presented to the application as its configuration.  The getters contained in the stack, and their order, is specified by the application and can be modified at runtime.
 
 Additionally, getters may be wrapped in decorators, such as the
 [WithAlias](#alias) or [WithDefault](#default),
 to perform a key translations before the key is passed to the getter, or to manipulate the value before returning it to the caller.
 
-The [**keys**](https://godoc.org/github.com/warthog618/config/keys) subpackage
-provides a number of functions to assist in mapping between namespaces.
+A number of getters for common configuration sources are provided in sub-packages:
+
+Getter | Description
+----- | -----
+[env](https://github.com/warthog618/config/tree/master/env) | environment variables
+[flag](https://github.com/warthog618/config/tree/master/flag) | Go style command line flags
+[pflag](https://github.com/warthog618/config/tree/master/pflag) | POSIX style command line flags
+[json](https://github.com/warthog618/config/tree/master/json) | JSON files or other JSON formatted sources
+[toml](https://github.com/warthog618/config/tree/master/toml) | TOML files or other TOML formatted sources
+[yaml](https://github.com/warthog618/config/tree/master/yaml) | YAML files or other YAML formatted sources
+[properties](https://github.com/warthog618/config/tree/master/properties) | Properties files or other properties formatted sources
+[dict](https://github.com/warthog618/config/tree/master/dict) | key/value maps
+
+Alternatively you can roll your own.
+
+A couple of helper packages are available should you wish to roll your own getter:
+
+The [**keys**](https://github.com/warthog618/config/tree/master/keys) sub-package provides a number of functions to assist in mapping between namespaces.
+
+The [**tree**](https://github.com/warthog618/config/tree/master/tree) sub-package provides a Get method to get a value from a map[string]interface{} or map[interface{}]interface{}.
 
 ### Decorators
 
@@ -185,7 +192,7 @@ Decorators are added to the getter before it is provided to the Config. e.g.:
     a.Add(newKey,oldKey)
 ```
 
-Some of the decorators are described in more detail below. Refer to the [documentation](https://godoc.org/github.com/warthog618/config#Decorator) for the current set of provided decorators.
+Some of the decorators are described in more detail below. Refer to the [Decorator documentation](https://godoc.org/github.com/warthog618/config#Decorator) for the current set of provided decorators.
 
 #### Alias
 
@@ -221,7 +228,7 @@ The [WithKeyReplacer](https://godoc.org/github.com/warthog618/config#WithKeyRepl
 
 #### Prefix
 
-The [WithPrefix](https://godoc.org/github.com/warthog618/config#WithPrefix) decorator can be considered is a special case of WithKeyreplacer that prefixes the key with a fixed string.  This can be used to move a getter deeper into the configuration tree, for example if there is a configuration file for a particular subsystem.
+The [WithPrefix](https://godoc.org/github.com/warthog618/config#WithPrefix) decorator can be considered is a special case of WithKeyReplacer that prefixes the key with a fixed string.  This can be used to move a getter deeper into the configuration tree, for example if there is a configuration file for a particular subsystem.
 
 #### RegexAlias
 
@@ -270,7 +277,7 @@ func main() {
         "sm.thresholds": "23,45,64",
     }))
     var g config.Getter
-    g, _ = flag.New(flag.WithShortFlags(map[byte]string{'c': "config-file"}))
+    g, _ = pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"}))
     sources := config.NewStack(g)
     cfg := config.NewConfig(
         config.Decorate(sources, config.WithDefault(defaultConfig)))
@@ -312,53 +319,6 @@ APP_CONFIG_FILE="myfile.json" myapp --env.prefix=APP_
 
 This example, and examples of more complex usage, can be found in the examples directory.
 
-## Supplied Getters
-
-:construction: This section is still under construction....
-The following getters are provided in sub-packages:
-
-### Environment
-
-[![GoDoc](https://godoc.org/github.com/warthog618/config/env/sar?status.svg)](https://godoc.org/github.com/warthog618/config/env)
-
-The **env** package provides a getter that returns value from environment variables.  
-
-### Command Line Flags
-
-[![GoDoc](https://godoc.org/github.com/warthog618/config/flag/sar?status.svg)](https://godoc.org/github.com/warthog618/config/flag)
-
-The **flag** package...
-
-### JSON
-
-[![GoDoc](https://godoc.org/github.com/warthog618/config/json/sar?status.svg)](https://godoc.org/github.com/warthog618/config/json)
-
-The **json** package...
-
-### YAML
-
-[![GoDoc](https://godoc.org/github.com/warthog618/config/yaml/sar?status.svg)](https://godoc.org/github.com/warthog618/config/yaml)
-
-The **yaml** package...
-
-### TOML
-
-[![GoDoc](https://godoc.org/github.com/warthog618/config/toml/sar?status.svg)](https://godoc.org/github.com/warthog618/config/toml)
-
-The **toml** package...
-
-### Properties
-
-[![GoDoc](https://godoc.org/github.com/warthog618/config/properties/sar?status.svg)](https://godoc.org/github.com/warthog618/config/properties)
-
-The properties package...
-
-### Dictionary
-
-[![GoDoc](https://godoc.org/github.com/warthog618/config/dict/sar?status.svg)](https://godoc.org/github.com/warthog618/config/dict)
-
-The dict package...
-
 ## Future Work
 
 A list of things I haven't gotten around to yet, or am still thinking about...
@@ -366,6 +326,4 @@ A list of things I haven't gotten around to yet, or am still thinking about...
 - Add more examples.
 - Add a getter for etcd.
 - Add a getter for consul.
-- Add command line validation to flag.
-- Add help generation to flag.
 - Add watches on config sources for config changes
