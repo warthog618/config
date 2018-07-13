@@ -27,8 +27,8 @@ import (
 
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/env"
-	"github.com/warthog618/config/flag"
 	"github.com/warthog618/config/json"
+	"github.com/warthog618/config/pflag"
 )
 
 func main() {
@@ -76,7 +76,7 @@ func loadConfig() Config {
 		'c': "config-file",
 		'u': "unmarshal",
 	}
-	fget, err := flag.New(flag.WithShortFlags(shortFlags))
+	fget, err := pflag.New(pflag.WithShortFlags(shortFlags))
 	if err != nil {
 		panic(err)
 	}

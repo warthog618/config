@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package flag provides a POSIX/GNU style style command line parser/config Getter.
+// Package pflag provides a POSIX/GNU style style command line parser/config Getter.
 //
 // Parses command line flags and makes them available
 // through a config.Getter interface.
@@ -30,8 +30,8 @@
 // Short flags may be grouped, e.g. "-abc" is equivalent to "-a -b -c".
 // Grouped short flags may not have values following them.
 // So "-abc foo" would stop parsing after the "-abc" and assume "foo" was
-// the first non-flag an arg.
-package flag
+// the first non-flag argument.
+package pflag
 
 import (
 	"os"
