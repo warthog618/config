@@ -284,7 +284,7 @@ func Int(v interface{}) (int64, error) {
 // Slice converts a slice of something into a []interface{}
 //
 // Also interprets strings as a single element slice,
-// to handle the case where a Getter cannot distinguish
+// to allow for the case where a Getter cannot distinguish
 // between a single entry slice and a literal,
 // e.g. the env Getter.
 func Slice(v interface{}) ([]interface{}, error) {
