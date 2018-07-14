@@ -27,7 +27,7 @@ A couple of steps are required to setup and use **config**:
 - Create a Config to provide type conversions for values from the getter
 - Read configuration from the Config
 
-A minimal setup to access configuration from POSIX style command line flags might look like:
+A minimal setup to access configuration from POSIX/GNU style command line flags might look like:
 
 ```go
     flags, _ = pflag.New()
@@ -60,16 +60,16 @@ The get methods are similar to a map read, returning both the value and
 an error, which indicates if the value could not be found or converted. e.g.
 
 ```go
-    c := config.NewConfig(....)
-    v,err := c.GetInt32("pin")
-    ports,err := c.GetUintSlice("ports")
+    c := config.NewConfig(g)
+    v, err := c.GetInt("pin")
+    ports, err := c.GetUintSlice("ports")
 ```
 
 The [Must](https://godoc.org/github.com/warthog618/config#Must) provides a similar interface to Config, but does not return errors.  Rather than being returned to the caller, it allows errors to be ignored or directed to an error handler. e.g.
 
 ```go
-    m := config.NewMust(config.WithPanic())
-    v := m.GetInt32("pin")
+    m := config.NewMust(g, config.WithPanic())
+    v := m.GetInt("pin")
     ports := m.GetUintSlice("ports")
 ```
 
@@ -118,13 +118,13 @@ as **config** considers keys that differ only by case to be distinct.
 Arrays, other than arrays of structs, are considered leaves and can be retrieved whole.  Additionally, array elements can be referenced with keys of the form *a[i]* where *a* is the key of the whole array and *i* is the zero-based integer index into the array.  The size of the array can be referenced with a key of form *a[]*. e.g.
 
 ```go
-    ports := m.GetUIntSlice("ports")
+    ports := m.GetUintSlice("ports")
 
     // alternatively....
-    size := m.GetUInt("ports[]")
+    size := int(m.GetUint("ports[]"))
     for i := 0; i < size; i++ {
         // get each port sequentially...
-        port := m.GetUint(fmt.Sprintf("ports[%d]",i))
+        port := m.GetUint(fmt.Sprintf("ports[%d]", i))
     }
 ```
 
@@ -148,14 +148,10 @@ The source of configuration may be local or remote.
 
 A collection of getters can be formed into a [Stack](https://godoc.org/github.com/warthog618/config#Stack).  A stack forms an overlay of configuration parameters, the view from the top of which is presented to the application as its configuration.  The getters contained in the stack, and their order, is specified by the application and can be modified at runtime.
 
-Additionally, getters may be wrapped in decorators, such as the
-[WithAlias](#alias) or [WithDefault](#default),
-to perform a key translations before the key is passed to the getter, or to manipulate the value before returning it to the caller.
-
 A number of getters for common configuration sources are provided in sub-packages:
 
-Getter | Description
------ | -----
+Getter | Configuration Source
+:-----:| -----
 [env](https://github.com/warthog618/config/tree/master/env) | environment variables
 [flag](https://github.com/warthog618/config/tree/master/flag) | Go style command line flags
 [pflag](https://github.com/warthog618/config/tree/master/pflag) | POSIX style command line flags
@@ -174,6 +170,10 @@ The [**keys**](https://github.com/warthog618/config/tree/master/keys) sub-packag
 The [**tree**](https://github.com/warthog618/config/tree/master/tree) sub-package provides a Get method to get a value from a map[string]interface{} or map[interface{}]interface{}.
 
 ### Decorators
+
+Additionally, getters may be wrapped in decorators, such as the
+[WithAlias](#alias) or [WithDefault](#default),
+to perform a key translations before the key is passed to the getter, or to manipulate the value before returning it to the caller.
 
 A number of decorators are provided including:
 
@@ -238,8 +238,8 @@ In addition to the uses of plain aliases, regex aliases can be used for setting 
 
 ```go
     r := config.NewRegexAlias()
-    r.Add("somearray\\[\\d+\\](.*)","somearray[0]$1")
-    c := config.NewConfig(g,config.WithRegexAlias(r))
+    r.Append("somearray\\[\\d+\\](.*)", "somearray[0]$1")
+    c := config.NewConfig(config.Decorate(g, config.WithRegexAlias(r)))
 ```
 
 defaults all fields in the array elements to the values of the first element of the same array.

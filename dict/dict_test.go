@@ -58,7 +58,7 @@ func TestGetterGet(t *testing.T) {
 	}
 }
 
-func TestGetterWithConfig(t *testing.T) {
+func TestGetterWithMap(t *testing.T) {
 	config := map[string]interface{}{"a": 1}
 	g := dict.New(dict.WithMap(config))
 	require.NotNil(t, g)
