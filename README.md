@@ -319,7 +319,7 @@ default values for fields in array elements.  e.g. this alias
 
 ```go
     r := config.NewRegexAlias()
-    r.Append("somearray\\[\\d+\\](.*)", "somearray[0]$1")
+    r.Append(`somearray\[\d+\](.*)`, "somearray[0]$1")
     c := config.NewConfig(config.Decorate(g, config.WithRegexAlias(r)))
 ```
 

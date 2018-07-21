@@ -227,7 +227,7 @@ func TestRegexAliasGet(t *testing.T) {
 		expected interface{}
 		ok       bool
 	}{
-		{"array index", []alias{{"(.*)\\[\\d+\\](.*)", "$1[0]$2"}}, "b[2].a", "b.a", true},
+		{"array index", []alias{{`(.*)\[\d+\](.*)`, "$1[0]$2"}}, "b[2].a", "b.a", true},
 		{"alias to alias", []alias{{"c", "foo.b"}, {"d", "c"}}, "d", nil, false},
 		{"alias to node alias", []alias{{"baz", "bar"}, {"blob", "baz"}}, "blob.b", nil, false},
 		{"priority order", []alias{{"baz", "bar"}, {"baz.b", "a"}}, "baz.b", "bar.b", true},
