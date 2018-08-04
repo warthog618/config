@@ -3,6 +3,7 @@
 A lightweight and versatile configuration toolkit for Go.
 
 [![Build Status](https://travis-ci.org/warthog618/config.svg)](https://travis-ci.org/warthog618/config)
+[![Coverage Status](https://coveralls.io/repos/github/warthog618/config/badge.svg?branch=master)](https://coveralls.io/github/warthog618/config?branch=master)
 [![GoDoc](https://godoc.org/github.com/warthog618/config/sar?status.svg)](https://godoc.org/github.com/warthog618/config)
 [![Go Report Card](https://goreportcard.com/badge/github.com/warthog618/config)](https://goreportcard.com/report/github.com/warthog618/config)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/warthog618/config/blob/master/LICENSE)
