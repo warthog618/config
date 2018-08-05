@@ -24,21 +24,21 @@ func main() {
 	sources := config.NewStack(g)
 	cfg := config.NewConfig(
 		config.Decorate(sources, config.WithDefault(defaultConfig)))
-	prefix, _ := cfg.GetString("env.prefix")
+	prefix := cfg.Get("env.prefix").String()
 	g, _ = env.New(env.WithEnvPrefix(prefix))
 	sources.Append(g)
-	cf, _ := cfg.GetString("config.file")
+	cf := cfg.Get("config.file").String()
 	g, _ = json.New(json.FromFile(cf))
 	sources.Append(g)
 
 	// read a config field from the root config
-	name, _ := cfg.GetString("name")
+	name := cfg.Get("name").String()
 
 	// to pass nested config to a sub-module...
-	smCfg := cfg.GetMust("sm")
-	pin := smCfg.GetInt("pin")
-	period := smCfg.GetDuration("period")
-	thresholds := smCfg.GetIntSlice("thresholds")
+	smCfg := cfg.GetConfig("sm")
+	pin := smCfg.MustGet("pin").Int()
+	period := smCfg.MustGet("period").Duration()
+	thresholds := smCfg.Get("thresholds").IntSlice()
 
 	fmt.Println(cf, name, pin, period, thresholds)
 }

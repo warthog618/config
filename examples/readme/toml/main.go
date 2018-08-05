@@ -10,7 +10,7 @@ import (
 func main() {
 	f, _ := toml.New(toml.FromFile("config.toml"))
 	c := config.NewConfig(f)
-	s, _ := c.GetString("nested.string")
+	s := c.Get("nested.string").String()
 	fmt.Println("s:", s)
 	// ....
 }

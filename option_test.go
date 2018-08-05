@@ -41,36 +41,12 @@ func TestNewConfigWithTag(t *testing.T) {
 	assert.Equal(t, "bogus", c.tag)
 }
 
-func TestNewMustWithErrorHandler(t *testing.T) {
-	mr := mockGetter{"a.b.c_d": true}
-	var err error
-	f := func(e error) {
-		err = e
-	}
-	c := NewMust(mr, WithErrorHandler(f))
-	v := c.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
-	v = c.Get("")
-	assert.IsType(t, NotFoundError{}, err)
-	assert.Equal(t, nil, v)
-}
-
-func TestNewMustWithPanic(t *testing.T) {
-	mr := mockGetter{"a.b.c_d": true}
-	c := NewMust(mr, WithPanic())
-	assert.NotPanics(t, func() { c.Get("a.b.c_d") })
-	assert.Panics(t, func() { c.Get("") })
-}
-
-func TestNewMustWithTag(t *testing.T) {
+func TestNewConfigWithUpdateSignal(t *testing.T) {
 	g := mockGetter{"a": 42}
-	m := NewMust(g)
-	require.NotNil(t, m)
-	assert.Equal(t, "config", m.c.tag)
-	m = NewMust(g, WithTag("bogus"))
-	require.NotNil(t, m)
-	assert.Equal(t, "bogus", m.c.tag)
+	s := NewSignal()
+	d := s.Signalled()
+	c := NewConfig(g, WithUpdateSignal(s))
+	assert.Equal(t, d, c.Updated())
 }
 
 type mockGetter map[string]interface{}

@@ -14,16 +14,16 @@ func main() {
 
 func arrays() {
 	g, _ := pflag.New()
-	m := config.NewMust(g)
+	c := config.NewConfig(g)
 
 	// arrays
-	ports := m.GetUintSlice("ports")
+	ports := c.Get("ports").UintSlice()
 
 	// alternatively....
-	size := int(m.GetUint("ports[]"))
+	size := int(c.Get("ports[]").Uint())
 	for i := 0; i < size; i++ {
 		// get each port sequentially...
-		port := m.GetUint(fmt.Sprintf("ports[%d]", i))
+		port := c.Get(fmt.Sprintf("ports[%d]", i)).Uint()
 		ports[i] = port
 	}
 }
@@ -49,22 +49,21 @@ func regexalias() {
 	c.Get("")
 }
 
-func newConfig() error {
+func newConfig() {
 	g, _ := pflag.New()
 
 	c := config.NewConfig(g)
-	v, err := c.GetInt("pin")
-	ports, err := c.GetUintSlice("ports")
+	v := c.Get("pin").Int()
+	ports := c.Get("ports").UintSlice()
 
 	ports[0] = uint64(v)
-	return err
 }
 
 func must() {
 	g, _ := pflag.New()
-	m := config.NewMust(g, config.WithPanic())
-	v := m.GetInt("pin")
-	ports := m.GetUintSlice("ports")
+	m := config.NewConfig(g)
+	v := m.MustGet("pin").Int()
+	ports := m.Get("ports").UintSlice()
 
 	ports[0] = uint64(v)
 }

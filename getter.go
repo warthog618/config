@@ -126,6 +126,19 @@ func WithKeyReplacer(r Replacer) Decorator {
 	}
 }
 
+// WithMustGet provides a Decorator that panics if a key is not found by the decorated Getter.
+func WithMustGet() Decorator {
+	return func(g Getter) Getter {
+		return GetterFunc(func(key string) (interface{}, bool) {
+			v, found := g.Get(key)
+			if !found {
+				panic(NotFoundError{Key: key})
+			}
+			return v, true
+		})
+	}
+}
+
 // WithPrefix provides a Decorator that adds a prefix to the key before
 // calling the Getter.
 // This is a common special case of KeyReplacer where the key is

@@ -285,6 +285,61 @@ func TestInt(t *testing.T) {
 	}
 }
 
+func TestIntSlice(t *testing.T) {
+	slice := []interface{}{[]int{1, 2, 3}}
+	intSlice := []int{1, 2, -3}
+	stringSlice := []string{"one", "two"}
+	uintSlice := []int{1, 2, 3}
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    []int64
+		err  error
+	}{
+		{"slice", slice, []int64{0}, cfgconv.TypeError{}},
+		{"intSlice", intSlice, []int64{1, 2, -3}, nil},
+		{"stringSlice", stringSlice, []int64{0, 0}, &strconv.NumError{}},
+		{"uintSlice", uintSlice, []int64{1, 2, 3}, nil},
+		{"string int", "42", []int64{42}, nil},
+		{"bool true", true, nil, cfgconv.TypeError{}},
+		{"bool false", false, nil, cfgconv.TypeError{}},
+		{"int", int(42), nil, cfgconv.TypeError{}},
+		{"int negative", int(-42), nil, cfgconv.TypeError{}},
+		{"uint", uint(42), nil, cfgconv.TypeError{}},
+		{"int8", int8(42), nil, cfgconv.TypeError{}},
+		{"int8 negative", int8(-42), nil, cfgconv.TypeError{}},
+		{"uint8", uint8(42), nil, cfgconv.TypeError{}},
+		{"int16", int16(42), nil, cfgconv.TypeError{}},
+		{"int16 negative", int16(-42), nil, cfgconv.TypeError{}},
+		{"uint16", uint16(42), nil, cfgconv.TypeError{}},
+		{"int32", int32(42), nil, cfgconv.TypeError{}},
+		{"int32 negative", int32(-42), nil, cfgconv.TypeError{}},
+		{"uint32", uint32(42), nil, cfgconv.TypeError{}},
+		{"int64", int64(42), nil, cfgconv.TypeError{}},
+		{"int64 negative", int64(-42), nil, cfgconv.TypeError{}},
+		{"uint64", uint64(42), nil, cfgconv.TypeError{}},
+		{"float64", float64(42), nil, cfgconv.TypeError{}},
+		{"float64 zero", float64(0), nil, cfgconv.TypeError{}},
+		{"float64 negative", float64(-42), nil, cfgconv.TypeError{}},
+		{"float64 truncate", float64(42.6), nil, cfgconv.TypeError{}},
+		{"float64 truncate negative", float64(-42.6), nil, cfgconv.TypeError{}},
+		{"float32", float32(42), nil, cfgconv.TypeError{}},
+		{"float32 negative", float32(-42), nil, cfgconv.TypeError{}},
+		{"float32 truncate", float32(42.6), nil, cfgconv.TypeError{}},
+		{"float32 truncate negative", float32(-42.6), nil, cfgconv.TypeError{}},
+		{"empty string", "", nil, cfgconv.TypeError{}},
+		{"nil", nil, nil, cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.IntSlice(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
 func TestSlice(t *testing.T) {
 	slice := []interface{}{[]int{1, 2, 3}}
 	intSlice := []int{1, 2, -3}
@@ -384,6 +439,61 @@ func TestString(t *testing.T) {
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			v, err := cfgconv.String(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestStringSlice(t *testing.T) {
+	slice := []interface{}{[]int{1, 2, 3}}
+	intSlice := []int{1, 2, -3}
+	stringSlice := []string{"one", "two"}
+	uintSlice := []int{1, 2, 3}
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    []string
+		err  error
+	}{
+		{"slice", slice, []string{""}, cfgconv.TypeError{}},
+		{"intSlice", intSlice, []string{"1", "2", "-3"}, nil},
+		{"stringSlice", stringSlice, []string{"one", "two"}, nil},
+		{"uintSlice", uintSlice, []string{"1", "2", "3"}, nil},
+		{"string int", "42", []string{"42"}, nil},
+		{"bool true", true, nil, cfgconv.TypeError{}},
+		{"bool false", false, nil, cfgconv.TypeError{}},
+		{"int", int(42), nil, cfgconv.TypeError{}},
+		{"int negative", int(-42), nil, cfgconv.TypeError{}},
+		{"uint", uint(42), nil, cfgconv.TypeError{}},
+		{"int8", int8(42), nil, cfgconv.TypeError{}},
+		{"int8 negative", int8(-42), nil, cfgconv.TypeError{}},
+		{"uint8", uint8(42), nil, cfgconv.TypeError{}},
+		{"int16", int16(42), nil, cfgconv.TypeError{}},
+		{"int16 negative", int16(-42), nil, cfgconv.TypeError{}},
+		{"uint16", uint16(42), nil, cfgconv.TypeError{}},
+		{"int32", int32(42), nil, cfgconv.TypeError{}},
+		{"int32 negative", int32(-42), nil, cfgconv.TypeError{}},
+		{"uint32", uint32(42), nil, cfgconv.TypeError{}},
+		{"int64", int64(42), nil, cfgconv.TypeError{}},
+		{"int64 negative", int64(-42), nil, cfgconv.TypeError{}},
+		{"uint64", uint64(42), nil, cfgconv.TypeError{}},
+		{"float64", float64(42), nil, cfgconv.TypeError{}},
+		{"float64 zero", float64(0), nil, cfgconv.TypeError{}},
+		{"float64 negative", float64(-42), nil, cfgconv.TypeError{}},
+		{"float64 truncate", float64(42.6), nil, cfgconv.TypeError{}},
+		{"float64 truncate negative", float64(-42.6), nil, cfgconv.TypeError{}},
+		{"float32", float32(42), nil, cfgconv.TypeError{}},
+		{"float32 negative", float32(-42), nil, cfgconv.TypeError{}},
+		{"float32 truncate", float32(42.6), nil, cfgconv.TypeError{}},
+		{"float32 truncate negative", float32(-42.6), nil, cfgconv.TypeError{}},
+		{"empty string", "", nil, cfgconv.TypeError{}},
+		{"nil", nil, nil, cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.StringSlice(p.in)
 			assert.IsType(t, p.err, err)
 			assert.Equal(t, p.v, v)
 		}
@@ -589,6 +699,61 @@ func TestUint(t *testing.T) {
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			v, err := cfgconv.Uint(p.in)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestUintSlice(t *testing.T) {
+	slice := []interface{}{[]int{1, 2, 3}}
+	intSlice := []int{1, 2, -3}
+	stringSlice := []string{"one", "two"}
+	uintSlice := []int{1, 2, 3}
+	patterns := []struct {
+		name string
+		in   interface{}
+		v    []uint64
+		err  error
+	}{
+		{"slice", slice, []uint64{0}, cfgconv.TypeError{}},
+		{"intSlice", intSlice, []uint64{1, 2, 0}, cfgconv.TypeError{}},
+		{"stringSlice", stringSlice, []uint64{0, 0}, &strconv.NumError{}},
+		{"uintSlice", uintSlice, []uint64{1, 2, 3}, nil},
+		{"string int", "42", []uint64{42}, nil},
+		{"bool true", true, nil, cfgconv.TypeError{}},
+		{"bool false", false, nil, cfgconv.TypeError{}},
+		{"int", int(42), nil, cfgconv.TypeError{}},
+		{"int negative", int(-42), nil, cfgconv.TypeError{}},
+		{"uint", uint(42), nil, cfgconv.TypeError{}},
+		{"int8", int8(42), nil, cfgconv.TypeError{}},
+		{"int8 negative", int8(-42), nil, cfgconv.TypeError{}},
+		{"uint8", uint8(42), nil, cfgconv.TypeError{}},
+		{"int16", int16(42), nil, cfgconv.TypeError{}},
+		{"int16 negative", int16(-42), nil, cfgconv.TypeError{}},
+		{"uint16", uint16(42), nil, cfgconv.TypeError{}},
+		{"int32", int32(42), nil, cfgconv.TypeError{}},
+		{"int32 negative", int32(-42), nil, cfgconv.TypeError{}},
+		{"uint32", uint32(42), nil, cfgconv.TypeError{}},
+		{"int64", int64(42), nil, cfgconv.TypeError{}},
+		{"int64 negative", int64(-42), nil, cfgconv.TypeError{}},
+		{"uint64", uint64(42), nil, cfgconv.TypeError{}},
+		{"float64", float64(42), nil, cfgconv.TypeError{}},
+		{"float64 zero", float64(0), nil, cfgconv.TypeError{}},
+		{"float64 negative", float64(-42), nil, cfgconv.TypeError{}},
+		{"float64 truncate", float64(42.6), nil, cfgconv.TypeError{}},
+		{"float64 truncate negative", float64(-42.6), nil, cfgconv.TypeError{}},
+		{"float32", float32(42), nil, cfgconv.TypeError{}},
+		{"float32 negative", float32(-42), nil, cfgconv.TypeError{}},
+		{"float32 truncate", float32(42.6), nil, cfgconv.TypeError{}},
+		{"float32 truncate negative", float32(-42.6), nil, cfgconv.TypeError{}},
+		{"empty string", "", nil, cfgconv.TypeError{}},
+		{"nil", nil, nil, cfgconv.TypeError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, err := cfgconv.UintSlice(p.in)
 			assert.IsType(t, p.err, err)
 			assert.Equal(t, p.v, v)
 		}

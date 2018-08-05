@@ -13,7 +13,7 @@ func main() {
 	flag.Parse()
 	f, _ := cfgflag.New()
 	c := config.NewConfig(f)
-	cfgFile, _ := c.GetString("config.file")
+	cfgFile := c.Get("config.file").String()
 	fmt.Println("config-file:", cfgFile)
 	// ....
 }

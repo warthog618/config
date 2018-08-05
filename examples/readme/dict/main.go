@@ -11,7 +11,7 @@ func main() {
 	d := dict.New()
 	d.Set("config.file", "config.json")
 	c := config.NewConfig(d)
-	cfgFile, _ := c.GetString("config.file")
+	cfgFile := c.Get("config.file").String()
 	fmt.Println("config-file:", cfgFile)
 	// ....
 }

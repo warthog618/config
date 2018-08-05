@@ -7,8 +7,8 @@ package config_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
-	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -16,503 +16,121 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/warthog618/config"
-	"github.com/warthog618/config/cfgconv"
 )
 
 func TestNewConfig(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
 	c := config.NewConfig(&mr)
-	v, err := c.Get("")
-	assert.IsType(t, config.NotFoundError{}, err)
-	assert.Equal(t, nil, v)
-	v, err = c.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
-}
-
-func TestNewMust(t *testing.T) {
-	mr := mockGetter{"a.b.c_d": true}
-	c := config.NewMust(&mr)
 	v := c.Get("")
-	assert.Equal(t, nil, v)
+	assert.IsType(t, config.NotFoundError{}, v.Err())
+	assert.Equal(t, nil, v.Value())
 	v = c.Get("a.b.c_d")
-	assert.Equal(t, true, v)
+	assert.Nil(t, v.Err())
+	assert.Equal(t, true, v.Value())
+	assert.Nil(t, c.Updated())
 }
 
-func TestGetBool(t *testing.T) {
+func TestNewConfigWithErrorHandler(t *testing.T) {
+	mr := mockGetter{"a.b.c_d": "this is a.b.c.d"}
+	var eherr error
+	eh := func(err error) {
+		eherr = err
+	}
+	c := config.NewConfig(&mr, config.WithErrorHandler(eh))
+	v := c.Get("a.b.c_d")
+	assert.Nil(t, v.Err())
+	assert.Nil(t, eherr)
+	assert.Equal(t, "this is a.b.c.d", v.Value())
+	v.Int()
+	assert.IsType(t, &strconv.NumError{}, eherr)
+	eherr = nil
+	v = c.Get("")
+	assert.IsType(t, config.NotFoundError{}, v.Err())
+	assert.IsType(t, config.NotFoundError{}, eherr)
+	assert.Equal(t, nil, v.Value())
+	eherr = nil
+}
+
+func TestNewConfigWithPanic(t *testing.T) {
+	mr := mockGetter{"a.b.c_d": true}
+	c := config.NewConfig(&mr, config.WithPanic())
+	v := c.Get("a.b.c_d")
+	assert.Nil(t, v.Err())
+	assert.Equal(t, true, v.Value())
+	assert.Panics(t, func() {
+		c.Get("")
+	})
+}
+
+func TestGet(t *testing.T) {
 	mr := mockGetter{
-		"bool":       true,
-		"boolString": "true",
-		"boolInt":    1,
-		"notabool":   "bogus",
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
 	}
 	patterns := []struct {
 		k   string
-		v   bool
+		v   interface{}
 		err error
 	}{
-		{"bool", true, nil},
-		{"boolString", true, nil},
-		{"boolInt", true, nil},
-		{"notabool", false, &strconv.NumError{}},
-		{"notsuchbool", false, config.NotFoundError{}},
+		{"foo", "this is foo", nil},
+		{"bar.b", "this is bar.b", nil},
+		{"nosuch", nil, config.NotFoundError{}},
 	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetBool(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
+	cfg := config.NewConfig(&mr)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v := cfg.Get(p.k)
+			assert.IsType(t, p.err, v.Err())
+			assert.Equal(t, p.v, v.Value())
 		}
+		t.Run(p.k, f)
 	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetBool(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
 }
 
-func TestGetDuration(t *testing.T) {
+func TestGetWithErrorHandler(t *testing.T) {
 	mr := mockGetter{
-		"duration":     "123ms",
-		"notaduration": "bogus",
+		"foo": "this is foo",
+	}
+	var eherr error
+	eh := func(err error) {
+		eherr = err
 	}
 	patterns := []struct {
 		k   string
-		v   time.Duration
+		vo  config.ValueOption
 		err error
 	}{
-		{"duration", time.Duration(123000000), nil},
-		{"notaduration", time.Duration(0), errors.New("")},
-		{"nosuchduration", time.Duration(0), config.NotFoundError{}},
+		{"nil", config.WithErrorHandler(nil), nil},
+		{"eh", config.WithErrorHandler(eh), &strconv.NumError{}},
 	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetDuration(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
+	cfg := config.NewConfig(&mr)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			eherr = nil
+			v := cfg.Get("foo", p.vo)
+			assert.Nil(t, v.Err())
+			assert.Equal(t, "this is foo", v.Value())
+			assert.Nil(t, eherr)
+			vi := v.Int()
+			assert.Equal(t, int64(0), vi)
+			assert.IsType(t, p.err, eherr)
 		}
+		t.Run(p.k, f)
 	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetDuration(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
 }
 
-func TestGetFloat(t *testing.T) {
+func TestGetWithPanic(t *testing.T) {
 	mr := mockGetter{
-		"float":        3.1415,
-		"floatString":  "3.1415",
-		"floatInt":     1,
-		"notafloatInt": "bogus",
+		"foo": "this is foo",
 	}
-	patterns := []struct {
-		k   string
-		v   float64
-		err error
-	}{
-		{"float", 3.1415, nil},
-		{"floatString", 3.1415, nil},
-		{"floatInt", 1, nil},
-		{"notafloatInt", 0, &strconv.NumError{}},
-		{"nosuchfloat", 0, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetFloat(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetFloat(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-}
-
-func TestGetInt(t *testing.T) {
-	mr := mockGetter{
-		"int":       42,
-		"intString": "43",
-		"notaint":   "bogus",
-	}
-	patterns := []struct {
-		k   string
-		v   int64
-		err error
-	}{
-		{"int", 42, nil},
-		{"intString", 43, nil},
-		{"notaint", 0, &strconv.NumError{}},
-		{"nosuchint", 0, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetInt(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetInt(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-}
-
-func TestGetString(t *testing.T) {
-	mr := mockGetter{
-		"string":     "a string",
-		"stringInt":  42,
-		"notastring": struct{}{},
-	}
-	patterns := []struct {
-		k   string
-		v   string
-		err error
-	}{
-		{"string", "a string", nil},
-		{"stringInt", "42", nil},
-		{"notastring", "", cfgconv.TypeError{}},
-		{"nosuchstring", "", config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetString(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetString(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-}
-
-func TestGetTime(t *testing.T) {
-	mr := mockGetter{
-		"time":     "2017-03-01T01:02:03Z",
-		"notatime": "bogus",
-	}
-	patterns := []struct {
-		k   string
-		v   time.Time
-		err error
-	}{
-		{"time", time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), nil},
-		{"notatime", time.Time{}, &time.ParseError{}},
-		{"nosuchtime", time.Time{}, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetTime(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetTime(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-}
-
-func TestGetUint(t *testing.T) {
-	mr := mockGetter{
-		"uint":       42,
-		"uintString": "43",
-		"notaUint":   "bogus",
-	}
-	patterns := []struct {
-		k   string
-		v   uint64
-		err error
-	}{
-		{"uint", 42, nil},
-		{"uintString", 43, nil},
-		{"notaUint", 0, &strconv.NumError{}},
-		{"nosuchUint", 0, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetUint(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetUint(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-}
-
-func TestGetSlice(t *testing.T) {
-	mr := mockGetter{
-		"slice": []interface{}{1, 2, 3, 4},
-		"animals": []interface{}{
-			map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
-			map[string]interface{}{"Order": "Dasyuromorphia", "Name": "Quoll"},
-		},
-		"casttoslice": "bogus",
-		"notaslice":   struct{}{},
-	}
-	patterns := []struct {
-		k   string
-		v   []interface{}
-		err error
-	}{
-		{"slice", []interface{}{1, 2, 3, 4}, nil},
-		{"animals", []interface{}{
-			map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
-			map[string]interface{}{"Order": "Dasyuromorphia", "Name": "Quoll"},
-		}, nil},
-		{"casttoslice", []interface{}{"bogus"}, nil},
-		{"notaslice", nil, cfgconv.TypeError{}},
-		{"nosuchslice", nil, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetSlice(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetSlice(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.v, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-
-}
-
-func TestGetIntSlice(t *testing.T) {
-	mr := mockGetter{
-		"slice":       []int64{1, 2, -3, 4},
-		"casttoslice": "42",
-		"stringslice": []string{"one", "two", "three"},
-		"notaslice":   "bogus",
-	}
-	patterns := []struct {
-		k   string
-		x   []int64
-		err error
-	}{
-		{"slice", []int64{1, 2, -3, 4}, nil},
-		{"casttoslice", []int64{42}, nil},
-		{"stringslice", []int64{0, 0, 0}, &strconv.NumError{}},
-		{"notaslice", []int64{0}, &strconv.NumError{}},
-		{"nosuchslice", nil, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetIntSlice(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.x, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetIntSlice(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.x, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-}
-
-func TestGetStringSlice(t *testing.T) {
-	mr := mockGetter{
-		"intslice":        []int64{1, 2, -3, 4},
-		"stringslice":     []string{"one", "two", "three"},
-		"uintslice":       []uint64{1, 2, 3, 4},
-		"notastringslice": []interface{}{1, 2, struct{}{}},
-		"casttoslice":     "bogus",
-		"notaslice":       struct{}{},
-	}
-	patterns := []struct {
-		k   string
-		x   []string
-		err error
-	}{
-		{"intslice", []string{"1", "2", "-3", "4"}, nil},
-		{"uintslice", []string{"1", "2", "3", "4"}, nil},
-		{"stringslice", []string{"one", "two", "three"}, nil},
-		{"casttoslice", []string{"bogus"}, nil},
-		{"notastringslice", []string{"1", "2", ""}, cfgconv.TypeError{}},
-		{"notaslice", nil, cfgconv.TypeError{}},
-		{"nosuchslice", nil, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetStringSlice(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.x, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetStringSlice(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.x, v, p.k)
-		}
-	}
-	t.Run("Must", f)
-}
-
-func TestGetUintSlice(t *testing.T) {
-	mr := mockGetter{
-		"slice":       []uint64{1, 2, 3, 4},
-		"casttoslice": "42",
-		"intslice":    []int64{1, 2, -3, 4},
-		"stringslice": []string{"one", "two", "three"},
-		"notaslice":   "bogus",
-	}
-	patterns := []struct {
-		k   string
-		x   []uint64
-		err error
-	}{
-		{"slice", []uint64{1, 2, 3, 4}, nil},
-		{"casttoslice", []uint64{42}, nil},
-		{"intslice", []uint64{1, 2, 0, 4}, cfgconv.TypeError{}},
-		{"stringslice", []uint64{0, 0, 0}, &strconv.NumError{}},
-		{"notaslice", []uint64{0}, &strconv.NumError{}},
-		{"nosuchslice", nil, config.NotFoundError{}},
-	}
-	c := config.NewConfig(&mr)
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			v, err := c.GetUintSlice(p.k)
-			assert.IsType(t, p.err, err, p.k)
-			assert.Equal(t, p.x, v, p.k)
-		}
-	}
-	t.Run("Config", f)
-	var err error
-	m := config.NewMust(&mr, config.WithErrorHandler(
-		func(e error) {
-			err = e
-		}))
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			err = nil
-			v := m.GetUintSlice(p.k)
-			assert.IsType(t, p.err, err)
-			assert.Equal(t, p.x, v, p.k)
-		}
-	}
-	t.Run("Must", f)
+	cfg := config.NewConfig(&mr)
+	assert.Panics(t, func() {
+		v := cfg.Get("foo", config.WithPanic())
+		v.Int()
+	})
 }
 
 func TestGetConfig(t *testing.T) {
-	// Single Getter
 	mr := mockGetter{
 		"foo.a": "foo.a",
 		"foo.b": "foo.b",
@@ -574,38 +192,18 @@ func TestGetConfig(t *testing.T) {
 			{"e", nil, config.NotFoundError{}},
 		}},
 	}
-	type getNode interface {
-		GetConfig(node string, options ...config.ConfigOption) *config.Config
-		GetMust(node string, options ...config.MustOption) *config.Must
-	}
-	configs := []struct {
-		name string
-		c    getNode
-	}{{"config", config.NewConfig(config.Decorate(&mr, config.WithAlias(a)))},
-		{"must", config.NewMust(config.Decorate(&mr, config.WithAlias(a)))},
-	}
-	for _, cfg := range configs {
-		for _, p := range patterns {
-			f := func(t *testing.T) {
-				for _, tp := range p.tp {
-					subc := cfg.c.GetConfig(p.subtree)
-					require.NotNil(t, subc)
-					v, err := subc.Get(tp.k)
-					assert.IsType(t, tp.err, err, tp.k)
-					assert.Equal(t, tp.v, v, tp.k)
-				}
+	cfg := config.NewConfig(config.Decorate(&mr, config.WithAlias(a)))
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			for _, tp := range p.tp {
+				subc := cfg.GetConfig(p.subtree)
+				require.NotNil(t, subc)
+				v := subc.Get(tp.k)
+				assert.IsType(t, tp.err, v.Err(), tp.k)
+				assert.Equal(t, tp.v, v.Value(), tp.k)
 			}
-			t.Run(cfg.name+"-Config-"+p.name, f)
-			f = func(t *testing.T) {
-				for _, tp := range p.tp {
-					subc := cfg.c.GetMust(p.subtree)
-					require.NotNil(t, subc)
-					v := subc.Get(tp.k)
-					assert.Equal(t, tp.v, v, tp.k)
-				}
-			}
-			t.Run(cfg.name+"-Must-"+p.name, f)
 		}
+		t.Run(p.name, f)
 	}
 }
 
@@ -614,57 +212,67 @@ func TestGetConfigWithSeparator(t *testing.T) {
 		"a.b.c_d": true,
 	}
 	c := config.NewConfig(&mr)
-	v, err := c.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
+	v := c.Get("a.b.c_d")
+	assert.Nil(t, v.Err())
+	assert.Equal(t, true, v.Value())
 	cfg := c.GetConfig("a", config.WithSeparator("_"))
-	v, err = cfg.Get("b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
+	v = cfg.Get("b.c_d")
+	assert.Nil(t, v.Err())
+	assert.Equal(t, true, v.Value())
 	cfg = cfg.GetConfig("b.c")
-	v, err = cfg.Get("d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
-
-	m := config.NewMust(&mr)
-	v = m.Get("a.b.c_d")
-	assert.Equal(t, true, v)
-	cfg = m.GetConfig("a", config.WithSeparator("_"))
-	v, err = cfg.Get("b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
-	cfg = cfg.GetConfig("b.c")
-	v, err = cfg.Get("d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
+	v = cfg.Get("d")
+	assert.Nil(t, v.Err())
+	assert.Equal(t, true, v.Value())
 }
 
-func TestGetMustWithSeparator(t *testing.T) {
+func TestMustGet(t *testing.T) {
 	mr := mockGetter{
-		"a.b.c_d": true,
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
 	}
-	c := config.NewConfig(&mr)
-	v, err := c.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
-	cfg := c.GetMust("a", config.WithSeparator("_"))
-	v = cfg.Get("b.c_d")
-	assert.Equal(t, true, v)
-	cfg = cfg.GetMust("b.c")
-	v = cfg.Get("d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
-
-	m := config.NewMust(&mr)
-	v = m.Get("a.b.c_d")
-	assert.Equal(t, true, v)
-	cfg = m.GetMust("a", config.WithSeparator("_"))
-	v = cfg.Get("b.c_d")
-	assert.Equal(t, true, v)
-	cfg = cfg.GetMust("b.c")
-	v = cfg.Get("d")
-	assert.Nil(t, err)
-	assert.Equal(t, true, v)
+	type testPoint struct {
+	}
+	patterns := []struct {
+		name string
+		k    string
+		v    interface{}
+		err  error
+		calm bool
+	}{
+		{"hit", "foo", "this is foo", nil, false},
+		{"hit2", "bar.b", "this is bar.b", nil, false},
+		{"nil eh", "bar.b", "this is bar.b", nil, true},
+		{"miss", "nosuch", nil, config.NotFoundError{Key: "nosuch"}, false},
+	}
+	cfg := config.NewConfig(&mr)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			if p.err == nil {
+				var v *config.Value
+				if p.calm {
+					v = cfg.MustGet(p.k, config.WithErrorHandler(nil))
+				} else {
+					v = cfg.MustGet(p.k)
+				}
+				assert.IsType(t, p.err, v.Err())
+				assert.Equal(t, p.v, v.Value())
+				if p.calm {
+					assert.NotPanics(t, func() {
+						v.Int()
+					})
+				} else {
+					assert.Panics(t, func() {
+						v.Int()
+					})
+				}
+			} else {
+				assert.PanicsWithValue(t, p.err, func() {
+					cfg.MustGet(p.k)
+				})
+			}
+		}
+		t.Run(p.k, f)
+	}
 }
 
 type fooConfig struct {
@@ -806,34 +414,15 @@ func TestUnmarshal(t *testing.T) {
 			&fooConfig{},
 			config.UnmarshalError{}},
 	}
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			f := func(t *testing.T) {
-				c := config.NewConfig(p.g)
-				err := c.Unmarshal(p.k, p.target)
-				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.x, p.target)
-			}
-			t.Run(p.name, f)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			c := config.NewConfig(p.g)
+			err := c.Unmarshal(p.k, p.target)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, p.target)
 		}
+		t.Run(p.name, f)
 	}
-	t.Run("Config", f)
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			f := func(t *testing.T) {
-				var err error
-				m := config.NewMust(p.g, config.WithErrorHandler(
-					func(e error) {
-						err = e
-					}))
-				m.Unmarshal(p.k, p.target)
-				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.x, p.target)
-			}
-			t.Run(p.name, f)
-		}
-	}
-	t.Run("Must", f)
 }
 
 func TestUnmarshalWithTag(t *testing.T) {
@@ -857,36 +446,15 @@ func TestUnmarshalWithTag(t *testing.T) {
 				C: []int{1, 2, 3, 4}},
 			nil},
 	}
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			f := func(t *testing.T) {
-				c := config.NewConfig(p.g, config.WithTag("cfg"))
-				err := c.Unmarshal(p.k, p.target)
-				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.x, p.target)
-			}
-			t.Run(p.name, f)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			c := config.NewConfig(p.g, config.WithTag("cfg"))
+			err := c.Unmarshal(p.k, p.target)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, p.target)
 		}
+		t.Run(p.name, f)
 	}
-	t.Run("Config", f)
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			f := func(t *testing.T) {
-				var err error
-				m := config.NewMust(p.g,
-					config.WithTag("cfg"),
-					config.WithErrorHandler(
-						func(e error) {
-							err = e
-						}))
-				m.Unmarshal(p.k, p.target)
-				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.x, p.target)
-			}
-			t.Run(p.name, f)
-		}
-	}
-	t.Run("Must", f)
 }
 
 func TestUnmarshalToMap(t *testing.T) {
@@ -1108,40 +676,115 @@ func TestUnmarshalToMap(t *testing.T) {
 			config.UnmarshalError{},
 		},
 	}
-	f := func(t *testing.T) {
-		for _, p := range patterns {
-			f := func(t *testing.T) {
-				c := config.NewConfig(p.g)
-				target, err := deepcopy(p.target)
-				assert.Nil(t, err)
-				require.NotNil(t, target)
-				err = c.UnmarshalToMap("foo", target)
-				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.x, target)
-			}
-			t.Run(p.name, f)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			c := config.NewConfig(p.g)
+			target, err := deepcopy(p.target)
+			assert.Nil(t, err)
+			require.NotNil(t, target)
+			err = c.UnmarshalToMap("foo", target)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.x, target)
 		}
+		t.Run(p.name, f)
 	}
-	t.Run("Config", f)
-	f = func(t *testing.T) {
-		for _, p := range patterns {
-			f := func(t *testing.T) {
-				var err error
-				m := config.NewMust(p.g, config.WithErrorHandler(
-					func(e error) {
-						err = e
-					}))
-				target, err := deepcopy(p.target)
-				assert.Nil(t, err)
-				require.NotNil(t, target)
-				m.UnmarshalToMap("foo", target)
-				assert.IsType(t, p.err, err)
-				assert.Equal(t, p.x, target)
-			}
-			t.Run(p.name, f)
-		}
+}
+
+func TestWatch(t *testing.T) {
+	mr := mockGetter{
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
 	}
-	t.Run("Must", f)
+	// Static config
+	cfg := config.NewConfig(&mr)
+	ctx := context.Background()
+	vc := cfg.Watch(ctx, "foo")
+	select {
+	case v := <-vc:
+		assert.Nil(t, v.Err())
+		assert.Equal(t, "this is foo", v.Value())
+	case <-time.After(time.Millisecond):
+		assert.Fail(t, "value not returned")
+	}
+
+	// Updated
+	s := config.NewSignal()
+	cfg = config.NewConfig(&mr, config.WithUpdateSignal(s))
+	vc = cfg.Watch(ctx, "foo")
+	select {
+	case v := <-vc:
+		assert.Nil(t, v.Err())
+		assert.Equal(t, "this is foo", v.Value())
+	case <-time.After(time.Millisecond):
+		assert.Fail(t, "value not returned")
+	}
+	// unchanged
+	s.Signal()
+	select {
+	case <-vc:
+		assert.Fail(t, "unexpected value update")
+	case <-time.After(time.Millisecond):
+	}
+	// changed
+	mr["foo"] = "this is new foo"
+	s.Signal()
+	select {
+	case v := <-vc:
+		assert.Nil(t, v.Err())
+		assert.Equal(t, "this is new foo", v.Value())
+	case <-time.After(time.Millisecond):
+		assert.Fail(t, "value not returned")
+	}
+
+	// Cancelled
+	mr["foo"] = "this is foo too"
+	ctx, cancel := context.WithCancel(context.Background())
+	vc = cfg.Watch(ctx, "foo")
+	select {
+	case v := <-vc:
+		assert.Nil(t, v.Err())
+		assert.Equal(t, "this is foo too", v.Value())
+	case <-time.After(time.Millisecond):
+		assert.Fail(t, "value not returned")
+	}
+	// unchanged
+	s.Signal()
+	select {
+	case <-vc:
+		assert.Fail(t, "unexpected value update")
+	case <-time.After(time.Millisecond):
+	}
+	cancel()
+	time.Sleep(time.Millisecond)
+	mr["foo"] = "this is new foo too"
+	s.Signal()
+	select {
+	case <-vc:
+		assert.Fail(t, "unexpected value update")
+	case <-time.After(time.Millisecond):
+	}
+
+	// Cancel after signal - but before Watch chan read
+	mr["foo"] = "this is foo too"
+	ctx, cancel = context.WithCancel(context.Background())
+	vc = cfg.Watch(ctx, "foo")
+	select {
+	case v := <-vc:
+		assert.Nil(t, v.Err())
+		assert.Equal(t, "this is foo too", v.Value())
+	case <-time.After(time.Millisecond):
+		assert.Fail(t, "value not returned")
+	}
+	mr["foo"] = "this is new foo too"
+	s.Signal()
+	time.Sleep(time.Millisecond)
+	cancel()
+	time.Sleep(time.Millisecond)
+	select {
+	case v := <-vc:
+		assert.Fail(t, "unexpected value update", v.String())
+	case <-time.After(time.Millisecond):
+	}
 }
 
 type mockGetter map[string]interface{}

@@ -281,6 +281,25 @@ func Int(v interface{}) (int64, error) {
 	return 0, TypeError{Value: v, Kind: reflect.Int}
 }
 
+// IntSlice converts a generic object into a slice of int64s, if possible.
+// Returns nil and an error if not possible.
+func IntSlice(v interface{}) (retval []int64, rerr error) {
+	slice, err := Slice(v)
+	if err != nil {
+		return nil, err
+	}
+	retval = make([]int64, len(slice))
+	for i, sv := range slice {
+		cv, err := Int(sv)
+		if err == nil {
+			retval[i] = cv
+		} else if rerr == nil {
+			rerr = err
+		}
+	}
+	return
+}
+
 // Slice converts a slice of something into a []interface{}
 //
 // Also interprets strings as a single element slice,
@@ -330,6 +349,25 @@ func String(v interface{}) (string, error) {
 		return "", nil
 	}
 	return "", TypeError{Value: v, Kind: reflect.String}
+}
+
+// StringSlice converts a generic object to a slice of string, if possible.
+// Returns nil and an error if not possible.
+func StringSlice(v interface{}) (retval []string, rerr error) {
+	slice, err := Slice(v)
+	if err != nil {
+		return nil, err
+	}
+	retval = make([]string, len(slice))
+	for i, sv := range slice {
+		cv, err := String(sv)
+		if err == nil {
+			retval[i] = cv
+		} else if rerr == nil {
+			rerr = err
+		}
+	}
+	return
 }
 
 // Struct converts a generic object to a struct.
@@ -433,6 +471,25 @@ func Uint(v interface{}) (uint64, error) {
 		return 0, nil
 	}
 	return 0, TypeError{Value: v, Kind: reflect.Uint}
+}
+
+// UintSlice converts a generic object into a slice of uint64, if possible.
+// Returns nil and an error if not possible.
+func UintSlice(v interface{}) (retval []uint64, rerr error) {
+	slice, err := Slice(v)
+	if err != nil {
+		return nil, err
+	}
+	retval = make([]uint64, len(slice))
+	for i, sv := range slice {
+		cv, err := Uint(sv)
+		if err == nil {
+			retval[i] = cv
+		} else if rerr == nil {
+			rerr = err
+		}
+	}
+	return
 }
 
 // UnmarshalStructFromMap populates a struct with the values from a map.
