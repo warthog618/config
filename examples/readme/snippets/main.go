@@ -17,14 +17,13 @@ func arrays() {
 	c := config.NewConfig(g)
 
 	// arrays
-	ports := c.Get("ports").UintSlice()
+	ports := c.MustGet("ports").UintSlice()
 
 	// alternatively....
-	size := int(c.Get("ports[]").Uint())
+	size := int(c.MustGet("ports[]").Int())
 	for i := 0; i < size; i++ {
 		// get each port sequentially...
-		port := c.Get(fmt.Sprintf("ports[%d]", i)).Uint()
-		ports[i] = port
+		ports[i] = c.MustGet(fmt.Sprintf("ports[%d]", i)).Uint()
 	}
 }
 
@@ -53,17 +52,18 @@ func newConfig() {
 	g, _ := pflag.New()
 
 	c := config.NewConfig(g)
-	v := c.Get("pin").Int()
-	ports := c.Get("ports").UintSlice()
+	pin := c.MustGet("pin").Int()
+	ports := c.MustGet("ports").UintSlice()
 
-	ports[0] = uint64(v)
+	ports[0] = uint64(pin)
 }
 
 func must() {
 	g, _ := pflag.New()
-	m := config.NewConfig(g)
-	v := m.MustGet("pin").Int()
-	ports := m.Get("ports").UintSlice()
 
-	ports[0] = uint64(v)
+	m := config.NewConfig(g)
+	pin := m.MustGet("pin").Int()
+
+	if pin == 0 {
+	}
 }

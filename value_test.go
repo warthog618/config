@@ -36,13 +36,15 @@ func TestBool(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.Bool()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -65,13 +67,15 @@ func TestDuration(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.Duration()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -80,10 +84,10 @@ func TestDuration(t *testing.T) {
 
 func TestFloat(t *testing.T) {
 	mr := mockGetter{
-		"float":        3.1415,
-		"floatString":  "3.1415",
-		"floatInt":     1,
-		"notafloatInt": "bogus",
+		"float":       3.1415,
+		"floatString": "3.1415",
+		"floatInt":    1,
+		"notafloat":   "bogus",
 	}
 	patterns := []struct {
 		k   string
@@ -93,18 +97,20 @@ func TestFloat(t *testing.T) {
 		{"float", 3.1415, nil},
 		{"floatString", 3.1415, nil},
 		{"floatInt", 1, nil},
-		{"notafloatInt", 0, &strconv.NumError{}},
+		{"notafloat", 0, &strconv.NumError{}},
 	}
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.Float()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -129,13 +135,15 @@ func TestInt(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.Int()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -160,13 +168,15 @@ func TestString(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.String()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -189,13 +199,15 @@ func TestTime(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
 			v := val.Time()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
+			assert.Nil(t, err)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -220,13 +232,15 @@ func TestUint(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.Uint()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -259,13 +273,15 @@ func TestSlice(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.Slice()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -292,13 +308,15 @@ func TestIntSlice(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.IntSlice()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -329,13 +347,15 @@ func TestStringSlice(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.StringSlice()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)
@@ -364,13 +384,15 @@ func TestUintSlice(t *testing.T) {
 	c := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			var err error
-			val := c.Get(p.k, config.WithErrorHandler(
-				config.ErrorHandler(func(e error) {
-					err = e
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
 				})))
+			assert.Nil(t, err)
 			v := val.UintSlice()
-			assert.IsType(t, p.err, err)
+			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
 		t.Run(p.k, f)

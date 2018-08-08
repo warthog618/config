@@ -41,12 +41,11 @@ func TestNewConfigWithTag(t *testing.T) {
 	assert.Equal(t, "bogus", c.tag)
 }
 
-func TestNewConfigWithUpdateSignal(t *testing.T) {
+func TestNewConfigWithUpdateNotifier(t *testing.T) {
 	g := mockGetter{"a": 42}
-	s := NewSignal()
-	d := s.Signalled()
-	c := NewConfig(g, WithUpdateSignal(s))
-	assert.Equal(t, d, c.Updated())
+	s := NewNotifier()
+	c := NewConfig(g, WithUpdateNotifier(s))
+	assert.Equal(t, s, c.notifier)
 }
 
 type mockGetter map[string]interface{}

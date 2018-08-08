@@ -12,24 +12,24 @@ import (
 	"github.com/warthog618/config"
 )
 
-func TestSignal(t *testing.T) {
-	s := config.NewSignal()
-	d := s.Signalled()
+func TestNotify(t *testing.T) {
+	s := config.NewNotifier()
+	d := s.Notified()
 	select {
 	case <-d:
-		assert.Fail(t, "already signalled")
+		assert.Fail(t, "already notified")
 	default:
 	}
-	s.Signal()
+	s.Notify()
 	select {
 	case <-d:
 	default:
-		assert.Fail(t, "not signalled")
+		assert.Fail(t, "not notified")
 	}
-	d = s.Signalled()
+	d = s.Notified()
 	select {
 	case <-d:
-		assert.Fail(t, "already signalled")
+		assert.Fail(t, "already notified")
 	default:
 	}
 }

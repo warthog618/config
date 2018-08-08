@@ -10,7 +10,7 @@ import (
 func main() {
 	e, _ := env.New()
 	c := config.NewConfig(e)
-	cfgFile := c.Get("config.file").String()
+	cfgFile := c.MustGet("config.file").String()
 	fmt.Println("config-file:", cfgFile)
 	// ....
 }

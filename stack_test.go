@@ -109,8 +109,8 @@ func TestStackGet(t *testing.T) {
 			s := config.NewStack(p.gg...)
 			c := config.NewConfig(s)
 			for _, x := range p.expected {
-				v := c.Get(x.k)
-				assert.Equal(t, x.err, v.Err(), x.k)
+				v, err := c.Get(x.k)
+				assert.Equal(t, x.err, err, x.k)
 				assert.Equal(t, x.v, v.Value(), x.k)
 			}
 		}

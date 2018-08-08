@@ -29,7 +29,8 @@ A couple of steps are required to setup and use **config**:
 
 - Create one or more getters (configuration sources)
 - Create a Config to provide type conversions for values from the getter
-- Read configuration from the Config
+- Read configuration Value from the Config
+- Convert the Value to the required type
 
 A minimal setup to access configuration from POSIX/GNU style command line flags
 might look like:
@@ -48,7 +49,7 @@ myapp --config-file=myfile.json
 could then be read using:
 
 ```go
-   cfgFile, _ := c.GetString("config.file")
+   cfgFile := c.MustGet("config.file").String()
 ```
 
 Multiple configuration sources can be setup and customised to suit your
@@ -57,43 +58,42 @@ a more extensive example.
 
 ### API
 
-Two flavours of API are provided through
-[Config](https://godoc.org/github.com/warthog618/config#Config) and
-[Must](https://godoc.org/github.com/warthog618/config#Must).
+The [Config](https://godoc.org/github.com/warthog618/config#Config) provides the
+primary interface to configuration.  Config provides get methods to retrieve
+configuration parameters, identified by a key string, and return them as a
+[Value](https://godoc.org/github.com/warthog618/config#Value).  The current
+value can be retrieved with a Get or MustGet.  Updates to a value can be
+requested using WatchValue.  Changes to the complete configuration can be monitored using a Watch
 
-The [Config](https://godoc.org/github.com/warthog618/config#Config) provides an
-interface with get methods to retrieve configuration parameters, identified by a
-key string, and return them as the requested data type.
-
-The get methods are similar to a map read, returning both the value and an
-error, which indicates if the value could not be found or converted. e.g.
+The Value contains both the configuration value and an error handler to call
+when converting the value to requested types.  By default the Value absorbs
+conversion errors and returns the zero value for the requested type. e.g.
 
 ```go
     c := config.NewConfig(g)
-    v, err := c.GetInt("pin")
-    ports, err := c.GetUintSlice("ports")
+    pin := c.MustGet("pin").Int()
 ```
 
-The [Must](https://godoc.org/github.com/warthog618/config#Must) provides a
-similar interface to Config, but does not return errors.  Rather than being
-returned to the caller, it allows errors to be ignored or directed to an
-error handler. e.g.
+will set *pin* to 0 if the configured value cannot be converted to int.
+
+An error handling policy can be applied to the Config and Value using construction
+options.  The error handling policy is inherited by Values and sub-Configs
+returned by the Config. This allows errors to be directed to an error handler
+rather than being handled where the functions return. e.g.
 
 ```go
-    m := config.NewMust(g, config.WithPanic())
-    v := m.GetInt("pin")
-    ports := m.GetUintSlice("ports")
+    m := config.NewConfig(g, config.WithMust())
+    v, _ := m.Get("pin")
+    pin := v.Int()
+    v,_ = m.Get("ports")
+    ports := v.UintSlice()
 ```
 
-will panic if either "pin" or "ports" are not configured.
-
-Both flavours also provide methods to return the other flavour in case
-different sections of code use different error handling policies.
+will panic if either "pin" or "ports" are not configured or cannot be converted to the requested type.
 
 ### Supported value types
 
-**config** supports retrieving and returning configuration parameters
-as one of the following types:
+**config** supports converting returned Values to the following types:
 
 - bool
 - int (specifically *int64*)
@@ -104,11 +104,8 @@ as one of the following types:
 - slice of int (*[]int64*)
 - slice of uint (*[]uint64*)
 - slice of string (*[]string*)
-- slice of struct (using *Unmarshal*)
 - duration (*time.Duration*)
 - time (*time.Time*)
-- map (specifically *map[string]interface{}* using *UnmarshalToMap*)
-- struct (using *Unmarshal*)
 
 The int and float types return the maximum possible width to prevent loss of
 information. The returned values can be range checked and assigned to narrower
@@ -123,10 +120,16 @@ application code. The **cfgconv** package is similar to the standard
 as permissive as possible, given the data types involved, to allow for getters
 mapping from formats that may not directly support the requested type.
 
-Direct gets of maps and structs are not supported, but both can be unmarshalled
-from the configuration, with the configuration keys being drawn from struct
-field names or map keys. Unmarshalling into nested structs is supported, as is
-overiding struct field names using tags.
+Direct gets of maps and structs are not supported, but the following composite
+types can be unmarshalled from the configuration, with the configuration keys
+being drawn from struct field names or map keys:
+
+- slice of struct (using *Unmarshal*)
+- map (specifically *map[string]interface{}* using *UnmarshalToMap*)
+- struct (using *Unmarshal*)
+
+Unmarshalling into nested structs is supported, as is overiding struct field
+names using tags.
 
 ## Concepts
 
@@ -155,25 +158,27 @@ index into the array.  The size of the array can be referenced with a key of
 form *a[]*. e.g.
 
 ```go
-    ports := m.GetUintSlice("ports")
+    ports := c.MustGet("ports").UintSlice()
 
     // alternatively....
-    size := int(m.GetUint("ports[]"))
+    // alternatively....
+    size := int(c.MustGet("ports[]").Int())
     for i := 0; i < size; i++ {
         // get each port sequentially...
-        port := m.GetUint(fmt.Sprintf("ports[%d]", i))
-    }
+        ports[i] = c.MustGet(fmt.Sprintf("ports[%d]", i)).Uint()
 ```
 
-### Config and Must
+### Config
 
 As described in [API](#api), the
-[Config](https://godoc.org/github.com/warthog618/config#Config) and
-[Must](https://godoc.org/github.com/warthog618/config#Must) provide the API to
-the configuration tree.  Both provide methods to return values from the
-configuration tree. The Config methods return the values and an error, while the
-Must methods return only the value and direct any errors to a configurable error
-handler.
+[Config](https://godoc.org/github.com/warthog618/config#Config) provides the API to
+return Values from the configuration tree.  A Config may represent the root of the configuration or a branch of the configuration tree - retreived from a parent Config using GetConfig.
+
+### Value
+
+The configuration value is returned by the Config as a Value.  The
+[Value](https://godoc.org/github.com/warthog618/config#Value) provides methods
+to convert the value to the required types.
 
 ### Getters
 
@@ -372,21 +377,21 @@ func main() {
     sources := config.NewStack(g)
     cfg := config.NewConfig(
         config.Decorate(sources, config.WithDefault(defaultConfig)))
-    prefix, _ := cfg.GetString("env.prefix")
+    prefix := cfg.MustGet("env.prefix").String()
     g, _ = env.New(env.WithEnvPrefix(prefix))
     sources.Append(g)
-    cf, _ := cfg.GetString("config.file")
+    cf := cfg.MustGet("config.file").String()
     g, _ = json.New(json.FromFile(cf))
     sources.Append(g)
 
     // read a config field from the root config
-    name, _ := cfg.GetString("name")
+    name := cfg.MustGet("name").String()
 
     // to pass nested config to a sub-module...
-    smCfg := cfg.GetMust("sm")
-    pin := smCfg.GetInt("pin")
-    period := smCfg.GetDuration("period")
-    thresholds := smCfg.GetIntSlice("thresholds")
+    smCfg := cfg.GetConfig("sm")
+    pin := smCfg.MustGet("pin").Uint()
+    period := smCfg.MustGet("period").Duration()
+    thresholds, _ := smCfg.Get("thresholds")
 
     fmt.Println(cf, name, pin, period, thresholds)
 }
@@ -419,4 +424,6 @@ A list of things I haven't gotten around to yet, or am still thinking about...
 - Add more examples.
 - Add a getter for etcd.
 - Add a getter for consul.
-- Add watches on config sources for config changes
+- Add watches on config for changes (already reworked Config API
+  to support this - still require support from the Getters)
+- Refactor Getters into Loader/Decoder, and allow Loader to notify Config of updates.

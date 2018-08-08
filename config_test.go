@@ -21,41 +21,53 @@ import (
 func TestNewConfig(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
 	c := config.NewConfig(&mr)
-	v := c.Get("")
-	assert.IsType(t, config.NotFoundError{}, v.Err())
+	v, err := c.Get("")
+	assert.IsType(t, config.NotFoundError{}, err)
 	assert.Equal(t, nil, v.Value())
-	v = c.Get("a.b.c_d")
-	assert.Nil(t, v.Err())
+	v, err = c.Get("a.b.c_d")
+	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
-	assert.Nil(t, c.Updated())
 }
 
 func TestNewConfigWithErrorHandler(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": "this is a.b.c.d"}
 	var eherr error
-	eh := func(err error) {
+	eh := func(err error) error {
 		eherr = err
+		return nil
 	}
 	c := config.NewConfig(&mr, config.WithErrorHandler(eh))
-	v := c.Get("a.b.c_d")
-	assert.Nil(t, v.Err())
+	v, err := c.Get("a.b.c_d")
+	assert.Nil(t, err)
 	assert.Nil(t, eherr)
 	assert.Equal(t, "this is a.b.c.d", v.Value())
 	v.Int()
 	assert.IsType(t, &strconv.NumError{}, eherr)
 	eherr = nil
-	v = c.Get("")
-	assert.IsType(t, config.NotFoundError{}, v.Err())
+	v, err = c.Get("")
+	assert.Nil(t, err)
 	assert.IsType(t, config.NotFoundError{}, eherr)
 	assert.Equal(t, nil, v.Value())
 	eherr = nil
 }
 
-func TestNewConfigWithPanic(t *testing.T) {
+func TestNewConfigWithZeroDefaults(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
-	c := config.NewConfig(&mr, config.WithPanic())
-	v := c.Get("a.b.c_d")
-	assert.Nil(t, v.Err())
+	c := config.NewConfig(&mr, config.WithZeroDefaults())
+	v, err := c.Get("not.a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, nil, v.Value())
+	assert.Equal(t, int64(0), v.Int())
+	v, err = c.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v.Value())
+}
+
+func TestNewConfigWithMust(t *testing.T) {
+	mr := mockGetter{"a.b.c_d": true}
+	c := config.NewConfig(&mr, config.WithMust())
+	v, err := c.Get("a.b.c_d")
+	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
 	assert.Panics(t, func() {
 		c.Get("")
@@ -79,8 +91,8 @@ func TestGet(t *testing.T) {
 	cfg := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			v := cfg.Get(p.k)
-			assert.IsType(t, p.err, v.Err())
+			v, err := cfg.Get(p.k)
+			assert.IsType(t, p.err, err)
 			assert.Equal(t, p.v, v.Value())
 		}
 		t.Run(p.k, f)
@@ -92,8 +104,9 @@ func TestGetWithErrorHandler(t *testing.T) {
 		"foo": "this is foo",
 	}
 	var eherr error
-	eh := func(err error) {
+	eh := func(err error) error {
 		eherr = err
+		return err
 	}
 	patterns := []struct {
 		k   string
@@ -107,8 +120,8 @@ func TestGetWithErrorHandler(t *testing.T) {
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			eherr = nil
-			v := cfg.Get("foo", p.vo)
-			assert.Nil(t, v.Err())
+			v, err := cfg.Get("foo", p.vo)
+			assert.Nil(t, err)
 			assert.Equal(t, "this is foo", v.Value())
 			assert.Nil(t, eherr)
 			vi := v.Int()
@@ -125,7 +138,7 @@ func TestGetWithPanic(t *testing.T) {
 	}
 	cfg := config.NewConfig(&mr)
 	assert.Panics(t, func() {
-		v := cfg.Get("foo", config.WithPanic())
+		v, _ := cfg.Get("foo", config.WithMust())
 		v.Int()
 	})
 }
@@ -198,8 +211,8 @@ func TestGetConfig(t *testing.T) {
 			for _, tp := range p.tp {
 				subc := cfg.GetConfig(p.subtree)
 				require.NotNil(t, subc)
-				v := subc.Get(tp.k)
-				assert.IsType(t, tp.err, v.Err(), tp.k)
+				v, err := subc.Get(tp.k)
+				assert.IsType(t, tp.err, err, tp.k)
 				assert.Equal(t, tp.v, v.Value(), tp.k)
 			}
 		}
@@ -212,16 +225,16 @@ func TestGetConfigWithSeparator(t *testing.T) {
 		"a.b.c_d": true,
 	}
 	c := config.NewConfig(&mr)
-	v := c.Get("a.b.c_d")
-	assert.Nil(t, v.Err())
+	v, err := c.Get("a.b.c_d")
+	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
 	cfg := c.GetConfig("a", config.WithSeparator("_"))
-	v = cfg.Get("b.c_d")
-	assert.Nil(t, v.Err())
+	v, err = cfg.Get("b.c_d")
+	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
 	cfg = cfg.GetConfig("b.c")
-	v = cfg.Get("d")
-	assert.Nil(t, v.Err())
+	v, err = cfg.Get("d")
+	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
 }
 
@@ -236,42 +249,29 @@ func TestMustGet(t *testing.T) {
 		name string
 		k    string
 		v    interface{}
+		eh   config.ErrorHandler
 		err  error
-		calm bool
 	}{
-		{"hit", "foo", "this is foo", nil, false},
-		{"hit2", "bar.b", "this is bar.b", nil, false},
-		{"nil eh", "bar.b", "this is bar.b", nil, true},
-		{"miss", "nosuch", nil, config.NotFoundError{Key: "nosuch"}, false},
+		{"hit", "foo", "this is foo", nil, nil},
+		{"hit2", "bar.b", "this is bar.b", nil, nil},
+		{"miss", "nosuch", nil, nil, config.NotFoundError{Key: "nosuch"}},
 	}
 	cfg := config.NewConfig(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
+			var v config.Value
 			if p.err == nil {
-				var v *config.Value
-				if p.calm {
-					v = cfg.MustGet(p.k, config.WithErrorHandler(nil))
-				} else {
+				assert.NotPanics(t, func() {
 					v = cfg.MustGet(p.k)
-				}
-				assert.IsType(t, p.err, v.Err())
-				assert.Equal(t, p.v, v.Value())
-				if p.calm {
-					assert.NotPanics(t, func() {
-						v.Int()
-					})
-				} else {
-					assert.Panics(t, func() {
-						v.Int()
-					})
-				}
+				})
+				assert.Equal(t, p.v, v.String())
 			} else {
 				assert.PanicsWithValue(t, p.err, func() {
-					cfg.MustGet(p.k)
+					v = cfg.MustGet(p.k)
 				})
 			}
 		}
-		t.Run(p.k, f)
+		t.Run(p.name, f)
 	}
 }
 
@@ -698,93 +698,165 @@ func TestWatch(t *testing.T) {
 	// Static config
 	cfg := config.NewConfig(&mr)
 	ctx := context.Background()
-	vc := cfg.Watch(ctx, "foo")
+	w := cfg.Watch(ctx)
+	updated := make(chan error)
+	go func() {
+		e := w.Next()
+		updated <- e
+	}()
 	select {
-	case v := <-vc:
-		assert.Nil(t, v.Err())
-		assert.Equal(t, "this is foo", v.Value())
+	case <-updated:
+		assert.Fail(t, "unexpected update")
 	case <-time.After(time.Millisecond):
-		assert.Fail(t, "value not returned")
 	}
 
 	// Updated
-	s := config.NewSignal()
-	cfg = config.NewConfig(&mr, config.WithUpdateSignal(s))
-	vc = cfg.Watch(ctx, "foo")
+	n := config.NewNotifier()
+	cfg = config.NewConfig(&mr, config.WithUpdateNotifier(n))
+	w = cfg.Watch(ctx)
+	updated = make(chan error)
+	go func() {
+		e := w.Next()
+		updated <- e
+	}()
 	select {
-	case v := <-vc:
-		assert.Nil(t, v.Err())
-		assert.Equal(t, "this is foo", v.Value())
+	case <-updated:
+		assert.Fail(t, "unexpected update")
 	case <-time.After(time.Millisecond):
+	}
+	n.Notify()
+	select {
+	case <-updated:
+	case <-time.After(10 * time.Millisecond):
+		assert.Fail(t, "not updated")
+	}
+
+	// Cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	w = cfg.Watch(ctx)
+	updated = make(chan error)
+	go func() {
+		e := w.Next()
+		updated <- e
+	}()
+	cancel()
+	time.Sleep(time.Millisecond)
+	n.Notify()
+	select {
+	case e := <-updated:
+		assert.Equal(t, context.Canceled, e)
+	case <-time.After(time.Millisecond):
+	}
+}
+
+func TestWatchValue(t *testing.T) {
+	mr := mockGetter{
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
+	}
+	// Static config
+	cfg := config.NewConfig(&mr)
+	ctx := context.Background()
+	w := cfg.WatchValue(ctx, "foo")
+	v, err := w.Next()
+	assert.Nil(t, err)
+	assert.Equal(t, "this is foo", v.String())
+	updated := make(chan error)
+	go func() {
+		_, err := w.Next()
+		updated <- err
+	}()
+	select {
+	case <-updated:
 		assert.Fail(t, "value not returned")
+	case <-time.After(time.Millisecond):
+	}
+
+	// Updated
+	n := config.NewNotifier()
+	cfg = config.NewConfig(&mr, config.WithUpdateNotifier(n))
+	w = cfg.WatchValue(ctx, "foo")
+	v, err = w.Next()
+	assert.Nil(t, err)
+	assert.Equal(t, "this is foo", v.String())
+	updated = make(chan error)
+	go func() {
+		v, err = w.Next()
+		updated <- err
+	}()
+	select {
+	case <-updated:
+		assert.Fail(t, "unexpected value update")
+	case <-time.After(time.Millisecond):
 	}
 	// unchanged
-	s.Signal()
+	n.Notify()
 	select {
-	case <-vc:
+	case <-updated:
 		assert.Fail(t, "unexpected value update")
 	case <-time.After(time.Millisecond):
 	}
 	// changed
 	mr["foo"] = "this is new foo"
-	s.Signal()
+	n.Notify()
 	select {
-	case v := <-vc:
-		assert.Nil(t, v.Err())
+	case <-updated:
+		assert.Nil(t, err)
 		assert.Equal(t, "this is new foo", v.Value())
+	case <-time.After(10 * time.Millisecond):
+		assert.Fail(t, "value not updated")
+	}
+
+	// Deleted
+	mr["foo"] = "this is foo too"
+	w = cfg.WatchValue(ctx, "foo")
+	v, err = w.Next()
+	assert.Nil(t, err)
+	assert.Equal(t, "this is foo too", v.String())
+	go func() {
+		v, err = w.Next()
+		updated <- err
+	}()
+	delete(mr, "foo")
+	n.Notify()
+	time.Sleep(time.Millisecond)
+	select {
+	case e := <-updated:
+		assert.Equal(t, config.NotFoundError{Key: "foo"}, e)
+		assert.Equal(t, config.Value{}, v)
 	case <-time.After(time.Millisecond):
-		assert.Fail(t, "value not returned")
+		assert.Fail(t, "not deleted")
 	}
 
 	// Cancelled
 	mr["foo"] = "this is foo too"
 	ctx, cancel := context.WithCancel(context.Background())
-	vc = cfg.Watch(ctx, "foo")
-	select {
-	case v := <-vc:
-		assert.Nil(t, v.Err())
-		assert.Equal(t, "this is foo too", v.Value())
-	case <-time.After(time.Millisecond):
-		assert.Fail(t, "value not returned")
-	}
+	w = cfg.WatchValue(ctx, "foo")
+	v, err = w.Next()
+	assert.Nil(t, err)
+	assert.Equal(t, "this is foo too", v.String())
+	go func() {
+		v, err = w.Next()
+		updated <- err
+	}()
 	// unchanged
-	s.Signal()
+	n.Notify()
 	select {
-	case <-vc:
+	case <-updated:
 		assert.Fail(t, "unexpected value update")
 	case <-time.After(time.Millisecond):
 	}
 	cancel()
 	time.Sleep(time.Millisecond)
 	mr["foo"] = "this is new foo too"
-	s.Signal()
+	n.Notify()
 	select {
-	case <-vc:
-		assert.Fail(t, "unexpected value update")
+	case e := <-updated:
+		assert.Equal(t, context.Canceled, e)
 	case <-time.After(time.Millisecond):
+		assert.Fail(t, "didn't cancel")
 	}
 
-	// Cancel after signal - but before Watch chan read
-	mr["foo"] = "this is foo too"
-	ctx, cancel = context.WithCancel(context.Background())
-	vc = cfg.Watch(ctx, "foo")
-	select {
-	case v := <-vc:
-		assert.Nil(t, v.Err())
-		assert.Equal(t, "this is foo too", v.Value())
-	case <-time.After(time.Millisecond):
-		assert.Fail(t, "value not returned")
-	}
-	mr["foo"] = "this is new foo too"
-	s.Signal()
-	time.Sleep(time.Millisecond)
-	cancel()
-	time.Sleep(time.Millisecond)
-	select {
-	case v := <-vc:
-		assert.Fail(t, "unexpected value update", v.String())
-	case <-time.After(time.Millisecond):
-	}
 }
 
 type mockGetter map[string]interface{}

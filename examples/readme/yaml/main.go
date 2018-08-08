@@ -10,7 +10,7 @@ import (
 func main() {
 	f, _ := yaml.New(yaml.FromFile("config.yaml"))
 	c := config.NewConfig(f)
-	s := c.Get("nested.string").String()
+	s := c.MustGet("nested.string").String()
 	fmt.Println("s:", s)
 	// ....
 }

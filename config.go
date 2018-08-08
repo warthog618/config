@@ -29,7 +29,7 @@ func NewConfig(g Getter, options ...ConfigOption) *Config {
 }
 
 // ErrorHandler handles an error.
-type ErrorHandler func(error)
+type ErrorHandler func(error) error
 
 // Config is a wrapper around a Getter that provides a set
 // of conversion functions that return the requested type, if possible,
@@ -43,32 +43,35 @@ type Config struct {
 	pathSep string
 	// tag identifies the field tags used to specify field names for Unmarshal.
 	tag string
-	// signal indicates the config has been updated.
-	signal *Signal
+	// notifier indicates the config has been updated.
+	notifier *Notifier
 	// error handler for gets
 	// Propagated to Values unless overridden by ValueOption.
 	eh ErrorHandler
 }
 
 // Get gets the raw value corresponding to the key.
-func (c *Config) Get(key string, opts ...ValueOption) *Value {
+// Returns a zero Value and an error if the value cannot be retrieved.
+func (c *Config) Get(key string, opts ...ValueOption) (Value, error) {
 	v, ok := c.getter.Get(key)
 	if !ok {
-		err := NotFoundError{Key: key}
+		var err error
+		err = NotFoundError{Key: key}
 		if c.eh != nil {
-			c.eh(err)
+			err = c.eh(err)
 		}
-		return &Value{err: err}
+		if err != nil {
+			return Value{}, err
+		}
 	}
-	val := Value{value: v, eh: c.eh}
+	if c.eh != nil {
+		opts = append([]ValueOption{WithErrorHandler(c.eh)}, opts...)
+	}
+	val := Value{value: v}
 	for _, option := range opts {
 		option.applyValueOption(&val)
 	}
-	return &val
-}
-
-func ehPanic(err error) {
-	panic(err)
+	return val, nil
 }
 
 // GetConfig gets the Config corresponding to a subtree of the config,
@@ -89,18 +92,15 @@ func (c *Config) GetConfig(node string, options ...ConfigOption) *Config {
 	return v
 }
 
-// MustGet gets the value corresponding to the key,
-// or panics if the key is not found.
-func (c *Config) MustGet(key string, opts ...ValueOption) *Value {
-	v, ok := c.getter.Get(key)
-	if !ok {
-		panic(NotFoundError{Key: key})
+// MustGet gets the value corresponding to the key, or panics if the key is not
+// found. This is a convenience wrapper that allows chaining of calls to value
+// conversions when the application is certain the config field will be present.
+func (c *Config) MustGet(key string, opts ...ValueOption) Value {
+	v, err := c.Get(key, opts...)
+	if err != nil {
+		panic(err)
 	}
-	val := Value{value: v, eh: ehPanic}
-	for _, option := range opts {
-		option.applyValueOption(&val)
-	}
-	return &val
+	return v
 }
 
 // Unmarshal a section of the config tree into a struct.
@@ -157,7 +157,7 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 			fallthrough
 		default:
 			// else assume a leaf
-			if v := nodeCfg.Get(key); v.Err() == nil {
+			if v, err := nodeCfg.Get(key); err == nil {
 				if cv, err := cfgconv.Convert(v.Value(), fv.Type()); err == nil {
 					fv.Set(reflect.ValueOf(cv))
 				} else if rerr == nil {
@@ -189,7 +189,7 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 		vv := reflect.ValueOf(objmap[key])
 		if !vv.IsValid() {
 			// raw value
-			if v := nodeCfg.Get(key); v.Err() == nil {
+			if v, err := nodeCfg.Get(key); err == nil {
 				objmap[key] = v.Value()
 			}
 			continue
@@ -211,7 +211,7 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 				objmap[key] = a
 			}
 		default:
-			if v := nodeCfg.Get(key); v.Err() == nil {
+			if v, err := nodeCfg.Get(key); err == nil {
 				// else assume a leaf
 				if cv, err := cfgconv.Convert(v.Value(), vv.Type()); err == nil {
 					objmap[key] = cv
@@ -224,47 +224,73 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 	return rerr
 }
 
-// Updated returns a channel which is closed when the configuration
-// has been updated.
-func (c *Config) Updated() <-chan struct{} {
-	if c.signal == nil {
-		return nil
-	}
-	return c.signal.Signalled()
+// Watcher provides a synchronous watch.
+type Watcher struct {
+	updated <-chan struct{}
+	c       *Config
+	ctx     context.Context
 }
 
-// Watch returns a channel on which updates to the value will be sent.
-// The current value is sent immediately, with any change sent subsequently.
-// Any error in getting the value is returned in the Value itself.
-// The Watch can be terminated by passing a ctx WithCancel and calling the
-// cancel function.
-func (c *Config) Watch(ctx context.Context, key string) chan Value {
-	u := make(chan Value)
-	go func() {
-		var latest Value
-		for {
-			updated := c.Updated() // must be before Get
-			cv := c.Get(key)
-			if cv.Value() != latest.Value() {
-				latest = *cv
-				select {
-				case <-ctx.Done():
-					return
-				case u <- latest:
-				}
-			}
-			if updated == nil {
-				// config is frozen
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-updated:
+// Watch creates a watch on the whole configuration.
+func (c *Config) Watch(ctx context.Context) *Watcher {
+	var updated <-chan struct{}
+	if c.notifier == nil {
+		// static config so make next block forever on updated
+		updated = make(chan struct{})
+	} else {
+		updated = c.notifier.Notified()
+	}
+	return &Watcher{updated: updated, c: c, ctx: ctx}
+}
+
+// Next returns when the configuration has been changed.
+func (w *Watcher) Next() error {
+	select {
+	case <-w.ctx.Done():
+		return w.ctx.Err()
+	case <-w.updated:
+		w.updated = w.c.notifier.Notified()
+		return nil
+	}
+}
+
+// ValueWatcher watches a particular key/value, with the next returning
+// changed values.
+type ValueWatcher struct {
+	w      *Watcher
+	getter func() (Value, error)
+	last   *Value
+}
+
+// WatchValue creates a watch on the given key.
+// The key should correspond to a field, not a node.
+func (c *Config) WatchValue(ctx context.Context, key string, opts ...ValueOption) *ValueWatcher {
+	getter := func() (Value, error) {
+		return c.Get(key, opts...)
+	}
+	return &ValueWatcher{w: c.Watch(ctx), getter: getter}
+}
+
+// Next returns the next value of the watched field.
+// On the first call it immediately returns the current value.
+// On subsequent calls it blocks until the value changes or the ctx is done.
+func (w *ValueWatcher) Next() (Value, error) {
+	for {
+		if w.last != nil {
+			err := w.w.Next()
+			if err != nil {
+				return Value{}, err
 			}
 		}
-	}()
-	return u
+		v, err := w.getter()
+		if err != nil {
+			return Value{}, err
+		}
+		if w.last == nil || v.Value() != w.last.Value() {
+			w.last = &v
+			return v, nil
+		}
+	}
 }
 
 func getStructFromPtr(obj interface{}) reflect.Value {
@@ -276,7 +302,7 @@ func getStructFromPtr(obj interface{}) reflect.Value {
 }
 
 func unmarshalObjectArray(node *Config, key string, t reflect.Type) (a reflect.Value, rerr error) {
-	if v := node.Get(key + "[]"); v.Err() == nil {
+	if v, err := node.Get(key + "[]"); err == nil {
 		al64, err := cfgconv.Int(v.Value())
 		if err != nil {
 			return reflect.Zero(t), err
@@ -299,7 +325,7 @@ func unmarshalObjectArrayToMap(node *Config, key string, tmpl []map[string]inter
 	if len(tmpl) == 0 {
 		return
 	}
-	if alv := node.Get(key + "[]"); alv.Err() == nil {
+	if alv, err := node.Get(key + "[]"); err == nil {
 		al64, err := cfgconv.Int(alv.Value())
 		if err != nil {
 			rerr = err

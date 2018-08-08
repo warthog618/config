@@ -10,7 +10,7 @@ import (
 func main() {
 	f, _ := properties.New(properties.FromFile("config.properties"))
 	c := config.NewConfig(f)
-	s := c.Get("nested.string").String()
+	s := c.MustGet("nested.string").String()
 	fmt.Println("s:", s)
 	// ....
 }

@@ -35,19 +35,19 @@ func WithSeparator(s string) SeparatorOption {
 	return SeparatorOption{s}
 }
 
-// SignalOption defines the signal the config will use to indicate updates.
-type SignalOption struct {
-	s *Signal
+// NotifierOption defines the signal the config will use to indicate updates.
+type NotifierOption struct {
+	s *Notifier
 }
 
-func (s SignalOption) applyConfigOption(c *Config) {
-	c.signal = s.s
+func (s NotifierOption) applyConfigOption(c *Config) {
+	c.notifier = s.s
 }
 
-// WithUpdateSignal is an Option that sets the signal the config
+// WithUpdateNotifier is an Option that sets the notifier the config
 // uses to indicate it has been updated.
-func WithUpdateSignal(s *Signal) SignalOption {
-	return SignalOption{s}
+func WithUpdateNotifier(s *Notifier) NotifierOption {
+	return NotifierOption{s}
 }
 
 // WithTag is an Option that sets the config unmarshalling tag.
@@ -78,15 +78,22 @@ func (e ErrorHandlerOption) applyValueOption(v *Value) {
 	v.eh = e.e
 }
 
-// WithErrorHandler is an Option that sets the error handling for Must.
-// The default is to ignore errors.
+// WithErrorHandler is an Option that sets the error handling for an object.
 func WithErrorHandler(e ErrorHandler) ErrorHandlerOption {
 	return ErrorHandlerOption{e}
 }
 
-// WithPanic makes an object panic on error.
-func WithPanic() ErrorHandlerOption {
-	return ErrorHandlerOption{func(err error) {
+// WithMust makes an object panic on error.
+func WithMust() ErrorHandlerOption {
+	return ErrorHandlerOption{func(err error) error {
 		panic(err)
+	}}
+}
+
+// WithZeroDefaults makes an object ignore errors and instead return zeroed
+// default values.
+func WithZeroDefaults() ErrorHandlerOption {
+	return ErrorHandlerOption{func(err error) error {
+		return nil
 	}}
 }

@@ -35,7 +35,8 @@ func main() {
 	log.SetFlags(0)
 
 	cfg := loadConfig()
-	if v := cfg.Get("unmarshal").Bool(); v {
+	v, _ := cfg.Get("unmarshal")
+	if v.Bool() {
 		dumpConfigU(cfg)
 	} else {
 		dumpConfig(cfg)
@@ -82,8 +83,8 @@ func loadConfig() *config.Config {
 
 	// config file may be specified via flag or env, so check for it
 	// and if present add it with lower priority than flag and env.
-	configFile := cfg.Get("config.file")
-	if configFile.Err() == nil {
+	configFile, err := cfg.Get("config.file")
+	if err == nil {
 		// explicitly specified config file - must be there
 		jget, err := json.New(json.FromFile(configFile.String()))
 		if err != nil {
@@ -105,10 +106,10 @@ func loadConfig() *config.Config {
 }
 
 func dumpConfig(cfg *config.Config) {
-	configFile := cfg.Get("config.file").String()
-	log.Println("config.file", configFile)
-	unmarshal := cfg.Get("unmarshal").Bool()
-	log.Println("unmarshal", unmarshal)
+	configFile, _ := cfg.Get("config.file")
+	log.Println("config.file", configFile.String())
+	unmarshal, _ := cfg.Get("unmarshal")
+	log.Println("unmarshal", unmarshal.Bool())
 	modules := []string{"module1", "module2"}
 	for _, module := range modules {
 		mCfg := cfg.GetConfig(module)
@@ -117,18 +118,18 @@ func dumpConfig(cfg *config.Config) {
 			"bool",
 		}
 		for _, v := range ints {
-			cint := mCfg.Get(v).Int()
-			log.Printf("%s.%s as int %v\n", module, v, cint)
+			cint, _ := mCfg.Get(v)
+			log.Printf("%s.%s as int %v\n", module, v, cint.Int())
 		}
 		v := "string"
-		cstr := mCfg.Get(v).String()
-		log.Printf("%s.%s %v\n", module, v, cstr)
+		cstr, _ := mCfg.Get(v)
+		log.Printf("%s.%s %v\n", module, v, cstr.String())
 		v = "bool"
-		cbool := mCfg.Get(v).Bool()
-		log.Printf("%s.%s %v\n", module, v, cbool)
+		cbool, _ := mCfg.Get(v)
+		log.Printf("%s.%s %v\n", module, v, cbool.Bool())
 		v = "slice"
-		cslice := mCfg.Get(v).Slice()
-		log.Printf("%s.%s %v\n", module, v, cslice)
+		cslice, _ := mCfg.Get(v)
+		log.Printf("%s.%s %v\n", module, v, cslice.Slice())
 	}
 }
 
@@ -142,10 +143,10 @@ type module struct {
 
 // Unmarshalling version of dumpConfig
 func dumpConfigU(cfg *config.Config) {
-	configFile := cfg.Get("config.file").String()
-	log.Println("config.file", configFile)
-	unmarshal := cfg.Get("unmarshal").Bool()
-	log.Println("unmarshal", unmarshal)
+	configFile, _ := cfg.Get("config.file")
+	log.Println("config.file", configFile.String())
+	unmarshal, _ := cfg.Get("unmarshal")
+	log.Println("unmarshal", unmarshal.Bool())
 	modules := []string{"module1", "module2"}
 	for _, mname := range modules {
 		m := module{}
