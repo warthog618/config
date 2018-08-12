@@ -62,8 +62,9 @@ The [Config](https://godoc.org/github.com/warthog618/config#Config) provides the
 primary interface to configuration.  Config provides get methods to retrieve
 configuration parameters, identified by a key string, and return them as a
 [Value](https://godoc.org/github.com/warthog618/config#Value).  The current
-value can be retrieved with a Get or MustGet.  Updates to a value can be
-requested using WatchValue.  Changes to the complete configuration can be monitored using a Watch
+value can be retrieved with a Get or MustGet.  Updates to a particular key/value
+can be requested using WatchKey.  Changes to the complete configuration can be
+monitored using a Watch.
 
 The Value contains both the configuration value and an error handler to call
 when converting the value to requested types.  By default the Value absorbs

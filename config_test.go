@@ -749,7 +749,7 @@ func TestWatch(t *testing.T) {
 	}
 }
 
-func TestWatchValue(t *testing.T) {
+func TestWatchKey(t *testing.T) {
 	mr := mockGetter{
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
@@ -757,7 +757,7 @@ func TestWatchValue(t *testing.T) {
 	// Static config
 	cfg := config.NewConfig(&mr)
 	ctx := context.Background()
-	w := cfg.WatchValue(ctx, "foo")
+	w := cfg.WatchKey(ctx, "foo")
 	v, err := w.Next()
 	assert.Nil(t, err)
 	assert.Equal(t, "this is foo", v.String())
@@ -775,7 +775,7 @@ func TestWatchValue(t *testing.T) {
 	// Updated
 	n := config.NewNotifier()
 	cfg = config.NewConfig(&mr, config.WithUpdateNotifier(n))
-	w = cfg.WatchValue(ctx, "foo")
+	w = cfg.WatchKey(ctx, "foo")
 	v, err = w.Next()
 	assert.Nil(t, err)
 	assert.Equal(t, "this is foo", v.String())
@@ -809,7 +809,7 @@ func TestWatchValue(t *testing.T) {
 
 	// Deleted
 	mr["foo"] = "this is foo too"
-	w = cfg.WatchValue(ctx, "foo")
+	w = cfg.WatchKey(ctx, "foo")
 	v, err = w.Next()
 	assert.Nil(t, err)
 	assert.Equal(t, "this is foo too", v.String())
@@ -831,7 +831,7 @@ func TestWatchValue(t *testing.T) {
 	// Cancelled
 	mr["foo"] = "this is foo too"
 	ctx, cancel := context.WithCancel(context.Background())
-	w = cfg.WatchValue(ctx, "foo")
+	w = cfg.WatchKey(ctx, "foo")
 	v, err = w.Next()
 	assert.Nil(t, err)
 	assert.Equal(t, "this is foo too", v.String())

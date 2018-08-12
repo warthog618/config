@@ -262,9 +262,9 @@ type ValueWatcher struct {
 	last   *Value
 }
 
-// WatchValue creates a watch on the given key.
+// WatchKey creates a watch on the given key.
 // The key should correspond to a field, not a node.
-func (c *Config) WatchValue(ctx context.Context, key string, opts ...ValueOption) *ValueWatcher {
+func (c *Config) WatchKey(ctx context.Context, key string, opts ...ValueOption) *ValueWatcher {
 	getter := func() (Value, error) {
 		return c.Get(key, opts...)
 	}
