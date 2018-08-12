@@ -224,7 +224,7 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 	return rerr
 }
 
-// Watcher provides a synchronous watch.
+// Watcher provides a synchronous watch of the overall configuration state.
 type Watcher struct {
 	updated <-chan struct{}
 	c       *Config
@@ -254,9 +254,9 @@ func (w *Watcher) Next() error {
 	}
 }
 
-// ValueWatcher watches a particular key/value, with the next returning
+// KeyWatcher watches a particular key/value, with the next returning
 // changed values.
-type ValueWatcher struct {
+type KeyWatcher struct {
 	w      *Watcher
 	getter func() (Value, error)
 	last   *Value
@@ -264,17 +264,17 @@ type ValueWatcher struct {
 
 // WatchKey creates a watch on the given key.
 // The key should correspond to a field, not a node.
-func (c *Config) WatchKey(ctx context.Context, key string, opts ...ValueOption) *ValueWatcher {
+func (c *Config) WatchKey(ctx context.Context, key string, opts ...ValueOption) *KeyWatcher {
 	getter := func() (Value, error) {
 		return c.Get(key, opts...)
 	}
-	return &ValueWatcher{w: c.Watch(ctx), getter: getter}
+	return &KeyWatcher{w: c.Watch(ctx), getter: getter}
 }
 
 // Next returns the next value of the watched field.
 // On the first call it immediately returns the current value.
 // On subsequent calls it blocks until the value changes or the ctx is done.
-func (w *ValueWatcher) Next() (Value, error) {
+func (w *KeyWatcher) Next() (Value, error) {
 	for {
 		if w.last != nil {
 			err := w.w.Next()
