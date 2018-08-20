@@ -31,3 +31,6 @@ func (e UnmarshalError) Error() string {
 // ErrInvalidStruct indicates Unmarshal was provided an object to populate
 // which is not a pointer to struct.
 var ErrInvalidStruct = errors.New("unmarshal: provided obj is not pointer to struct")
+
+// ErrUnwatchable indicates the source is static so there is no point watching it.
+var ErrUnwatchable = errors.New("source loader is not watchable")

@@ -10,6 +10,27 @@ type ConfigOption interface {
 	applyConfigOption(c *Config)
 }
 
+// SourceOption is a construction option for a Source.
+type SourceOption interface {
+	applySourceOption(s *Source)
+}
+
+// WithWatchedSource adds one or more Sources for the Config to watch.
+func WithWatchedSource(rr ...watchedSource) ConfigOption {
+	return WatchedSourceOption{rr}
+}
+
+// WatchedSourceOption contains the sources to be watched by Config.
+type WatchedSourceOption struct {
+	rr []watchedSource
+}
+
+func (u WatchedSourceOption) applyConfigOption(c *Config) {
+	for _, r := range u.rr {
+		c.AddWatchedSource(r)
+	}
+}
+
 // SeparatorOption defines the string that separates tiers in keys.
 type SeparatorOption struct {
 	s string
@@ -28,26 +49,15 @@ func (s SeparatorOption) applyConfigOption(c *Config) {
 	c.pathSep = s.s
 }
 
+func (s SeparatorOption) applySourceOption(x *Source) {
+	x.sep = s.s
+}
+
 // WithSeparator is an Option that sets the config namespace separator.
 // This is an option to ensure it can only set at construction time,
 // as changing it at runtime makes no sense.
 func WithSeparator(s string) SeparatorOption {
 	return SeparatorOption{s}
-}
-
-// NotifierOption defines the signal the config will use to indicate updates.
-type NotifierOption struct {
-	s *Notifier
-}
-
-func (s NotifierOption) applyConfigOption(c *Config) {
-	c.notifier = s.s
-}
-
-// WithUpdateNotifier is an Option that sets the notifier the config
-// uses to indicate it has been updated.
-func WithUpdateNotifier(s *Notifier) NotifierOption {
-	return NotifierOption{s}
 }
 
 // WithTag is an Option that sets the config unmarshalling tag.

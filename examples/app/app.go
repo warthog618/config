@@ -22,12 +22,16 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"time"
 
 	"github.com/warthog618/config"
+	cfgjson "github.com/warthog618/config/decoder/json"
 	"github.com/warthog618/config/env"
-	"github.com/warthog618/config/json"
+	cfgbytes "github.com/warthog618/config/loader/bytes"
+	cfgfile "github.com/warthog618/config/loader/file"
 	"github.com/warthog618/config/pflag"
 )
 
@@ -41,6 +45,17 @@ func main() {
 	} else {
 		dumpConfig(cfg)
 	}
+	w := cfg.NewWatcher()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	for {
+		if err := w.Watch(ctx); err != nil {
+			log.Println("exiting...")
+			break
+		}
+		log.Println("updated to...")
+		dumpConfig(cfg)
+	}
+	cancel()
 }
 
 var defaultConfig = []byte(`{
@@ -59,7 +74,8 @@ var defaultConfig = []byte(`{
 }`)
 
 func loadConfig() *config.Config {
-	def, err := json.New(json.FromBytes(defaultConfig))
+	jsondec := cfgjson.NewDecoder()
+	def, err := config.NewSource(cfgbytes.New(defaultConfig), jsondec)
 	if err != nil {
 		panic(err)
 	}
@@ -86,14 +102,19 @@ func loadConfig() *config.Config {
 	configFile, err := cfg.Get("config.file")
 	if err == nil {
 		// explicitly specified config file - must be there
-		jget, err := json.New(json.FromFile(configFile.String()))
+		cfgFile, err := cfgfile.NewWatchedFile(configFile.String())
+		if err != nil {
+			panic(err)
+		}
+		jget, err := config.NewSource(cfgFile, jsondec)
 		if err != nil {
 			panic(err)
 		}
 		sources.Append(jget)
+		cfg.AddWatchedSource(jget)
 	} else {
 		// implicit and optional default config file
-		jget, err := json.New(json.FromFile("app.json"))
+		jget, err := config.NewSource(cfgfile.New("app.json"), jsondec)
 		if err == nil {
 			sources.Append(jget)
 		} else {

@@ -17,7 +17,7 @@ import (
 
 // New creates a new Getter.
 //
-// The getter will return the values
+// The getter will return the values derived from command line flags.
 // By default the Getter will:
 // - parse the flags provides by flag using flag.Visit
 // - replace '-' in the flag space with '.' in the config space.

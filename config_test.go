@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 func TestNewConfig(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
 	c := config.NewConfig(&mr)
+	require.NotNil(t, c)
 	v, err := c.Get("")
 	assert.IsType(t, config.NotFoundError{}, err)
 	assert.Equal(t, nil, v.Value())
@@ -72,6 +74,35 @@ func TestNewConfigWithMust(t *testing.T) {
 	assert.Panics(t, func() {
 		c.Get("")
 	})
+}
+
+func TestAddWatchedSource(t *testing.T) {
+	mr := mockGetter{
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
+	}
+	ws := &watchedSource{n: make(chan struct{})}
+	cfg := config.NewConfig(&mr)
+	w := cfg.NewWatcher()
+	cfg.AddWatchedSource(ws)
+
+	// Updated
+	ws.Notify()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	err := w.Watch(ctx)
+	assert.Nil(t, err)
+	assert.True(t, ws.Committed)
+	cancel()
+
+	// exit
+	ws.Committed = false
+	ws.WatchError = errors.New("watch error")
+	ws.Notify()
+	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond)
+	err = w.Watch(ctx)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.False(t, ws.Committed)
+	cancel()
 }
 
 func TestGet(t *testing.T) {
@@ -690,7 +721,7 @@ func TestUnmarshalToMap(t *testing.T) {
 	}
 }
 
-func TestWatch(t *testing.T) {
+func TestNewWatcher(t *testing.T) {
 	mr := mockGetter{
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
@@ -698,50 +729,26 @@ func TestWatch(t *testing.T) {
 	// Static config
 	cfg := config.NewConfig(&mr)
 	ctx := context.Background()
-	w := cfg.Watch(ctx)
-	updated := make(chan error)
-	go func() {
-		e := w.Next()
-		updated <- e
-	}()
-	select {
-	case <-updated:
-		assert.Fail(t, "unexpected update")
-	case <-time.After(time.Millisecond):
-	}
+	w := cfg.NewWatcher()
+	testWatcher(t, w, context.DeadlineExceeded)
 
 	// Updated
-	n := config.NewNotifier()
-	cfg = config.NewConfig(&mr, config.WithUpdateNotifier(n))
-	w = cfg.Watch(ctx)
-	updated = make(chan error)
-	go func() {
-		e := w.Next()
-		updated <- e
-	}()
-	select {
-	case <-updated:
-		assert.Fail(t, "unexpected update")
-	case <-time.After(time.Millisecond):
-	}
-	n.Notify()
-	select {
-	case <-updated:
-	case <-time.After(10 * time.Millisecond):
-		assert.Fail(t, "not updated")
-	}
+	ws := &watchedSource{n: make(chan struct{})}
+	cfg = config.NewConfig(&mr, config.WithWatchedSource(ws))
+	w = cfg.NewWatcher()
+	ws.Notify()
+	testWatcher(t, w, nil)
 
 	// Cancelled
 	ctx, cancel := context.WithCancel(context.Background())
-	w = cfg.Watch(ctx)
-	updated = make(chan error)
+	w = cfg.NewWatcher()
+	updated := make(chan error)
 	go func() {
-		e := w.Next()
+		e := w.Watch(ctx)
 		updated <- e
 	}()
 	cancel()
 	time.Sleep(time.Millisecond)
-	n.Notify()
 	select {
 	case e := <-updated:
 		assert.Equal(t, context.Canceled, e)
@@ -749,98 +756,84 @@ func TestWatch(t *testing.T) {
 	}
 }
 
-func TestWatchKey(t *testing.T) {
+type watcher interface {
+	Watch(context.Context) error
+}
+
+func testWatcher(t *testing.T, w watcher, xerr error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	updated := make(chan error)
+	go func() {
+		err := w.Watch(ctx)
+		updated <- err
+	}()
+	select {
+	case err := <-updated:
+		assert.Equal(t, xerr, err)
+	case <-time.After(2 * time.Millisecond):
+		assert.Fail(t, "watch failed to return")
+	}
+	cancel()
+}
+
+type keyWatcher interface {
+	Watch(context.Context) (config.Value, error)
+}
+
+func testKeyWatcher(t *testing.T, w keyWatcher, xv string, xerr error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	v, err := w.Watch(ctx)
+	assert.Equal(t, xerr, err)
+	assert.Equal(t, xv, v.String())
+	cancel()
+}
+
+func TestNewKeyWatcher(t *testing.T) {
 	mr := mockGetter{
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
 	}
 	// Static config
 	cfg := config.NewConfig(&mr)
-	ctx := context.Background()
-	w := cfg.WatchKey(ctx, "foo")
-	v, err := w.Next()
-	assert.Nil(t, err)
-	assert.Equal(t, "this is foo", v.String())
-	updated := make(chan error)
-	go func() {
-		_, err := w.Next()
-		updated <- err
-	}()
-	select {
-	case <-updated:
-		assert.Fail(t, "value not returned")
-	case <-time.After(time.Millisecond):
-	}
+	w := cfg.NewKeyWatcher("foo")
+	testKeyWatcher(t, w, "this is foo", nil)
 
 	// Updated
-	n := config.NewNotifier()
-	cfg = config.NewConfig(&mr, config.WithUpdateNotifier(n))
-	w = cfg.WatchKey(ctx, "foo")
-	v, err = w.Next()
-	assert.Nil(t, err)
-	assert.Equal(t, "this is foo", v.String())
-	updated = make(chan error)
-	go func() {
-		v, err = w.Next()
-		updated <- err
-	}()
-	select {
-	case <-updated:
-		assert.Fail(t, "unexpected value update")
-	case <-time.After(time.Millisecond):
-	}
+	ws := &watchedSource{n: make(chan struct{})}
+	cfg = config.NewConfig(&mr, config.WithWatchedSource(ws))
+	w = cfg.NewKeyWatcher("foo")
+	testKeyWatcher(t, w, "this is foo", nil)
+	testKeyWatcher(t, w, "", context.DeadlineExceeded)
+
 	// unchanged
-	n.Notify()
-	select {
-	case <-updated:
-		assert.Fail(t, "unexpected value update")
-	case <-time.After(time.Millisecond):
-	}
+	ws.Notify()
+	testKeyWatcher(t, w, "", context.DeadlineExceeded)
+
 	// changed
 	mr["foo"] = "this is new foo"
-	n.Notify()
-	select {
-	case <-updated:
-		assert.Nil(t, err)
-		assert.Equal(t, "this is new foo", v.Value())
-	case <-time.After(10 * time.Millisecond):
-		assert.Fail(t, "value not updated")
-	}
+	ws.Notify()
+	testKeyWatcher(t, w, "this is new foo", nil)
 
 	// Deleted
-	mr["foo"] = "this is foo too"
-	w = cfg.WatchKey(ctx, "foo")
-	v, err = w.Next()
-	assert.Nil(t, err)
-	assert.Equal(t, "this is foo too", v.String())
-	go func() {
-		v, err = w.Next()
-		updated <- err
-	}()
 	delete(mr, "foo")
-	n.Notify()
-	time.Sleep(time.Millisecond)
-	select {
-	case e := <-updated:
-		assert.Equal(t, config.NotFoundError{Key: "foo"}, e)
-		assert.Equal(t, config.Value{}, v)
-	case <-time.After(time.Millisecond):
-		assert.Fail(t, "not deleted")
-	}
+	ws.Notify()
+	testKeyWatcher(t, w, "", config.NotFoundError{Key: "foo"})
 
 	// Cancelled
 	mr["foo"] = "this is foo too"
 	ctx, cancel := context.WithCancel(context.Background())
-	w = cfg.WatchKey(ctx, "foo")
-	v, err = w.Next()
+	w = cfg.NewKeyWatcher("foo")
+	v, err := w.Watch(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, "this is foo too", v.String())
+	updated := make(chan error)
 	go func() {
-		v, err = w.Next()
+		v, err = w.Watch(ctx)
 		updated <- err
 	}()
 	// unchanged
-	n.Notify()
 	select {
 	case <-updated:
 		assert.Fail(t, "unexpected value update")
@@ -849,14 +842,12 @@ func TestWatchKey(t *testing.T) {
 	cancel()
 	time.Sleep(time.Millisecond)
 	mr["foo"] = "this is new foo too"
-	n.Notify()
 	select {
 	case e := <-updated:
 		assert.Equal(t, context.Canceled, e)
 	case <-time.After(time.Millisecond):
 		assert.Fail(t, "didn't cancel")
 	}
-
 }
 
 type mockGetter map[string]interface{}
@@ -864,6 +855,26 @@ type mockGetter map[string]interface{}
 func (m mockGetter) Get(key string) (interface{}, bool) {
 	v, ok := m[key]
 	return v, ok
+}
+
+type watchedSource struct {
+	n          chan struct{}
+	WatchError error
+	Committed  bool
+}
+
+func (w *watchedSource) Watch(ctx context.Context) error {
+	<-w.n
+	return w.WatchError
+}
+
+func (w *watchedSource) CommitUpdate() {
+	w.n = make(chan struct{})
+	w.Committed = true
+}
+
+func (w *watchedSource) Notify() {
+	close(w.n)
 }
 
 func init() {

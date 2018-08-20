@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -18,9 +19,11 @@ import (
 // NewConfig creates a new Config with minimal initial state.
 func NewConfig(g Getter, options ...ConfigOption) *Config {
 	c := Config{
-		getter:  g,
-		pathSep: ".",
-		tag:     "config",
+		getter:   g,
+		pathSep:  ".",
+		tag:      "config",
+		notifier: NewNotifier(),
+		bgmu:     &sync.RWMutex{},
 	}
 	for _, option := range options {
 		option.applyConfigOption(&c)
@@ -31,23 +34,45 @@ func NewConfig(g Getter, options ...ConfigOption) *Config {
 // ErrorHandler handles an error.
 type ErrorHandler func(error) error
 
-// Config is a wrapper around a Getter that provides a set
-// of conversion functions that return the requested type, if possible,
-// or an error if not.
+// Config is a wrapper around a Getter that provides a set of conversion
+// functions that return the requested type, if possible, or an error if not.
 type Config struct {
 	getter Getter
-	// path separator for nested objects.
-	// This is used to split keys into a list of tier names and leaf key.
-	// By default this is ".".
-	// e.g. a key "db.postgres.client" splits into  "db","postgres","client"
+	// path separator for nested objects. This is used to split keys into a list
+	// of tier names and leaf key. By default this is ".". e.g. a key
+	// "db.postgres.client" splits into "db","postgres","client"
 	pathSep string
 	// tag identifies the field tags used to specify field names for Unmarshal.
 	tag string
 	// notifier indicates the config has been updated.
 	notifier *Notifier
-	// error handler for gets
-	// Propagated to Values unless overridden by ValueOption.
+	// error handler for gets. Is propagated to Values unless overridden by
+	// ValueOption.
 	eh ErrorHandler
+	// Mutex covering block gets - inhibits changes to underlying Loaders while
+	// unmarshalling blocks, as that could result in inconsistent and
+	// unpredicatable results.
+	bgmu *sync.RWMutex
+}
+
+type watchedSource interface {
+	Watch(context.Context) error
+	CommitUpdate()
+}
+
+// AddWatchedSource adds an UpdateRequester for the Config to monitor.
+func (c *Config) AddWatchedSource(w watchedSource) {
+	go func() {
+		for {
+			if err := w.Watch(context.Background()); err != nil {
+				return
+			}
+			c.bgmu.Lock()
+			w.CommitUpdate()
+			c.bgmu.Unlock()
+			c.notifier.Notify()
+		}
+	}()
 }
 
 // Get gets the raw value corresponding to the key.
@@ -82,9 +107,11 @@ func (c *Config) GetConfig(node string, options ...ConfigOption) *Config {
 		g = Decorate(c.getter, WithPrefix(node+c.pathSep))
 	}
 	v := &Config{
-		getter:  g,
-		pathSep: c.pathSep,
-		tag:     c.tag,
+		getter:   g,
+		pathSep:  c.pathSep,
+		tag:      c.tag,
+		notifier: c.notifier,
+		bgmu:     c.bgmu,
 	}
 	for _, option := range options {
 		option.applyConfigOption(v)
@@ -120,6 +147,8 @@ func (c *Config) MustGet(key string, opts ...ValueOption) Value {
 //
 // The error identifies the first type conversion error, if any.
 func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
+	c.bgmu.RLock()
+	defer c.bgmu.RUnlock()
 	ov := getStructFromPtr(obj)
 	if ov.Kind() != reflect.Struct {
 		return ErrInvalidStruct
@@ -184,6 +213,8 @@ func (c *Config) Unmarshal(node string, obj interface{}) (rerr error) {
 //
 // The error identifies the first type conversion error, if any.
 func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rerr error) {
+	c.bgmu.RLock()
+	defer c.bgmu.RUnlock()
 	nodeCfg := c.GetConfig(node)
 	for key := range objmap {
 		vv := reflect.ValueOf(objmap[key])
@@ -228,26 +259,18 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 type Watcher struct {
 	updated <-chan struct{}
 	c       *Config
-	ctx     context.Context
 }
 
-// Watch creates a watch on the whole configuration.
-func (c *Config) Watch(ctx context.Context) *Watcher {
-	var updated <-chan struct{}
-	if c.notifier == nil {
-		// static config so make next block forever on updated
-		updated = make(chan struct{})
-	} else {
-		updated = c.notifier.Notified()
-	}
-	return &Watcher{updated: updated, c: c, ctx: ctx}
+// NewWatcher creates a watch on the whole configuration.
+func (c *Config) NewWatcher() *Watcher {
+	return &Watcher{updated: c.notifier.Notified(), c: c}
 }
 
-// Next returns when the configuration has been changed.
-func (w *Watcher) Next() error {
+// Watch returns when the configuration has been changed.
+func (w *Watcher) Watch(ctx context.Context) error {
 	select {
-	case <-w.ctx.Done():
-		return w.ctx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-w.updated:
 		w.updated = w.c.notifier.Notified()
 		return nil
@@ -262,22 +285,22 @@ type KeyWatcher struct {
 	last   *Value
 }
 
-// WatchKey creates a watch on the given key.
+// NewKeyWatcher creates a watch on the given key.
 // The key should correspond to a field, not a node.
-func (c *Config) WatchKey(ctx context.Context, key string, opts ...ValueOption) *KeyWatcher {
+func (c *Config) NewKeyWatcher(key string, opts ...ValueOption) *KeyWatcher {
 	getter := func() (Value, error) {
 		return c.Get(key, opts...)
 	}
-	return &KeyWatcher{w: c.Watch(ctx), getter: getter}
+	return &KeyWatcher{w: c.NewWatcher(), getter: getter}
 }
 
-// Next returns the next value of the watched field.
+// Watch returns the next value of the watched field.
 // On the first call it immediately returns the current value.
 // On subsequent calls it blocks until the value changes or the ctx is done.
-func (w *KeyWatcher) Next() (Value, error) {
+func (w *KeyWatcher) Watch(ctx context.Context) (Value, error) {
 	for {
 		if w.last != nil {
-			err := w.w.Next()
+			err := w.w.Watch(ctx)
 			if err != nil {
 				return Value{}, err
 			}
