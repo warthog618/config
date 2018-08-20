@@ -762,7 +762,7 @@ type watcher interface {
 
 func testWatcher(t *testing.T, w watcher, xerr error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 	updated := make(chan error)
 	go func() {
 		err := w.Watch(ctx)
@@ -771,7 +771,7 @@ func testWatcher(t *testing.T, w watcher, xerr error) {
 	select {
 	case err := <-updated:
 		assert.Equal(t, xerr, err)
-	case <-time.After(20 * time.Millisecond):
+	case <-time.After(time.Second):
 		assert.Fail(t, "watch failed to return")
 	}
 	cancel()
@@ -783,7 +783,7 @@ type keyWatcher interface {
 
 func testKeyWatcher(t *testing.T, w keyWatcher, xv string, xerr error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 	updated := make(chan error)
 	var v config.Value
 	go func() {
@@ -795,7 +795,7 @@ func testKeyWatcher(t *testing.T, w keyWatcher, xv string, xerr error) {
 	case err := <-updated:
 		assert.Equal(t, xerr, err)
 		assert.Equal(t, xv, v.String())
-	case <-time.After(20 * time.Millisecond):
+	case <-time.After(time.Second):
 		assert.Fail(t, "watch failed to return")
 	}
 	cancel()
