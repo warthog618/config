@@ -5,15 +5,18 @@
 
 package bytes
 
-// Bytes is an example
+// Bytes provides a source of configuration from an array of bytes in memory.
 type Bytes struct {
 	b []byte
 }
 
+// New creates a loader that returns the provided bytes.
+// The bytes should not be changed after being passed to New.
 func New(b []byte) *Bytes {
 	return &Bytes{b: b}
 }
 
+// Load returns the bytes provided to New.
 func (b *Bytes) Load() ([]byte, error) {
 	return b.b, nil
 }

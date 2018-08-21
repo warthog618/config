@@ -81,8 +81,8 @@ var parsedConfig = map[string]interface{}{
 		"float":       float64(3.141),
 	},
 	"animals": []map[string]interface{}{
-		map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
-		map[string]interface{}{"Name": "Quoll", "Order": "Dasyuromorphia"},
+		{"Name": "Platypus", "Order": "Monotremata"},
+		{"Name": "Quoll", "Order": "Dasyuromorphia"},
 	},
 }
 

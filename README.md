@@ -58,13 +58,12 @@ a more extensive example.
 
 ### API
 
-The [Config](https://godoc.org/github.com/warthog618/config#Config) provides the
-primary interface to configuration.  Config provides get methods to retrieve
-configuration parameters, identified by a key string, and return them as a
-[Value](https://godoc.org/github.com/warthog618/config#Value).  The current
-value can be retrieved with a Get or MustGet.  Updates to a particular key/value
-can be requested using a NewKeyWatcher.  Changes to the complete configuration
-can be monitored using a NewWatcher.
+[Config](https://godoc.org/github.com/warthog618/config#Config) provides get
+methods to retrieve configuration parameters, identified by a key string, and
+return them as a [Value](https://godoc.org/github.com/warthog618/config#Value).
+The current value can be retrieved with a Get or MustGet.  Updates to a
+particular key/value can be requested using a NewKeyWatcher.  Changes to the
+complete configuration can be monitored using a NewWatcher.
 
 The Value contains both the configuration value and an error handler to call
 when converting the value to requested types.  By default the Value absorbs
@@ -90,7 +89,8 @@ rather than being handled where the functions return. e.g.
     ports := v.UintSlice()
 ```
 
-will panic if either "pin" or "ports" are not configured or cannot be converted to the requested type.
+will panic if either "pin" or "ports" are not configured or cannot be converted
+to the requested type.
 
 ### Supported value types
 
@@ -172,8 +172,10 @@ form *a[]*. e.g.
 ### Config
 
 As described in [API](#api), the
-[Config](https://godoc.org/github.com/warthog618/config#Config) provides the API to
-return Values from the configuration tree.  A Config may represent the root of the configuration or a branch of the configuration tree - retreived from a parent Config using GetConfig.
+[Config](https://godoc.org/github.com/warthog618/config#Config) provides the API
+to return Values from the configuration tree.  A Config may represent the root
+of the configuration or a branch of the configuration tree - retreived from a
+parent Config using GetConfig.
 
 ### Value
 
@@ -228,9 +230,14 @@ or map[interface{}]interface{}.
 
 ### Sources
 
-Sources are a type of getter that are partitioned into two layers, the Loader and the Decoder.  The configuration is first loaded by the Loader and then unmarshalled using the Decoder.
+Sources are a type of getter that are partitioned into two layers, the Loader
+and the Decoder.  The configuration is first loaded by the Loader and then
+unmarshalled using the Decoder.
 
-The Loader may support being watched for changes, and if to the Source containing it can be added to the config using [AddWatchedSource](https://godoc.org/github.com/warthog618/config#Config.AddWatchedSource) to trigger changes to the configuration when the underlying source changes.  
+The Loader may support being watched for changes, and if so the Source
+containing it can be added to the config using
+[AddWatchedSource](https://godoc.org/github.com/warthog618/config#Config.AddWatchedSource)
+to trigger changes to the configuration when the underlying source changes.  
 
 #### Loaders
 
