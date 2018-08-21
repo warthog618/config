@@ -36,7 +36,7 @@ A minimal setup to access configuration from POSIX/GNU style command line flags
 might look like:
 
 ```go
-    flags, _ = pflag.New()
+    flags, _ := pflag.New()
     c := config.NewConfig(flags)
 ```
 
@@ -259,6 +259,7 @@ Decoders for the following formats are included:
 - [JSON](https://github.com/warthog618/config/tree/master/decoder/json)
 - [TOML](https://github.com/warthog618/config/tree/master/decoder/toml)
 - [YAML](https://github.com/warthog618/config/tree/master/decoder/yaml)
+- [HCL](https://github.com/warthog618/config/tree/master/decoder/hcl)
 - [properties](https://github.com/warthog618/config/tree/master/decoder/properties)
 
 ### Decorators
