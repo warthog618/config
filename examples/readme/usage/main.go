@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	"github.com/warthog618/config"
+	"github.com/warthog618/config/decoder/json"
 	"github.com/warthog618/config/dict"
 	"github.com/warthog618/config/env"
-	"github.com/warthog618/config/json"
+	"github.com/warthog618/config/loader/file"
 	"github.com/warthog618/config/pflag"
 )
 
@@ -28,7 +29,7 @@ func main() {
 	g, _ = env.New(env.WithEnvPrefix(prefix))
 	sources.Append(g)
 	cf := cfg.MustGet("config.file").String()
-	g, _ = json.New(json.FromFile(cf))
+	g, _ = config.NewSource(file.New(cf), json.NewDecoder())
 	sources.Append(g)
 
 	// read a config field from the root config

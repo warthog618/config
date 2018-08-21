@@ -19,9 +19,9 @@ type Loader interface {
 	Load() ([]byte, error)
 }
 
-// SourceWatcher represents an API supported by Sources that can watch the
+// WatchedLoader represents an API supported by Loaders that can watch the
 // underlying source for configuration changes.
-type SourceWatcher interface {
+type WatchedLoader interface {
 	// Watch blocks until the underlying source has changed since construction
 	// or the previous Watch call.
 	Watch(context.Context) error
@@ -104,7 +104,7 @@ func (s *Source) Get(key string) (interface{}, bool) {
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
 func (s *Source) Watch(ctx context.Context) error {
-	w, ok := s.l.(SourceWatcher)
+	w, ok := s.l.(WatchedLoader)
 	if !ok {
 		return ErrUnwatchable
 	}

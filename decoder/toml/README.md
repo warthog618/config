@@ -1,8 +1,8 @@
 # toml
 
-[![GoDoc](https://godoc.org/github.com/warthog618/config/toml/sar?status.svg)](https://godoc.org/github.com/warthog618/config/toml)
+[![GoDoc](https://godoc.org/github.com/warthog618/config/decoder/toml/sar?status.svg)](https://godoc.org/github.com/warthog618/config/decoder/toml)
 
-The **toml** package provides a [config](https://github.com/warthog618/config) Getter that retrieves values from TOML files or other TOML formatted sources.
+The **toml** package provides a [config](https://github.com/warthog618/config) Decoder that unmarshals values from TOML formatted sources.
 
 Example usage:
 
@@ -11,22 +11,15 @@ import (
     "fmt"
 
     "github.com/warthog618/config"
-    "github.com/warthog618/config/toml"
+    "github.com/warthog618/config/decoder/toml"
+    "github.com/warthog618/config/loader/file"
 )
 
 func main() {
-    f, _ := toml.New(toml.FromFile("config.toml"))
+    f, _ := config.NewSource(file.New("config.toml"), toml.NewDecoder())
     c := config.NewConfig(f)
-    s, _ := c.GetString("nested.string")
+    s := c.MustGet("nested.string").String()
     fmt.Println("s:", s)
     // ....
 }
 ```
-
-A number of options can be applied to toml.New:
-
-The [FromBytes](https://godoc.org/github.com/warthog618/config/toml#FromBytes) option reads the TOML from a byte array.
-
-The [FromFile](https://godoc.org/github.com/warthog618/config/toml#FromFile) option reads the TOML from a file.
-
-The [FromReader](https://godoc.org/github.com/warthog618/config/toml#FromReader) option reads the TOML from an io.Reader.

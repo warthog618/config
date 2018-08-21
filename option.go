@@ -16,13 +16,13 @@ type SourceOption interface {
 }
 
 // WithWatchedSource adds one or more Sources for the Config to watch.
-func WithWatchedSource(rr ...watchedSource) ConfigOption {
+func WithWatchedSource(rr ...WatchedSource) ConfigOption {
 	return WatchedSourceOption{rr}
 }
 
 // WatchedSourceOption contains the sources to be watched by Config.
 type WatchedSourceOption struct {
-	rr []watchedSource
+	rr []WatchedSource
 }
 
 func (u WatchedSourceOption) applyConfigOption(c *Config) {

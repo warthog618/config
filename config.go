@@ -55,13 +55,17 @@ type Config struct {
 	bgmu *sync.RWMutex
 }
 
-type watchedSource interface {
+// WatchedSource is a Getter that supports being watched.
+type WatchedSource interface {
+	// Watch blocks until the source has changed, or an error is detected.
 	Watch(context.Context) error
+	// CommitUpdate commits a change detected by Watch so that it becomes
+	// visible to Get.
 	CommitUpdate()
 }
 
-// AddWatchedSource adds an UpdateRequester for the Config to monitor.
-func (c *Config) AddWatchedSource(w watchedSource) {
+// AddWatchedSource adds an WatchedSource for the Config to monitor.
+func (c *Config) AddWatchedSource(w WatchedSource) {
 	go func() {
 		for {
 			if err := w.Watch(context.Background()); err != nil {

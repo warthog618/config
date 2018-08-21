@@ -1,8 +1,8 @@
 # properties
 
-[![GoDoc](https://godoc.org/github.com/warthog618/config/properties/sar?status.svg)](https://godoc.org/github.com/warthog618/config/properties)
+[![GoDoc](https://godoc.org/github.com/warthog618/config/decoder/properties/sar?status.svg)](https://godoc.org/github.com/warthog618/config/decoder/properties)
 
-The **properties** package provides a [config](https://github.com/warthog618/config) Getter that retrieves values from Properties files or other Properties formatted sources.
+The **properties** package provides a [config](https://github.com/warthog618/config) Decoder that unmarshals values from Properties formatted sources.
 
 Example usage:
 
@@ -11,24 +11,20 @@ import (
     "fmt"
 
     "github.com/warthog618/config"
-    "github.com/warthog618/config/properties"
+    "github.com/warthog618/config/decoder/properties"
+    "github.com/warthog618/config/loader/file"
 )
 
 func main() {
-    f, _ := properties.New(properties.FromFile("config.properties"))
+    f, _ := config.NewSource(file.New("config.properties"), properties.NewDecoder())
     c := config.NewConfig(f)
-    s, _ := c.GetString("nested.string")
+    s := c.MustGet("nested.string").String()
     fmt.Println("s:", s)
     // ....
 }
+
 ```
 
-A number of options can be applied to properties.New:
+The following option can be applied to properties.NewDecoder:
 
-The [FromBytes](https://godoc.org/github.com/warthog618/config/properties#FromBytes) option reads the Properties from a byte array.
-
-The [FromFile](https://godoc.org/github.com/warthog618/config/properties#FromFile) option reads the Properties from a file.
-
-The [FromReader](https://godoc.org/github.com/warthog618/config/properties#FromReader) option reads the Properties from an io.Reader.
-
-The [WithListSeparator](https://godoc.org/github.com/warthog618/config/properties#WithListSeparator) option provides a string used to split list values into elements.  The default list separator is ",".
+The [WithListSeparator](https://godoc.org/github.com/warthog618/config/decoder/properties#WithListSeparator) option provides a string used to split list values into elements.  The default list separator is ",".

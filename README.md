@@ -209,11 +209,9 @@ Getter | Configuration Source
 [dict](https://github.com/warthog618/config/tree/master/dict) | key/value maps
 [env](https://github.com/warthog618/config/tree/master/env) | environment variables
 [flag](https://github.com/warthog618/config/tree/master/flag) | Go style command line flags
-[json](https://github.com/warthog618/config/tree/master/json) | JSON files or other JSON formatted sources
 [pflag](https://github.com/warthog618/config/tree/master/pflag) | POSIX/GNU style command line flags
-[properties](https://github.com/warthog618/config/tree/master/properties) | Properties files or other properties formatted sources
-[toml](https://github.com/warthog618/config/tree/master/toml) | TOML files or other TOML formatted sources
-[yaml](https://github.com/warthog618/config/tree/master/yaml) | YAML files or other YAML formatted sources
+
+Some other sources, such as files, are supported as described in [Sources](#sources).
 
 Alternatively you can roll your own.
 
@@ -227,6 +225,34 @@ namespaces.
 The [**tree**](https://github.com/warthog618/config/tree/master/tree)
 sub-package provides a Get method to get a value from a map[string]interface{}
 or map[interface{}]interface{}.
+
+### Sources
+
+Sources are a type of getter that are partitioned into two layers, the Loader and the Decoder.  The configuration is first loaded by the Loader and then unmarshalled using the Decoder.
+
+The Loader may support being watched for changes, and if to the Source containing it can be added to the config using [AddWatchedSource](https://godoc.org/github.com/warthog618/config#Config.AddWatchedSource) to trigger changes to the configuration when the underlying source changes.  
+
+#### Loaders
+
+Loaders read configuration from some source.
+
+The included loaders are:
+
+Loader | Configuration Source
+:-----:| -----
+[bytes](https://github.com/warthog618/config/tree/master/loader/bytes) | []byte
+[file](https://github.com/warthog618/config/tree/master/loader/file) | local file
+
+#### Decoders
+
+Decoders unmarshal configuration from a particular text format.
+
+Decoders for the following formats are included:
+
+- [JSON](https://github.com/warthog618/config/tree/master/decoder/json)
+- [TOML](https://github.com/warthog618/config/tree/master/decoder/toml)
+- [YAML](https://github.com/warthog618/config/tree/master/decoder/yaml)
+- [properties](https://github.com/warthog618/config/tree/master/decoder/properties)
 
 ### Decorators
 
@@ -382,7 +408,7 @@ func main() {
     g, _ = env.New(env.WithEnvPrefix(prefix))
     sources.Append(g)
     cf := cfg.MustGet("config.file").String()
-    g, _ = json.New(json.FromFile(cf))
+    g, _ = config.NewSource(file.New(cf), json.NewDecoder())
     sources.Append(g)
 
     // read a config field from the root config
@@ -422,9 +448,8 @@ directory.
 
 A list of things I haven't gotten around to yet, or am still thinking about...
 
+- Document Watchers.
 - Add more examples.
-- Add a getter for etcd.
-- Add a getter for consul.
-- Add watches on config for changes (already reworked Config API
-  to support this - still require support from the Getters)
-- Refactor Getters into Loader/Decoder, and allow Loader to notify Config of updates.
+- Add tests for loaders.
+- Add a loader for etcd.
+- Add a loader for consul.
