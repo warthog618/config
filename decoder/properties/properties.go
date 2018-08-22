@@ -40,20 +40,21 @@ type Decoder struct {
 
 // Decode unmarshals an array of bytes containing properties text.
 func (d Decoder) Decode(b []byte, v interface{}) error {
-	if mp, ok := v.(*map[string]interface{}); ok {
-		config, err := properties.Load(b, properties.UTF8)
-		if err != nil {
-			return err
-		}
-		m := config.Map()
-		for key, val := range m {
-			if len(d.listSeparator) > 0 && strings.Contains(val, d.listSeparator) {
-				(*mp)[key] = strings.Split(val, d.listSeparator)
-			} else {
-				(*mp)[key] = val
-			}
-		}
-		return nil
+	mp, ok := v.(*map[string]interface{})
+	if !ok {
+		return errors.New("Decode only supports map[string]interface{}")
 	}
-	return errors.New("Decode only supports map[string]interface{}")
+	config, err := properties.Load(b, properties.UTF8)
+	if err != nil {
+		return err
+	}
+	m := config.Map()
+	for key, val := range m {
+		if len(d.listSeparator) > 0 && strings.Contains(val, d.listSeparator) {
+			(*mp)[key] = strings.Split(val, d.listSeparator)
+		} else {
+			(*mp)[key] = val
+		}
+	}
+	return nil
 }

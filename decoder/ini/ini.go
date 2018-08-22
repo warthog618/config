@@ -38,25 +38,26 @@ type Decoder struct {
 	listSeparator string
 }
 
-// Decode unmarshals an array of bytes containing properties text.
+// Decode unmarshals an array of bytes containing ini text.
 func (d Decoder) Decode(b []byte, v interface{}) error {
-	if mp, ok := v.(*map[string]interface{}); ok {
-		f, err := ini.LoadSources(ini.LoadOptions{AllowNestedValues: true}, b)
-		if err != nil {
-			return err
-		}
-		for _, section := range f.Sections() {
-			if section.Name() == "DEFAULT" {
-				d.loadSection(section, *mp)
-			} else {
-				sm := make(map[string]interface{})
-				(*mp)[section.Name()] = sm
-				d.loadSection(section, sm)
-			}
-		}
-		return nil
+	mp, ok := v.(*map[string]interface{})
+	if !ok {
+		return errors.New("Decode only supports map[string]interface{}")
 	}
-	return errors.New("Decode only supports map[string]interface{}")
+	f, err := ini.Load(b)
+	if err != nil {
+		return err
+	}
+	for _, section := range f.Sections() {
+		if section.Name() == "DEFAULT" {
+			d.loadSection(section, *mp)
+		} else {
+			sm := make(map[string]interface{})
+			(*mp)[section.Name()] = sm
+			d.loadSection(section, sm)
+		}
+	}
+	return nil
 }
 
 func (d Decoder) loadSection(s *ini.Section, m map[string]interface{}) {
