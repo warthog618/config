@@ -3,16 +3,16 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-package properties
+package ini
 
 import (
 	"errors"
 	"strings"
 
-	"github.com/magiconair/properties"
+	ini "gopkg.in/ini.v1"
 )
 
-// NewDecoder returns a properties decoder.
+// NewDecoder returns a INI decoder.
 func NewDecoder(options ...Option) Decoder {
 	d := Decoder{listSeparator: ","}
 	for _, option := range options {
@@ -25,8 +25,8 @@ func NewDecoder(options ...Option) Decoder {
 // returning any error that may have occurred.
 type Option func(*Decoder)
 
-// WithListSeparator sets the separator between slice fields in the properties
-// space. The default separator is ","
+// WithListSeparator sets the separator between slice fields in the ini space.
+// The default separator is ","
 func WithListSeparator(separator string) Option {
 	return func(d *Decoder) {
 		d.listSeparator = separator
@@ -41,19 +41,32 @@ type Decoder struct {
 // Decode unmarshals an array of bytes containing properties text.
 func (d Decoder) Decode(b []byte, v interface{}) error {
 	if mp, ok := v.(*map[string]interface{}); ok {
-		config, err := properties.Load(b, properties.UTF8)
+		f, err := ini.LoadSources(ini.LoadOptions{AllowNestedValues: true}, b)
 		if err != nil {
 			return err
 		}
-		m := config.Map()
-		for key, val := range m {
-			if len(d.listSeparator) > 0 && strings.Contains(val, d.listSeparator) {
-				(*mp)[key] = strings.Split(val, d.listSeparator)
+		for _, section := range f.Sections() {
+			if section.Name() == "DEFAULT" {
+				d.loadSection(section, *mp)
 			} else {
-				(*mp)[key] = val
+				sm := make(map[string]interface{})
+				(*mp)[section.Name()] = sm
+				d.loadSection(section, sm)
 			}
 		}
 		return nil
 	}
 	return errors.New("Decode only supports map[string]interface{}")
+}
+
+func (d Decoder) loadSection(s *ini.Section, m map[string]interface{}) {
+	for _, key := range s.Keys() {
+		v := key.String()
+		k := key.Name()
+		if len(d.listSeparator) > 0 && strings.Contains(v, d.listSeparator) {
+			m[k] = strings.Split(v, d.listSeparator)
+		} else {
+			m[k] = v
+		}
+	}
 }
