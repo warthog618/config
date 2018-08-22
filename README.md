@@ -260,6 +260,7 @@ Decoders for the following formats are included:
 - [TOML](https://github.com/warthog618/config/tree/master/decoder/toml)
 - [YAML](https://github.com/warthog618/config/tree/master/decoder/yaml)
 - [HCL](https://github.com/warthog618/config/tree/master/decoder/hcl)
+- [INI](https://github.com/warthog618/config/tree/master/decoder/ini)
 - [properties](https://github.com/warthog618/config/tree/master/decoder/properties)
 
 ### Decorators
