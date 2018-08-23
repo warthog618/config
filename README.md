@@ -458,6 +458,5 @@ A list of things I haven't gotten around to yet, or am still thinking about...
 
 - Document Watchers.
 - Add more examples.
-- Add tests for loaders.
 - Add a loader for etcd.
 - Add a loader for consul.
