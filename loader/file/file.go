@@ -8,7 +8,6 @@ package file
 import (
 	"context"
 	"io/ioutil"
-	"os"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -24,8 +23,7 @@ func New(filename string) *File {
 }
 
 // Load returns the current content of the file.
-// The file is expected to exist, so it it is missing, or otherwise unreadable,
-// an error is returned.
+// The file is expected to exist and be readable, else an error is returned.
 func (f *File) Load() ([]byte, error) {
 	return ioutil.ReadFile(f.filename)
 }
@@ -37,8 +35,7 @@ type WatchedFile struct {
 }
 
 // NewWatchedFile creates a WatchedFile with the specified path.
-// The file is expected to exist, but if it does not then its configuration
-// is assumed to be empty, rather than an error condition.
+// The file is expected to exist, else an error is returned.
 func NewWatchedFile(filename string) (*WatchedFile, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -58,18 +55,8 @@ func (f *WatchedFile) Close() error {
 }
 
 // Load returns the current content of the watched file.
-// If the file is missing its configuration is assumed to be empty,
-// rather than indicating an error condition.
 func (f *WatchedFile) Load() ([]byte, error) {
-	b, err := ioutil.ReadFile(f.filename)
-	if err != nil {
-		if _, ok := err.(*os.PathError); ok {
-			// treat missing as empty
-			return make([]byte, 0), nil
-		}
-		return nil, err
-	}
-	return b, nil
+	return ioutil.ReadFile(f.filename)
 }
 
 // Watch blocks until the watched file is altered.
@@ -82,15 +69,16 @@ func (f *WatchedFile) Load() ([]byte, error) {
 func (f *WatchedFile) Watch(ctx context.Context) error {
 	for {
 		select {
-		case e, ok := <-f.watcher.Events:
+		case _, ok := <-f.watcher.Events:
 			if !ok {
 				return context.Canceled
 			}
-			switch e.Op {
-			// !!! any need to handle special cases here??
-			case fsnotify.Chmod, fsnotify.Write, fsnotify.Rename:
-				return nil
+			return nil
+		case e, ok := <-f.watcher.Errors:
+			if !ok {
+				return context.Canceled
 			}
+			return e
 		case <-ctx.Done():
 			return ctx.Err()
 		}
