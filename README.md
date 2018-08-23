@@ -450,8 +450,7 @@ MYAPP_CONFIG_FILE="myfile.json" myapp
 APP_CONFIG_FILE="myfile.json" myapp --env.prefix=APP_
 ```
 
-This example, and examples of more complex usage, can be found in the examples
-directory.
+This example, and examples of more complex usage, can be found in the [example](https://github.com/warthog618/config/tree/master/example) directory.
 
 ## Future Work
 
