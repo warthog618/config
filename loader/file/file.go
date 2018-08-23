@@ -34,9 +34,9 @@ type WatchedFile struct {
 	watcher  *fsnotify.Watcher
 }
 
-// NewWatchedFile creates a WatchedFile with the specified path.
+// NewWatched creates a WatchedFile with the specified path.
 // The file is expected to exist, else an error is returned.
-func NewWatchedFile(filename string) (*WatchedFile, error) {
+func NewWatched(filename string) (*WatchedFile, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err

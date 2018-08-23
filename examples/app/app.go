@@ -102,7 +102,7 @@ func loadConfig() *config.Config {
 	configFile, err := cfg.Get("config.file")
 	if err == nil {
 		// explicitly specified config file - must be there
-		cfgFile, err := file.NewWatchedFile(configFile.String())
+		cfgFile, err := file.NewWatched(configFile.String())
 		if err != nil {
 			panic(err)
 		}

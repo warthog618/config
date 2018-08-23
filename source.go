@@ -15,6 +15,7 @@ import (
 )
 
 // Loader retrieves raw configuration data, as []byte, from some source.
+// The Loader may also support the WatchedLoader interface if it is watchable.
 type Loader interface {
 	Load() ([]byte, error)
 }
@@ -22,8 +23,16 @@ type Loader interface {
 // WatchedLoader represents an API supported by Loaders that can watch the
 // underlying source for configuration changes.
 type WatchedLoader interface {
+	Loader
+	io.Closer
 	// Watch blocks until the underlying source has changed since construction
 	// or the previous Watch call.
+	// The Watch should return context.Canceled if it has been terminated for
+	// any reason, including the context being done or the underlying source
+	// closing.
+	// The Watch should return an error other than context.Canceled if the Watch
+	// has failed due to some underlying error condition, but could recover if
+	// the underlying error condition is cleared.
 	Watch(context.Context) error
 }
 
@@ -46,6 +55,8 @@ type Source struct {
 }
 
 // NewSource creates a new Source using the provided loader and decoder.
+// The configuration is loaded and decoded during construction, else an error is
+// returned.
 func NewSource(l Loader, d Decoder, options ...SourceOption) (*Source, error) {
 	s := Source{l: l, d: d, sep: "."}
 	for _, option := range options {
@@ -78,7 +89,8 @@ func (s *Source) load() (map[string]interface{}, error) {
 // Close releases any resources allocated by the source.
 // This implicitly closes any Watch goroutines when the fsnotify they are
 // monitoring is closed.
-// After closing, the source is still readable, but will no longer be updated.
+// After closing, the source is still readable via Get, but will no longer be
+// updated.
 func (s *Source) Close() (err error) {
 	if c, ok := s.l.(io.Closer); ok {
 		err = c.Close()
@@ -95,9 +107,6 @@ func (s *Source) Get(key string) (interface{}, bool) {
 
 // Watch initiates a goroutine that monitors the source and updates it if the
 // underlying source changes.
-// The change is committed within the coverage of the provided Locker.
-// A change to the source is indicated to the upper layer by triggering the
-// provided Notifier.
 // The Watch goroutine may be cancelled by providing a ctx WithCancel and
 // calling its cancel function.
 // It is assumed that Watch and CommitUpdate will only be called from a single
@@ -125,7 +134,8 @@ func (s *Source) Watch(ctx context.Context) error {
 	}
 }
 
-// CommitUpdate commits a change to the configuration detected by Watch.
+// CommitUpdate commits a change to the configuration detected by Watch, making
+// the change visible to Get.
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.

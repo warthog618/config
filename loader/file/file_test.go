@@ -38,21 +38,21 @@ func TestFileLoad(t *testing.T) {
 	assert.Nil(t, l)
 }
 
-func TestNewWatchedFile(t *testing.T) {
+func TestNewWatched(t *testing.T) {
 	// Non-existent
-	f, err := file.NewWatchedFile("nosuch.file")
+	f, err := file.NewWatched("nosuch.file")
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
 
 	// Existing
-	f, err = file.NewWatchedFile("file_test.go")
+	f, err = file.NewWatched("file_test.go")
 	assert.Nil(t, err)
 	assert.NotNil(t, f)
 }
 
 func TestWatchedFileLoad(t *testing.T) {
 	// Existent
-	wf, err := file.NewWatchedFile("file_test.go")
+	wf, err := file.NewWatched("file_test.go")
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
 	l, err := wf.Load()
@@ -64,7 +64,7 @@ func TestWatchedFileLoad(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
 	fname := tf.Name()
-	wf, err = file.NewWatchedFile(fname)
+	wf, err = file.NewWatched(fname)
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
 	tf.Close()
@@ -80,7 +80,7 @@ func TestWatchedFileClose(t *testing.T) {
 	require.NotNil(t, f)
 	fname := f.Name()
 	defer os.Remove(fname)
-	wf, err := file.NewWatchedFile(fname)
+	wf, err := file.NewWatched(fname)
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
 	wf.Close()
@@ -98,7 +98,7 @@ func TestWatchedFileWatch(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
 	fname := tf.Name()
-	wf, err := file.NewWatchedFile(fname)
+	wf, err := file.NewWatched(fname)
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -130,7 +130,7 @@ func TestWatchedFileWatch(t *testing.T) {
 	}
 
 	// Remove
-	wf, err = file.NewWatchedFile(fname)
+	wf, err = file.NewWatched(fname)
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
 	done = make(chan error)
@@ -153,7 +153,7 @@ func TestWatchedFileWatch(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
 	fname = tf.Name()
-	wf, err = file.NewWatchedFile(fname)
+	wf, err = file.NewWatched(fname)
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
 	ctx, cancel = context.WithCancel(context.Background())
