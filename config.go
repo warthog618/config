@@ -17,7 +17,7 @@ import (
 )
 
 // NewConfig creates a new Config with minimal initial state.
-func NewConfig(g Getter, options ...ConfigOption) *Config {
+func NewConfig(g Getter, options ...Option) *Config {
 	c := Config{
 		getter:   g,
 		pathSep:  ".",
@@ -55,8 +55,8 @@ type Config struct {
 	bgmu *sync.RWMutex
 }
 
-// WatchedSource is a Getter that supports being watched.
-type WatchedSource interface {
+// WatchedGetter is a Getter that supports being watched.
+type WatchedGetter interface {
 	// Watch blocks until the source has changed, or an error is detected.
 	Watch(context.Context) error
 	// CommitUpdate commits a change detected by Watch so that it becomes
@@ -64,11 +64,14 @@ type WatchedSource interface {
 	CommitUpdate()
 }
 
-// AddWatchedSource adds an WatchedSource for the Config to monitor.
-func (c *Config) AddWatchedSource(w WatchedSource) {
+// AddWatchedGetter adds a WatchedGetter for the Config to monitor.
+func (c *Config) AddWatchedGetter(w WatchedGetter) {
 	go func() {
 		for {
 			if err := w.Watch(context.Background()); err != nil {
+				if IsTemporary(err) {
+					continue
+				}
 				return
 			}
 			c.bgmu.Lock()
@@ -105,7 +108,7 @@ func (c *Config) Get(key string, opts ...ValueOption) (Value, error) {
 
 // GetConfig gets the Config corresponding to a subtree of the config,
 // where the node identifies the root node of the config returned.
-func (c *Config) GetConfig(node string, options ...ConfigOption) *Config {
+func (c *Config) GetConfig(node string, options ...Option) *Config {
 	g := c.getter
 	if node != "" {
 		g = Decorate(c.getter, WithPrefix(node+c.pathSep))

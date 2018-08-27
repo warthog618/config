@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/warthog618/config/decoder/toml"
+	"github.com/warthog618/config/blob/decoder/toml"
 )
 
 func TestNewDecoder(t *testing.T) {

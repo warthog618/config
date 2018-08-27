@@ -3,23 +3,23 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-package ini_test
+package properties_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/warthog618/config/decoder/ini"
+	"github.com/warthog618/config/blob/decoder/properties"
 )
 
 func TestNewDecoder(t *testing.T) {
-	d := ini.NewDecoder()
+	d := properties.NewDecoder()
 	require.NotNil(t, d)
 }
 
 func TestDecode(t *testing.T) {
-	d := ini.NewDecoder()
+	d := properties.NewDecoder()
 	require.NotNil(t, d)
 	m := make(map[string]interface{})
 	err := d.Decode(malformedConfig, &m)
@@ -38,13 +38,13 @@ func TestDecodeWithListSeparator(t *testing.T) {
 		sep      string
 		expected interface{}
 	}{
-		{"default", ":", []string{"a", "@b"}},
-		{"multi", ":@", []string{"a", "b"}},
-		{"none", "", "a:@b"},
+		{"default", ":", []string{"a", "#b"}},
+		{"multi", ":#", []string{"a", "b"}},
+		{"none", "", "a:#b"},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			d := ini.NewDecoder(ini.WithListSeparator(p.sep))
+			d := properties.NewDecoder(properties.WithListSeparator(p.sep))
 			require.NotNil(t, d)
 			v := make(map[string]interface{})
 			err := d.Decode(validConfig, &v)
@@ -62,17 +62,16 @@ bool:true
 int:42
 float:3.1415
 string = this is a string
-slice = a:@b
+slice: a:#b
 intSlice = 1,2,3,4
 stringSlice = one,two,three,four
 
-[nested]
-bool = false
-int = 18
-float = 3.141
-string = this is also a string
-intSlice = 1,2,3,4,5,6
-stringSlice = one,two,three
+nested.bool = false
+nested.int = 18
+nested.float = 3.141
+nested.string = this is also a string
+nested.intSlice = 1,2,3,4,5,6
+nested.stringSlice = one,two,three
 `)
 
 var malformedConfig = []byte(`
@@ -81,21 +80,19 @@ bool: true
 `)
 
 var parsedConfig = map[string]interface{}{
-	"bool":        "true",
-	"int":         "42",
-	"float":       "3.1415",
-	"string":      "this is a string",
-	"slice":       "a:@b",
-	"intSlice":    []string{"1", "2", "3", "4"},
-	"stringSlice": []string{"one", "two", "three", "four"},
-	"nested": map[string]interface{}{
-		"string":      "this is also a string",
-		"intSlice":    []string{"1", "2", "3", "4", "5", "6"},
-		"stringSlice": []string{"one", "two", "three"},
-		"bool":        "false",
-		"int":         "18",
-		"float":       "3.141",
-	},
+	"bool":               "true",
+	"int":                "42",
+	"float":              "3.1415",
+	"string":             "this is a string",
+	"slice":              "a:#b",
+	"intSlice":           []string{"1", "2", "3", "4"},
+	"stringSlice":        []string{"one", "two", "three", "four"},
+	"nested.string":      "this is also a string",
+	"nested.intSlice":    []string{"1", "2", "3", "4", "5", "6"},
+	"nested.stringSlice": []string{"one", "two", "three"},
+	"nested.bool":        "false",
+	"nested.int":         "18",
+	"nested.float":       "3.141",
 }
 
 var benchConfig = []byte(`
@@ -118,7 +115,7 @@ nested.stringSlice = one,two,three
 `)
 
 func BenchmarkDecode(b *testing.B) {
-	d := ini.NewDecoder()
+	d := properties.NewDecoder()
 	m := make(map[string]interface{})
 	for n := 0; n < b.N; n++ {
 		d.Decode(benchConfig, &m)

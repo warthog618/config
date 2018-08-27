@@ -6,9 +6,10 @@
 package config_test
 
 import (
-	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/warthog618/config"
@@ -42,4 +43,16 @@ func TestUnmarshalError(t *testing.T) {
 		}
 		t.Run(p.k, f)
 	}
+}
+
+func TestWithTemporary(t *testing.T) {
+	te := config.WithTemporary(nil)
+	assert.Nil(t, te)
+
+	e := errors.New("base error")
+	te = config.WithTemporary(e)
+	assert.Equal(t, e, errors.Cause(te))
+	assert.Equal(t, e.Error(), te.Error())
+	assert.False(t, config.IsTemporary(e))
+	assert.True(t, config.IsTemporary(te))
 }

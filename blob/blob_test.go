@@ -3,24 +3,26 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-package config_test
+package blob_test
 
 import (
 	"context"
-	"errors"
 	"testing"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/warthog618/config"
+	"github.com/warthog618/config/blob"
 )
 
-func TestNewSource(t *testing.T) {
+func TestNew(t *testing.T) {
 	l := mockLoader{}
 	d := mockDecoder{}
 
 	// all good
-	s, err := config.NewSource(&l, &d)
+	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -30,22 +32,48 @@ func TestNewSource(t *testing.T) {
 	// load error
 	l = mockLoader{LoadError: lderr}
 	d = mockDecoder{DecodeError: dcerr}
-	s, err = config.NewSource(&l, &d)
+	s, err = blob.New(&l, &d)
 	assert.Equal(t, lderr, err)
 	require.Nil(t, s)
 
 	// decode error
 	l = mockLoader{}
-	s, err = config.NewSource(&l, &d)
+	s, err = blob.New(&l, &d)
 	assert.Equal(t, dcerr, err)
 	require.Nil(t, s)
 }
 
-func TestNewSourceWithSeparator(t *testing.T) {
+func TestNewWatched(t *testing.T) {
+	l := mockLoader{}
+	d := mockDecoder{}
+
+	// all good
+	s, err := blob.NewWatched(&l, &d)
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+
+	dcerr := errors.New("decode error")
+	lderr := errors.New("load error")
+
+	// load error
+	l = mockLoader{LoadError: lderr}
+	d = mockDecoder{DecodeError: dcerr}
+	s, err = blob.NewWatched(&l, &d)
+	assert.Equal(t, lderr, err)
+	require.Nil(t, s)
+
+	// decode error
+	l = mockLoader{}
+	s, err = blob.NewWatched(&l, &d)
+	assert.Equal(t, dcerr, err)
+	require.Nil(t, s)
+}
+
+func TestNewWithSeparator(t *testing.T) {
 	l := mockLoader{}
 	d := mockDecoder{M: map[string]interface{}{
 		"a": map[string]interface{}{"b.c_d": true}}}
-	s, err := config.NewSource(&l, &d, config.WithSeparator("-"))
+	s, err := blob.New(&l, &d, blob.WithSeparator("-"))
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 	v, ok := s.Get("a.b.c_d")
@@ -56,11 +84,26 @@ func TestNewSourceWithSeparator(t *testing.T) {
 	assert.Equal(t, true, v)
 }
 
-func TestNewSourceClose(t *testing.T) {
+func TestNewWatchedWithSeparator(t *testing.T) {
+	l := mockLoader{}
+	d := mockDecoder{M: map[string]interface{}{
+		"a": map[string]interface{}{"b.c_d": true}}}
+	s, err := blob.NewWatched(&l, &d, blob.WithSeparator("-"))
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+	v, ok := s.Get("a.b.c_d")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+	v, ok = s.Get("a-b.c_d")
+	assert.True(t, ok)
+	assert.Equal(t, true, v)
+}
+
+func TestWatcheBlobClose(t *testing.T) {
 	clerr := errors.New("close error")
 	l := mockLoader{CloseError: clerr}
 	d := mockDecoder{}
-	s, err := config.NewSource(&l, &d)
+	s, err := blob.NewWatched(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 	err = s.Close()
@@ -68,11 +111,11 @@ func TestNewSourceClose(t *testing.T) {
 	assert.True(t, l.Closed)
 }
 
-func TestSourceGet(t *testing.T) {
+func TestBlobGet(t *testing.T) {
 	l := mockLoader{}
 	d := mockDecoder{M: map[string]interface{}{
 		"a": map[string]interface{}{"b.c_d": true}}}
-	s, err := config.NewSource(&l, &d)
+	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 	v, ok := s.Get("")
@@ -83,16 +126,29 @@ func TestSourceGet(t *testing.T) {
 	assert.Equal(t, true, v)
 }
 
-func TestSourceWatch(t *testing.T) {
-	l := mockLoader{N: make(chan struct{})}
-	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := config.NewSource(&bareLoader{}, &d)
+func TestWatchedBlobGet(t *testing.T) {
+	l := mockLoader{}
+	d := mockDecoder{M: map[string]interface{}{
+		"a": map[string]interface{}{"b.c_d": true}}}
+	s, err := blob.NewWatched(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	// unwatchable
-	testWatcher(t, s, config.ErrUnwatchable)
+	v, ok := s.Get("")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+	v, ok = s.Get("a.b.c_d")
+	assert.True(t, ok)
+	assert.Equal(t, true, v)
+}
 
-	s, err = config.NewSource(&l, &d)
+func TestWatchedBlobWatch(t *testing.T) {
+	l := mockLoader{N: make(chan struct{})}
+	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
+	s, err := blob.NewWatched(&bareLoader{}, &d)
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+
+	s, err = blob.NewWatched(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 	// baseline
@@ -112,13 +168,19 @@ func TestSourceWatch(t *testing.T) {
 	d.M = map[string]interface{}{"a.b.c_d": "final"}
 	d.DecodeError = errors.New("Decode error")
 	l.Update()
+	testWatcher(t, s, d.DecodeError)
+
+	// pathological decoder
+	d.M = nil
+	d.DecodeError = nil
+	l.Update()
 	testWatcher(t, s, context.DeadlineExceeded)
 }
 
-func TestSourceCommitUpdate(t *testing.T) {
+func TestWatchedBlobCommitUpdate(t *testing.T) {
 	l := mockLoader{N: make(chan struct{})}
 	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := config.NewSource(&l, &d)
+	s, err := blob.NewWatched(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -142,6 +204,14 @@ type bareLoader struct{}
 
 func (l *bareLoader) Load() ([]byte, error) {
 	return nil, nil
+}
+
+func (l *bareLoader) Close() error {
+	return nil
+}
+
+func (l *bareLoader) Watch(context.Context) error {
+	return nil
 }
 
 type mockLoader struct {
@@ -184,4 +254,25 @@ func (d *mockDecoder) Decode(b []byte, v interface{}) error {
 	m := v.(*map[string]interface{})
 	*m = d.M
 	return d.DecodeError
+}
+
+type watcher interface {
+	Watch(context.Context) error
+}
+
+func testWatcher(t *testing.T, w watcher, xerr error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	updated := make(chan error)
+	go func() {
+		err := w.Watch(ctx)
+		updated <- err
+	}()
+	select {
+	case err := <-updated:
+		assert.Equal(t, xerr, errors.Cause(err))
+	case <-time.After(time.Second):
+		assert.Fail(t, "watch failed to return")
+	}
+	cancel()
 }

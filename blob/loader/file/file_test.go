@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/warthog618/config/loader/file"
+	"github.com/warthog618/config/blob/loader/file"
 )
 
 func TestNew(t *testing.T) {

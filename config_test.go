@@ -9,10 +9,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"errors"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,15 +77,15 @@ func TestNewConfigWithMust(t *testing.T) {
 	})
 }
 
-func TestAddWatchedSource(t *testing.T) {
+func TestAddWatchedGetter(t *testing.T) {
 	mr := mockGetter{
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
 	}
-	ws := &watchedSource{n: make(chan struct{})}
+	ws := &watchedGetter{n: make(chan struct{})}
 	cfg := config.NewConfig(&mr)
 	w := cfg.NewWatcher()
-	cfg.AddWatchedSource(ws)
+	cfg.AddWatchedGetter(ws)
 
 	// Updated
 	ws.Notify()
@@ -94,8 +95,19 @@ func TestAddWatchedSource(t *testing.T) {
 	assert.True(t, ws.Committed)
 	cancel()
 
-	// exit
+	// Temporary error
 	ws.Committed = false
+	ws.WatchError = config.WithTemporary(errors.New("temp watch error"))
+	ws.Notify()
+	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond)
+	err = w.Watch(ctx)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.False(t, ws.Committed)
+	cancel()
+
+	// exit
+	ws = &watchedGetter{n: make(chan struct{})}
+	cfg.AddWatchedGetter(ws)
 	ws.WatchError = errors.New("watch error")
 	ws.Notify()
 	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond)
@@ -733,8 +745,8 @@ func TestNewWatcher(t *testing.T) {
 	testWatcher(t, w, context.DeadlineExceeded)
 
 	// Updated
-	ws := &watchedSource{n: make(chan struct{})}
-	cfg = config.NewConfig(&mr, config.WithWatchedSource(ws))
+	ws := &watchedGetter{n: make(chan struct{})}
+	cfg = config.NewConfig(&mr, config.WithWatchedGetter(ws))
 	w = cfg.NewWatcher()
 	ws.Notify()
 	testWatcher(t, w, nil)
@@ -770,7 +782,7 @@ func testWatcher(t *testing.T, w watcher, xerr error) {
 	}()
 	select {
 	case err := <-updated:
-		assert.Equal(t, xerr, err)
+		assert.Equal(t, xerr, errors.Cause(err))
 	case <-time.After(time.Second):
 		assert.Fail(t, "watch failed to return")
 	}
@@ -812,8 +824,8 @@ func TestNewKeyWatcher(t *testing.T) {
 	testKeyWatcher(t, w, "this is foo", nil)
 
 	// Updated
-	ws := &watchedSource{n: make(chan struct{})}
-	cfg = config.NewConfig(&mr, config.WithWatchedSource(ws))
+	ws := &watchedGetter{n: make(chan struct{})}
+	cfg = config.NewConfig(&mr, config.WithWatchedGetter(ws))
 	w = cfg.NewKeyWatcher("foo")
 	testKeyWatcher(t, w, "this is foo", nil)
 	testKeyWatcher(t, w, "", context.DeadlineExceeded)
@@ -868,23 +880,23 @@ func (m mockGetter) Get(key string) (interface{}, bool) {
 	return v, ok
 }
 
-type watchedSource struct {
+type watchedGetter struct {
 	n          chan struct{}
 	WatchError error
 	Committed  bool
 }
 
-func (w *watchedSource) Watch(ctx context.Context) error {
+func (w *watchedGetter) Watch(ctx context.Context) error {
 	<-w.n
 	return w.WatchError
 }
 
-func (w *watchedSource) CommitUpdate() {
+func (w *watchedGetter) CommitUpdate() {
 	w.n = make(chan struct{})
 	w.Committed = true
 }
 
-func (w *watchedSource) Notify() {
+func (w *watchedGetter) Notify() {
 	close(w.n)
 }
 

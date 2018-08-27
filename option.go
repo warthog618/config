@@ -5,29 +5,24 @@
 
 package config
 
-// ConfigOption is a construction option for a Config.
-type ConfigOption interface {
+// Option is a construction option for a Config.
+type Option interface {
 	applyConfigOption(c *Config)
 }
 
-// SourceOption is a construction option for a Source.
-type SourceOption interface {
-	applySourceOption(s *Source)
+// WithWatchedGetter adds one or more Getters for the Config to watch.
+func WithWatchedGetter(rr ...WatchedGetter) Option {
+	return WatchedGetterOption{rr}
 }
 
-// WithWatchedSource adds one or more Sources for the Config to watch.
-func WithWatchedSource(rr ...WatchedSource) ConfigOption {
-	return WatchedSourceOption{rr}
+// WatchedGetterOption contains the Getters to be watched by Config.
+type WatchedGetterOption struct {
+	rr []WatchedGetter
 }
 
-// WatchedSourceOption contains the sources to be watched by Config.
-type WatchedSourceOption struct {
-	rr []WatchedSource
-}
-
-func (u WatchedSourceOption) applyConfigOption(c *Config) {
+func (u WatchedGetterOption) applyConfigOption(c *Config) {
 	for _, r := range u.rr {
-		c.AddWatchedSource(r)
+		c.AddWatchedGetter(r)
 	}
 }
 
@@ -47,10 +42,6 @@ func (s SeparatorOption) applyAliasOption(a *Alias) {
 
 func (s SeparatorOption) applyConfigOption(c *Config) {
 	c.pathSep = s.s
-}
-
-func (s SeparatorOption) applySourceOption(x *Source) {
-	x.sep = s.s
 }
 
 // WithSeparator is an Option that sets the config namespace separator.
