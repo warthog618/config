@@ -107,7 +107,7 @@ func loadConfig() *config.Config {
 		if err != nil {
 			panic(err)
 		}
-		jget, err := blob.New(cfgFile, jsondec)
+		jget, err := blob.NewWatched(cfgFile, jsondec)
 		if err != nil {
 			panic(err)
 		}

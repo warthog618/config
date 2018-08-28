@@ -21,11 +21,11 @@ type SeparatorOption struct {
 }
 
 func (s SeparatorOption) applyBlobOption(x *Blob) {
-	x.sep = s.s
+	x.pathSep = s.s
 }
 
 func (s SeparatorOption) applyWatchedBlobOption(x *WatchedBlob) {
-	x.sep = s.s
+	x.pathSep = s.s
 }
 
 // WithSeparator is an Option that sets the config namespace separator.

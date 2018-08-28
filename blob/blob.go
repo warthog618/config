@@ -47,38 +47,43 @@ type Decoder interface {
 // second stage is the Decoder, which converts the returned []byte blob into a
 // map[string]interface{}.
 type Blob struct {
-	m   map[string]interface{}
-	sep string
+	// current commited configuration
+	msi map[string]interface{}
+	// separator between tiers
+	pathSep string
 }
 
 // New creates a new Blob using the provided loader and decoder.
 // The configuration is loaded and decoded during construction, else an error is
 // returned.
 func New(l Loader, d Decoder, options ...Option) (*Blob, error) {
-	s := Blob{sep: "."}
+	s := Blob{pathSep: "."}
 	for _, option := range options {
 		option.applyBlobOption(&s)
 	}
-	m, err := load(l, d)
+	msi, err := load(l, d)
 	if err != nil {
 		return nil, err
 	}
-	s.m = m
+	s.msi = msi
 	return &s, nil
 }
 
 // Get implements the Getter API.
 func (s *Blob) Get(key string) (interface{}, bool) {
-	v, ok := tree.Get(s.m, key, s.sep)
+	v, ok := tree.Get(s.msi, key, s.pathSep)
 	return v, ok
 }
 
 // WatchedBlob represents a Blob that can be watched for changes.
 type WatchedBlob struct {
-	l      WatchedLoader
-	d      Decoder
-	m      atomic.Value // map[string]interface{}
-	sep    string
+	l WatchedLoader
+	d Decoder
+	// current commited configuration
+	msi atomic.Value // map[string]interface{}
+	// separator between tiers
+	pathSep string
+	// lastest uncommited configuration
 	update map[string]interface{}
 }
 
@@ -86,7 +91,7 @@ type WatchedBlob struct {
 // The configuration is loaded and decoded during construction, else an error is
 // returned.
 func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*WatchedBlob, error) {
-	s := WatchedBlob{l: l, d: d, sep: "."}
+	s := WatchedBlob{l: l, d: d, pathSep: "."}
 	for _, option := range options {
 		option.applyWatchedBlobOption(&s)
 	}
@@ -97,7 +102,7 @@ func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*Watc
 	if m == nil {
 		m = make(map[string]interface{})
 	}
-	s.m.Store(m)
+	s.msi.Store(m)
 	return &s, nil
 }
 
@@ -111,8 +116,8 @@ func (s *WatchedBlob) Close() (err error) {
 
 // Get implements the Getter API.
 func (s *WatchedBlob) Get(key string) (interface{}, bool) {
-	m := s.m.Load().(map[string]interface{})
-	v, ok := tree.Get(m, key, s.sep)
+	msi := s.msi.Load().(map[string]interface{})
+	v, ok := tree.Get(msi, key, s.pathSep)
 	return v, ok
 }
 
@@ -130,18 +135,18 @@ func (s *WatchedBlob) Watch(ctx context.Context) error {
 		if err := s.l.Watch(ctx); err != nil {
 			return err
 		}
-		m, err := load(s.l, s.d)
+		updatedmsi, err := load(s.l, s.d)
 		if err != nil {
 			return WithTemporary(err)
 		}
-		if m == nil {
+		if updatedmsi == nil {
 			continue
 		}
-		oldm := s.m.Load().(map[string]interface{})
-		if reflect.DeepEqual(m, oldm) {
+		msi := s.msi.Load().(map[string]interface{})
+		if reflect.DeepEqual(updatedmsi, msi) {
 			continue
 		}
-		s.update = m
+		s.update = updatedmsi
 		return nil
 	}
 }
@@ -152,7 +157,7 @@ func (s *WatchedBlob) Watch(ctx context.Context) error {
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
 func (s *WatchedBlob) CommitUpdate() {
-	s.m.Store(s.update)
+	s.msi.Store(s.update)
 	s.update = nil
 }
 
