@@ -2,7 +2,7 @@ language: go
 
 go:
   - "1.x"
-  - "1.10"
+  - "1.11"
   - tip
 
 os:
@@ -18,5 +18,5 @@ before_install:
   - go get github.com/mattn/goveralls
 
 script:
-  - go test $(go list ./... | grep -v /example/) -coverprofile=gover.coverprofile
+  - env GO111MODULE=on go test $(go list ./... | grep -v /example/) -coverprofile=gover.coverprofile
   - $GOPATH/bin/goveralls -coverprofile gover.coverprofile -service=travis-ci
