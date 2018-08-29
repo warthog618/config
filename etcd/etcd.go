@@ -59,7 +59,7 @@ type Getter struct {
 	mu sync.RWMutex
 	// The current snapshot of configuration loaded from etcd.
 	msi map[string]interface{}
-	// lastest revision commited from etcd.
+	// lastest revision committed from etcd.
 	msirev int64
 	// updated config... might actually be a set of ops on msi??
 	events []*clientv3.Event

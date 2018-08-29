@@ -69,7 +69,7 @@ var parsedConfig = map[string]interface{}{
 	"intSlice":    []interface{}{1, 2, 3, 4},
 	"stringSlice": []interface{}{"one", "two", "three", "four"},
 	"nested": []map[string]interface{}{
-		map[string]interface{}{
+		{
 			"string":      "this is also a string",
 			"intSlice":    []interface{}{1, 2, 3, 4, 5, 6},
 			"stringSlice": []interface{}{"one", "two", "three"},

@@ -47,7 +47,7 @@ type Decoder interface {
 // second stage is the Decoder, which converts the returned []byte blob into a
 // map[string]interface{}.
 type Getter struct {
-	// current commited configuration
+	// current committed configuration
 	msi map[string]interface{}
 	// separator between tiers
 	pathSep string
@@ -79,11 +79,11 @@ func (g *Getter) Get(key string) (interface{}, bool) {
 type WatchedGetter struct {
 	l WatchedLoader
 	d Decoder
-	// current commited configuration
+	// current committed configuration
 	msi atomic.Value // map[string]interface{}
 	// separator between tiers
 	pathSep string
-	// lastest uncommited configuration
+	// lastest uncommitted configuration
 	update map[string]interface{}
 }
 
