@@ -7,12 +7,12 @@ package blob
 
 // Option is a construction option for a Blob.
 type Option interface {
-	applyBlobOption(s *Blob)
+	applyBlobOption(s *Getter)
 }
 
 // WatchedBlobOption is a construction option for a WatchedBlob.
 type WatchedBlobOption interface {
-	applyWatchedBlobOption(s *WatchedBlob)
+	applyWatchedBlobOption(s *WatchedGetter)
 }
 
 // SeparatorOption defines the string that separates tiers in keys.
@@ -20,11 +20,11 @@ type SeparatorOption struct {
 	s string
 }
 
-func (s SeparatorOption) applyBlobOption(x *Blob) {
+func (s SeparatorOption) applyBlobOption(x *Getter) {
 	x.pathSep = s.s
 }
 
-func (s SeparatorOption) applyWatchedBlobOption(x *WatchedBlob) {
+func (s SeparatorOption) applyWatchedBlobOption(x *WatchedGetter) {
 	x.pathSep = s.s
 }
 

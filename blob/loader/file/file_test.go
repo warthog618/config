@@ -88,7 +88,7 @@ func TestWatchedFileClose(t *testing.T) {
 	assert.Equal(t, context.Canceled, err)
 }
 
-func testWatch(t *testing.T, w *file.WatchedFile) {
+func testWatch(t *testing.T, w *file.WatchedLoader) {
 	t.Helper()
 }
 

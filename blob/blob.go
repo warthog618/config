@@ -42,11 +42,11 @@ type Decoder interface {
 	Decode(b []byte, v interface{}) error
 }
 
-// Blob represents a two stage Getter.  The first stage is the Loader which
+// Getter represents a two stage Getter.  The first stage is the Loader which
 // retrieves the configuration as a []byte blob from an underlying source. The
 // second stage is the Decoder, which converts the returned []byte blob into a
 // map[string]interface{}.
-type Blob struct {
+type Getter struct {
 	// current commited configuration
 	msi map[string]interface{}
 	// separator between tiers
@@ -56,27 +56,27 @@ type Blob struct {
 // New creates a new Blob using the provided loader and decoder.
 // The configuration is loaded and decoded during construction, else an error is
 // returned.
-func New(l Loader, d Decoder, options ...Option) (*Blob, error) {
-	s := Blob{pathSep: "."}
+func New(l Loader, d Decoder, options ...Option) (*Getter, error) {
+	g := Getter{pathSep: "."}
 	for _, option := range options {
-		option.applyBlobOption(&s)
+		option.applyBlobOption(&g)
 	}
 	msi, err := load(l, d)
 	if err != nil {
 		return nil, err
 	}
-	s.msi = msi
-	return &s, nil
+	g.msi = msi
+	return &g, nil
 }
 
 // Get implements the Getter API.
-func (s *Blob) Get(key string) (interface{}, bool) {
-	v, ok := tree.Get(s.msi, key, s.pathSep)
+func (g *Getter) Get(key string) (interface{}, bool) {
+	v, ok := tree.Get(g.msi, key, g.pathSep)
 	return v, ok
 }
 
-// WatchedBlob represents a Blob that can be watched for changes.
-type WatchedBlob struct {
+// WatchedGetter represents a Blob that can be watched for changes.
+type WatchedGetter struct {
 	l WatchedLoader
 	d Decoder
 	// current commited configuration
@@ -90,10 +90,10 @@ type WatchedBlob struct {
 // NewWatched creates a new Blob using the provided loader and decoder.
 // The configuration is loaded and decoded during construction, else an error is
 // returned.
-func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*WatchedBlob, error) {
-	s := WatchedBlob{l: l, d: d, pathSep: "."}
+func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*WatchedGetter, error) {
+	g := WatchedGetter{l: l, d: d, pathSep: "."}
 	for _, option := range options {
-		option.applyWatchedBlobOption(&s)
+		option.applyWatchedBlobOption(&g)
 	}
 	m, err := load(l, d)
 	if err != nil {
@@ -102,22 +102,22 @@ func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*Watc
 	if m == nil {
 		m = make(map[string]interface{})
 	}
-	s.msi.Store(m)
-	return &s, nil
+	g.msi.Store(m)
+	return &g, nil
 }
 
 // Close releases any resources allocated by the blob.
 // This implicitly closes any active Watches.
 // After closing, the blob is still readable via Get, but will no longer be
 // updated.
-func (s *WatchedBlob) Close() (err error) {
-	return s.l.Close()
+func (g *WatchedGetter) Close() (err error) {
+	return g.l.Close()
 }
 
 // Get implements the Getter API.
-func (s *WatchedBlob) Get(key string) (interface{}, bool) {
-	msi := s.msi.Load().(map[string]interface{})
-	v, ok := tree.Get(msi, key, s.pathSep)
+func (g *WatchedGetter) Get(key string) (interface{}, bool) {
+	msi := g.msi.Load().(map[string]interface{})
+	v, ok := tree.Get(msi, key, g.pathSep)
 	return v, ok
 }
 
@@ -130,23 +130,23 @@ func (s *WatchedBlob) Get(key string) (interface{}, bool) {
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
-func (s *WatchedBlob) Watch(ctx context.Context) error {
+func (g *WatchedGetter) Watch(ctx context.Context) error {
 	for {
-		if err := s.l.Watch(ctx); err != nil {
+		if err := g.l.Watch(ctx); err != nil {
 			return err
 		}
-		updatedmsi, err := load(s.l, s.d)
+		updatedmsi, err := load(g.l, g.d)
 		if err != nil {
 			return WithTemporary(err)
 		}
 		if updatedmsi == nil {
 			continue
 		}
-		msi := s.msi.Load().(map[string]interface{})
+		msi := g.msi.Load().(map[string]interface{})
 		if reflect.DeepEqual(updatedmsi, msi) {
 			continue
 		}
-		s.update = updatedmsi
+		g.update = updatedmsi
 		return nil
 	}
 }
@@ -156,9 +156,9 @@ func (s *WatchedBlob) Watch(ctx context.Context) error {
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
-func (s *WatchedBlob) CommitUpdate() {
-	s.msi.Store(s.update)
-	s.update = nil
+func (g *WatchedGetter) CommitUpdate() {
+	g.msi.Store(g.update)
+	g.update = nil
 }
 
 func load(l Loader, d Decoder) (map[string]interface{}, error) {
