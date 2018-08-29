@@ -15,7 +15,10 @@ matrix:
   fast_finish: true
 
 before_install:
-  - go get github.com/mattn/goveralls
+  - env GO111MODULE=on go get github.com/mattn/goveralls
+
+install:
+  - env GO111MODULE=on go get -t -v ./...
 
 script:
   - env GO111MODULE=on go build
