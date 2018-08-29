@@ -3,7 +3,7 @@ module github.com/warthog618/config
 require (
 	github.com/BurntSushi/toml v0.3.0
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
-	github.com/coreos/bbolt v1.3.0 // indirect
+	github.com/coreos/bbolt v1.3.1-coreos.6 // indirect
 	github.com/coreos/etcd v3.3.9+incompatible
 	github.com/coreos/go-semver v0.2.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20180828140353-eee3db372b31 // indirect
@@ -44,5 +44,3 @@ require (
 	gopkg.in/ini.v1 v1.38.2
 	gopkg.in/yaml.v2 v2.2.1
 )
-
-replace github.com/coreos/bbolt v1.3.0 => github.com/coreos/bbolt 48ea1b39c25fc1bab3506fbc712ecbaa842c4d2d
