@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/keys"
+	"github.com/warthog618/config/list"
 	"github.com/warthog618/config/pflag"
 )
 
@@ -303,7 +304,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	shorts := map[byte]string{'n': "nested-leaf"}
 	patterns := []struct {
 		name     string
-		r        pflag.Replacer
+		r        keys.Replacer
 		expected string
 	}{
 		{"standard", keys.StringReplacer("-", "_"), "nested_leaf"},
@@ -342,7 +343,7 @@ func TestNewWithCommandLine(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
-func TestNewWithListSeparator(t *testing.T) {
+func TestNewWithListSplitter(t *testing.T) {
 	args := []string{"-s", "a,#b"}
 	shorts := map[byte]string{'s': "slice"}
 	patterns := []struct {
@@ -359,7 +360,7 @@ func TestNewWithListSeparator(t *testing.T) {
 			r, err := pflag.New(
 				pflag.WithCommandLine(args),
 				pflag.WithShortFlags(shorts),
-				pflag.WithListSeparator(p.sep))
+				pflag.WithListSplitter(list.NewSplitter(p.sep)))
 			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get("slice")

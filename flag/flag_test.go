@@ -15,6 +15,7 @@ import (
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/flag"
 	"github.com/warthog618/config/keys"
+	"github.com/warthog618/config/list"
 )
 
 func init() {
@@ -123,7 +124,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	args := []string{"--nested-leaf=44", "--leaf", "42"}
 	patterns := []struct {
 		name     string
-		r        flag.Replacer
+		r        keys.Replacer
 		expected string
 	}{
 		{"standard", keys.StringReplacer("-", "_"), "nested_leaf"},
@@ -151,7 +152,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestNewWithListSeparator(t *testing.T) {
+func TestNewWithListSplitter(t *testing.T) {
 	args := []string{"--slice", "a,#b"}
 	patterns := []struct {
 		name     string
@@ -167,7 +168,7 @@ func TestNewWithListSeparator(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, args...)
 			goflag.Parse()
-			r, err := flag.New(flag.WithListSeparator(p.sep))
+			r, err := flag.New(flag.WithListSplitter(list.NewSplitter(p.sep)))
 			os.Args = oldArgs
 			assert.Nil(t, err)
 			require.NotNil(t, r)

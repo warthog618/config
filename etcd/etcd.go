@@ -21,41 +21,41 @@ import (
 // configuration.
 // The prefix defines the root of the configuration in the etcd space.
 // The ctx covers the initial loading of configuration.
-func New(ctx context.Context, prefix string, options ...Option) (*Etcd, error) {
-	e := Etcd{
+func New(ctx context.Context, prefix string, options ...Option) (*Getter, error) {
+	g := Getter{
 		clientConfig: clientv3.Config{Endpoints: []string{"localhost:2379"}},
 		prefix:       prefix,
 	}
 	for _, option := range options {
-		option(&e)
+		option(&g)
 	}
-	if e.keyReplacer == nil {
-		e.keyReplacer = keys.StringReplacer("/", ".")
+	if g.keyReplacer == nil {
+		g.keyReplacer = keys.StringReplacer("/", ".")
 	}
-	if e.listSplitter == nil {
-		e.listSplitter = list.NewSplitter(",")
+	if g.listSplitter == nil {
+		g.listSplitter = list.NewSplitter(",")
 	}
-	if e.client == nil {
-		client, err := clientv3.New(e.clientConfig)
+	if g.client == nil {
+		client, err := clientv3.New(g.clientConfig)
 		if err != nil {
 			return nil, err
 		}
-		e.client = client
+		g.client = client
 	}
 	ctx = clientv3.WithRequireLeader(ctx)
-	msi, err := e.load(ctx)
+	msi, err := g.load(ctx)
 	if err != nil {
-		e.Close()
+		g.Close()
 		return nil, err
 	}
-	e.msi = msi
-	return &e, nil
+	g.msi = msi
+	return &g, nil
 }
 
-// Etcd represents a getter from an etcd v3 key/value store.
+// Getter represents a getter from an etcd v3 key/value store.
 // It is assumed that the relevant configuration is located within a section
 // of the etcd keyspace with a fixed key prefix, e.g. /my/app/config/.
-type Etcd struct {
+type Getter struct {
 	mu sync.RWMutex
 	// The current snapshot of configuration loaded from etcd.
 	msi map[string]interface{}
@@ -70,7 +70,7 @@ type Etcd struct {
 	// The etcd client.
 	client *clientv3.Client
 	// A replacer that maps from etcd space to config space.
-	keyReplacer Replacer
+	keyReplacer keys.Replacer
 	// The splitter for slices stored in string values.
 	listSplitter list.Splitter
 	// prefix defines the root of the configuration in the etcd space.
@@ -80,24 +80,19 @@ type Etcd struct {
 	wchan clientv3.WatchChan
 }
 
-// Replacer maps a key from one space to another.
-type Replacer interface {
-	Replace(string) string
-}
-
 // Close releases any resources allocated by the etcd.
 // This implicitly closes any active Watches.
 // After closing, the cached etcd configuration is still readable via Get, but
 // will no longer be updated.
-func (e *Etcd) Close() (err error) {
-	return e.client.Close()
+func (g *Getter) Close() (err error) {
+	return g.client.Close()
 }
 
 // Get implements the Getter API.
-func (e *Etcd) Get(key string) (interface{}, bool) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return tree.Get(e.msi, key, "")
+func (g *Getter) Get(key string) (interface{}, bool) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return tree.Get(g.msi, key, "")
 }
 
 // Watch blocks until the etcd configuration changes.
@@ -108,28 +103,28 @@ func (e *Etcd) Get(key string) (interface{}, bool) {
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
-func (e *Etcd) Watch(ctx context.Context) error {
-	if e.wchan == nil {
+func (g *Getter) Watch(ctx context.Context) error {
+	if g.wchan == nil {
 		ctx = clientv3.WithRequireLeader(ctx)
-		e.wchan = e.client.Watch(
+		g.wchan = g.client.Watch(
 			context.Background(),
-			e.prefix,
+			g.prefix,
 			clientv3.WithPrefix(),
-			clientv3.WithRev(e.msirev+1),
+			clientv3.WithRev(g.msirev+1),
 		)
 	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case ev, ok := <-e.wchan:
+	case ev, ok := <-g.wchan:
 		if !ok {
 			return context.Canceled
 		}
 		if ev.Err() != nil {
 			return ev.Err()
 		}
-		e.events = ev.Events
-		e.eventsrev = ev.Header.Revision
+		g.events = ev.Events
+		g.eventsrev = ev.Header.Revision
 		return nil
 	}
 }
@@ -139,40 +134,40 @@ func (e *Etcd) Watch(ctx context.Context) error {
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
-func (e *Etcd) CommitUpdate() {
-	e.mu.Lock()
-	for _, ev := range e.events {
+func (g *Getter) CommitUpdate() {
+	g.mu.Lock()
+	for _, ev := range g.events {
 		key := string(ev.Kv.Key)
-		if !strings.HasPrefix(key, e.prefix) {
+		if !strings.HasPrefix(key, g.prefix) {
 			continue
 		}
-		key = e.keyReplacer.Replace(key[len(e.prefix):])
+		key = g.keyReplacer.Replace(key[len(g.prefix):])
 		switch ev.Type {
 		case clientv3.EventTypeDelete:
-			delete(e.msi, key)
+			delete(g.msi, key)
 		default:
-			e.msi[key] = e.listSplitter.Split(string(ev.Kv.Value))
+			g.msi[key] = g.listSplitter.Split(string(ev.Kv.Value))
 		}
 	}
-	e.msirev = e.eventsrev
-	e.events = nil
-	e.mu.Unlock()
+	g.msirev = g.eventsrev
+	g.events = nil
+	g.mu.Unlock()
 }
 
-func (e *Etcd) load(ctx context.Context) (map[string]interface{}, error) {
-	x, err := e.client.Get(ctx, e.prefix, clientv3.WithPrefix())
+func (g *Getter) load(ctx context.Context) (map[string]interface{}, error) {
+	x, err := g.client.Get(ctx, g.prefix, clientv3.WithPrefix())
 	if err != nil {
 		return nil, err
 	}
-	e.msirev = x.Header.Revision
+	g.msirev = x.Header.Revision
 	msi := make(map[string]interface{})
 	for _, kv := range x.Kvs {
 		key := string(kv.Key)
-		if !strings.HasPrefix(key, e.prefix) {
+		if !strings.HasPrefix(key, g.prefix) {
 			continue
 		}
-		key = e.keyReplacer.Replace(key[len(e.prefix):])
-		msi[key] = e.listSplitter.Split(string(kv.Value))
+		key = g.keyReplacer.Replace(key[len(g.prefix):])
+		msi[key] = g.listSplitter.Split(string(kv.Value))
 	}
 	return msi, nil
 }

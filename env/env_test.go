@@ -14,6 +14,7 @@ import (
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/env"
 	"github.com/warthog618/config/keys"
+	"github.com/warthog618/config/list"
 )
 
 func setup(prefix string) {
@@ -70,7 +71,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	setup(prefix)
 	patterns := []struct {
 		name     string
-		r        env.Replacer
+		r        keys.Replacer
 		expected string
 	}{
 		{"default",
@@ -109,7 +110,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestNewWithListSeparator(t *testing.T) {
+func TestNewWithListSplitter(t *testing.T) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	os.Setenv(prefix+"SLICE", "a:#b")
@@ -120,13 +121,13 @@ func TestNewWithListSeparator(t *testing.T) {
 	}{
 		{"default", ":", []string{"a", "#b"}},
 		{"multi", ":#", []string{"a", "b"}},
-		{"none", "", "a:#b"},
+		{"none", "", []string{"a", ":", "#", "b"}},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			e, err := env.New(
 				env.WithEnvPrefix(prefix),
-				env.WithListSeparator(p.sep))
+				env.WithListSplitter(list.NewSplitter(p.sep)))
 			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get("slice")

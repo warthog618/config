@@ -38,6 +38,7 @@ import (
 	"strings"
 
 	"github.com/warthog618/config/keys"
+	"github.com/warthog618/config/list"
 	"github.com/warthog618/config/tree"
 )
 
@@ -48,18 +49,21 @@ import (
 // - replace '-' in the flag space with '.' in the config space.
 // - split list values with the ',' separator.
 func New(options ...Option) (*Getter, error) {
-	r := Getter{listSeparator: ","}
+	g := Getter{}
 	for _, option := range options {
-		option(&r)
+		option(&g)
 	}
-	if r.keyReplacer == nil {
-		r.keyReplacer = keys.StringReplacer("-", ".")
+	if g.keyReplacer == nil {
+		g.keyReplacer = keys.StringReplacer("-", ".")
 	}
-	if r.cmdArgs == nil {
-		r.cmdArgs = os.Args[1:]
+	if g.listSplitter == nil {
+		g.listSplitter = list.NewSplitter(",")
 	}
-	r.parse()
-	return &r, nil
+	if g.cmdArgs == nil {
+		g.cmdArgs = os.Args[1:]
+	}
+	g.parse()
+	return &g, nil
 }
 
 // Getter provides the mapping from command line arguments to a config.Getter.
@@ -75,14 +79,9 @@ type Getter struct {
 	// map of short flag characters to long form flag name
 	shortFlags map[byte]string
 	// A replacer that maps from flag space to config space.
-	keyReplacer Replacer
-	// The separator for slices stored in string values.
-	listSeparator string
-}
-
-// Replacer maps a key from one space to another.
-type Replacer interface {
-	Replace(string) string
+	keyReplacer keys.Replacer
+	// The splitter for slices stored in string values.
+	listSplitter list.Splitter
 }
 
 // Option is a function which modifies a Getter at construction time.
@@ -93,24 +92,24 @@ type Option func(*Getter)
 // The provided command line should NOT include the name of the executable
 // (os.Args[0]).
 func WithCommandLine(cmdArgs []string) Option {
-	return func(r *Getter) {
-		r.cmdArgs = cmdArgs
+	return func(g *Getter) {
+		g.cmdArgs = cmdArgs
 	}
 }
 
 // WithKeyReplacer sets the replacer used to map from flag space to config space.
 // The default replaces '-' in the flag space with '.' in the config space.
-func WithKeyReplacer(keyReplacer Replacer) Option {
-	return func(r *Getter) {
-		r.keyReplacer = keyReplacer
+func WithKeyReplacer(keyReplacer keys.Replacer) Option {
+	return func(g *Getter) {
+		g.keyReplacer = keyReplacer
 	}
 }
 
-// WithListSeparator sets the separator between slice fields in the flag space.
-// The default separator is ","
-func WithListSeparator(separator string) Option {
-	return func(r *Getter) {
-		r.listSeparator = separator
+// WithListSplitter splits slice fields stored as strings in the pflag space.
+// The default splitter separates on ",".
+func WithListSplitter(splitter list.Splitter) Option {
+	return func(g *Getter) {
+		g.listSplitter = splitter
 	}
 }
 
@@ -126,36 +125,36 @@ func WithShortFlags(shortFlags map[byte]string) Option {
 
 // Args returns the trailing arguments from the command line that are not flags,
 // or flag values.
-func (r *Getter) Args() []string {
-	return r.args
+func (g *Getter) Args() []string {
+	return g.args
 }
 
 // NArg returns the number of trailing args in the command line.
-func (r *Getter) NArg() int {
-	return len(r.args)
+func (g *Getter) NArg() int {
+	return len(g.args)
 }
 
 // NFlag returns the number of flags detected in the command line.
 // Multiple instances of the same flag, in either short or long form, count
 // as a single flag.
-func (r *Getter) NFlag() int {
-	return len(r.config)
+func (g *Getter) NFlag() int {
+	return len(g.config)
 }
 
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
-func (r *Getter) Get(key string) (interface{}, bool) {
-	return tree.Get(r.config, key, "")
+func (g *Getter) Get(key string) (interface{}, bool) {
+	return tree.Get(g.config, key, "")
 }
 
-func (r *Getter) parse() {
+func (g *Getter) parse() {
 	config := map[string]interface{}{}
-	for idx := 0; idx < len(r.cmdArgs); idx++ {
-		arg := r.cmdArgs[idx]
+	for idx := 0; idx < len(g.cmdArgs); idx++ {
+		arg := g.cmdArgs[idx]
 		if strings.HasPrefix(arg, "--") {
 			if len(arg) == 2 {
 				// -- terminator
-				r.args = r.cmdArgs[idx+1:]
+				g.args = g.cmdArgs[idx+1:]
 				break
 			}
 			// long form
@@ -163,16 +162,16 @@ func (r *Getter) parse() {
 			if strings.Contains(arg, "=") {
 				// split on = and process complete in place
 				s := strings.SplitN(arg, "=", 2)
-				key := r.keyReplacer.Replace(s[0])
-				config[key] = splitList(s[1], r.listSeparator)
+				key := g.keyReplacer.Replace(s[0])
+				config[key] = g.listSplitter.Split(s[1])
 			} else {
-				key := r.keyReplacer.Replace(arg)
-				if idx < len(r.cmdArgs)-1 {
-					val := r.cmdArgs[idx+1]
+				key := g.keyReplacer.Replace(arg)
+				if idx < len(g.cmdArgs)-1 {
+					val := g.cmdArgs[idx+1]
 					if strings.HasPrefix(val, "-") {
 						incrementFlag(config, key)
 					} else {
-						config[key] = splitList(val, r.listSeparator)
+						config[key] = g.listSplitter.Split(val)
 						idx++
 					}
 				} else {
@@ -185,8 +184,8 @@ func (r *Getter) parse() {
 			if len(arg) > 1 && !strings.Contains(arg, "=") {
 				// grouped short flags
 				for sidx := 0; sidx < len(arg); sidx++ {
-					if flag, ok := r.shortFlags[arg[sidx]]; ok {
-						incrementFlag(config, r.keyReplacer.Replace(flag))
+					if flag, ok := g.shortFlags[arg[sidx]]; ok {
+						incrementFlag(config, g.keyReplacer.Replace(flag))
 					}
 				}
 				continue
@@ -198,29 +197,29 @@ func (r *Getter) parse() {
 				// ignore malformed flag
 				continue
 			} else {
-				if idx < len(r.cmdArgs)-1 {
-					v := r.cmdArgs[idx+1]
+				if idx < len(g.cmdArgs)-1 {
+					v := g.cmdArgs[idx+1]
 					if v[0] != '-' {
 						val = v
 						idx++
 					}
 				}
 			}
-			if flag, ok := r.shortFlags[arg[0]]; ok {
-				key := r.keyReplacer.Replace(flag)
+			if flag, ok := g.shortFlags[arg[0]]; ok {
+				key := g.keyReplacer.Replace(flag)
 				if val == "" {
 					incrementFlag(config, key)
 				} else {
-					config[key] = splitList(val, r.listSeparator)
+					config[key] = g.listSplitter.Split(val)
 				}
 			}
 		} else {
 			// non-flag terminator
-			r.args = r.cmdArgs[idx:]
+			g.args = g.cmdArgs[idx:]
 			break
 		}
 	}
-	r.config = config
+	g.config = config
 }
 
 func incrementFlag(config map[string]interface{}, key string) {
@@ -231,13 +230,4 @@ func incrementFlag(config map[string]interface{}, key string) {
 		}
 	}
 	config[key] = 1
-}
-
-func splitList(v interface{}, l string) interface{} {
-	if vstr, ok := v.(string); ok {
-		if len(l) > 0 && strings.Contains(vstr, l) {
-			return strings.Split(vstr, l)
-		}
-	}
-	return v
 }

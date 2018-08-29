@@ -13,6 +13,11 @@ import (
 	"unicode/utf8"
 )
 
+// Replacer maps a key from one space to another.
+type Replacer interface {
+	Replace(string) string
+}
+
 // ReplacerFunc is a func that implements a string replacement.
 type ReplacerFunc func(key string) string
 

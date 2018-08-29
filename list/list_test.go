@@ -21,6 +21,7 @@ func TestNewSplitter(t *testing.T) {
 	}{
 		{"comma ints", ",", "1,2,3,4", []string{"1", "2", "3", "4"}},
 		{"not comma ints", ":", "1,2,3,4", "1,2,3,4"},
+		{"none", "", "1,2,3,4", []string{"1", ",", "2", ",", "3", ",", "4"}},
 	}
 	for _, p := range patterns {
 		s := list.NewSplitter(p.sep)

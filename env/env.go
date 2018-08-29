@@ -11,22 +11,26 @@ import (
 	"strings"
 
 	"github.com/warthog618/config/keys"
+	"github.com/warthog618/config/list"
 	"github.com/warthog618/config/tree"
 )
 
 // New creates an environment variable Getter.
 func New(options ...Option) (*Getter, error) {
-	r := Getter{listSeparator: ":"}
+	g := Getter{}
 	for _, option := range options {
-		option(&r)
+		option(&g)
 	}
-	if r.keyReplacer == nil {
-		r.keyReplacer = keys.ChainReplacer(
+	if g.keyReplacer == nil {
+		g.keyReplacer = keys.ChainReplacer(
 			keys.StringReplacer("_", "."),
 			keys.LowerCaseReplacer())
 	}
-	r.load()
-	return &r, nil
+	if g.listSplitter == nil {
+		g.listSplitter = list.NewSplitter(":")
+	}
+	g.load()
+	return &g, nil
 }
 
 // Getter provides the mapping from environment variables to a config.Getter.
@@ -42,20 +46,15 @@ type Getter struct {
 	// The replacement is applied AFTER the envPrefix has been removed.
 	// e.g. environment var APP_MY_CONFIG with envPrefix "APP_"
 	// would map from "MY_CONFIG".
-	keyReplacer Replacer
-	// The separator for slices stored in string values.
-	listSeparator string
-}
-
-// Replacer maps a key from one space to another.
-type Replacer interface {
-	Replace(string) string
+	keyReplacer keys.Replacer
+	// The splitter for slices stored in string values.
+	listSplitter list.Splitter
 }
 
 // Get returns the value for a given key and true if found, or
 // nil and false if not.
-func (r *Getter) Get(key string) (interface{}, bool) {
-	return tree.Get(r.config, key, "")
+func (g *Getter) Get(key string) (interface{}, bool) {
+	return tree.Get(g.config, key, "")
 }
 
 // Option is a function which modifies a Getter at construction time.
@@ -66,44 +65,38 @@ type Option func(*Getter)
 // the config space and so should include any separator between it and the
 // first tier name.
 func WithEnvPrefix(prefix string) Option {
-	return func(r *Getter) {
-		r.envPrefix = prefix
+	return func(g *Getter) {
+		g.envPrefix = prefix
 	}
 }
 
 // WithKeyReplacer sets the replacer used to map from env space to config space.
 // The default is to replace "_" with "." and convert to lowercase.
-func WithKeyReplacer(m Replacer) Option {
-	return func(r *Getter) {
-		r.keyReplacer = m
+func WithKeyReplacer(m keys.Replacer) Option {
+	return func(g *Getter) {
+		g.keyReplacer = m
 	}
 }
 
-// WithListSeparator sets the separator between slice fields in the env space.
-// The default separator is ":"
-func WithListSeparator(separator string) Option {
-	return func(r *Getter) {
-		r.listSeparator = separator
+// WithListSplitter splits slice fields stored as strings in the env space.
+// The default splitter separates on ",".
+func WithListSplitter(splitter list.Splitter) Option {
+	return func(g *Getter) {
+		g.listSplitter = splitter
 	}
 }
 
-func (r *Getter) load() {
+func (g *Getter) load() {
 	config := map[string]interface{}{}
 	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, r.envPrefix) {
+		if strings.HasPrefix(env, g.envPrefix) {
 			keyValue := strings.SplitN(env, "=", 2)
 			if len(keyValue) == 2 {
-				envKey := keyValue[0][len(r.envPrefix):]
-				cfgKey := r.keyReplacer.Replace(envKey)
-				if len(r.listSeparator) > 0 &&
-					strings.Contains(keyValue[1], r.listSeparator) {
-					config[cfgKey] = strings.Split(keyValue[1], r.listSeparator)
-				} else {
-					config[cfgKey] = keyValue[1]
-				}
-
+				envKey := keyValue[0][len(g.envPrefix):]
+				cfgKey := g.keyReplacer.Replace(envKey)
+				config[cfgKey] = g.listSplitter.Split(keyValue[1])
 			}
 		}
 	}
-	r.config = config
+	g.config = config
 }
