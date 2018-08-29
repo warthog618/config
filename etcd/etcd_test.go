@@ -1,0 +1,219 @@
+// Copyright © 2018 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
+package etcd_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/integration"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/warthog618/config/etcd"
+)
+
+func TestNew(t *testing.T) {
+	// no server
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	e, err := etcd.New(ctx, "/my/config/")
+	cancel()
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.Nil(t, e)
+
+	// no endpoint
+	ctx, cancel = context.WithTimeout(context.Background(), 100*time.Millisecond)
+	e, err = etcd.New(ctx, "/my/config/", etcd.WithEndpoint())
+	cancel()
+	assert.NotNil(t, err)
+	assert.Nil(t, e)
+
+	// real server
+	_, cl, terminate := dummyEtcdServer(t, map[string]string{
+		"/my/config/hello": "world",
+	})
+	defer terminate()
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	e, err = etcd.New(ctx, "/my/config/", etcd.WithClient(cl))
+	cancel()
+	assert.Nil(t, err)
+	require.NotNil(t, e)
+	v, ok := e.Get("hello")
+	assert.True(t, ok)
+
+	assert.Equal(t, "world", v)
+}
+
+func TestClose(t *testing.T) {
+	addr, _, terminate := dummyEtcdServer(t, map[string]string{
+		"/my/config/hello": "world",
+	})
+	defer terminate()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	cancel()
+	assert.Nil(t, err)
+	require.NotNil(t, e)
+	v, ok := e.Get("hello")
+	assert.True(t, ok)
+	assert.Equal(t, "world", v)
+	// Close breaks terminate - finds already closed!
+	e.Close()
+	// show updates stop...
+	// check server connections???
+}
+
+func TestGet(t *testing.T) {
+	patterns := []struct {
+		name string
+		k    string
+		v    interface{}
+		ok   bool
+	}{
+		{"leaf", "leaf", "42", true},
+		{"nested leaf", "nested.leaf", "44", true},
+		{"nested nonsense", "nested.nonsense", nil, false},
+		{"nested slice", "nested.slice", []string{"c", "d"}, true},
+		{"nested", "nested", nil, false},
+		{"nonsense", "nonsense", nil, false},
+		{"slice", "slice", []string{"a", "b"}, true},
+		{"slice[]", "slice[]", 2, true},
+		{"slice[1]", "slice[1]", "b", true},
+		{"slice[3]", "slice[3]", nil, false},
+	}
+	cfg := map[string]string{
+		"/my/config/leaf":         "42",
+		"/my/config/slice":        "a,b",
+		"/my/config/nested/leaf":  "44",
+		"/my/config/nested/slice": "c,d",
+	}
+	_, cl, terminate := dummyEtcdServer(t, cfg)
+	defer terminate()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithClient(cl))
+	cancel()
+	assert.Nil(t, err)
+	require.NotNil(t, e)
+
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			v, ok := e.Get(p.k)
+			assert.Equal(t, p.ok, ok)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestWatch(t *testing.T) {
+	cfg := map[string]string{
+		"/my/config/leaf": "42",
+	}
+	addr, cl, terminate := dummyEtcdServer(t, cfg)
+	defer terminate()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+	cancel()
+
+	// baseline
+	testWatcher(t, s, context.DeadlineExceeded)
+
+	// update
+	cl.Put(context.Background(), "/my/config/leaf", "54")
+	testWatcher(t, s, nil)
+
+	// no content change, but still updated
+	cl.Put(context.Background(), "/my/config/leaf", "54")
+	testWatcher(t, s, nil)
+
+	// closed so no update
+	s.Close()
+	cl.Put(context.Background(), "/my/config/leaf", "54")
+	testWatcher(t, s, context.Canceled)
+}
+
+func TestCommitUpdate(t *testing.T) {
+	cfg := map[string]string{
+		"/my/config/leaf": "baseline",
+	}
+	addr, cl, terminate := dummyEtcdServer(t, cfg)
+	defer terminate()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+	cancel()
+
+	// baseline
+	testWatcher(t, s, context.DeadlineExceeded)
+
+	// update - put
+	cl.Put(context.Background(), "/my/config/leaf", "updated")
+	testWatcher(t, s, nil)
+	v, ok := s.Get("leaf")
+	assert.True(t, ok)
+	assert.Equal(t, "baseline", v)
+	s.CommitUpdate()
+	v, ok = s.Get("leaf")
+	assert.True(t, ok)
+	assert.Equal(t, "updated", v)
+
+	// update - delete
+	cl.Delete(context.Background(), "/my/config/leaf")
+	testWatcher(t, s, nil)
+	v, ok = s.Get("leaf")
+	assert.True(t, ok)
+	assert.Equal(t, "updated", v)
+	s.CommitUpdate()
+	v, ok = s.Get("leaf")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+
+}
+
+func dummyEtcdServer(t *testing.T, mss map[string]string) (string, *clientv3.Client, func()) {
+	clus := integration.NewClusterV3(t,
+		&integration.ClusterConfig{Size: 1})
+	c := clus.RandClient()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	for k, v := range mss {
+		_, err := c.Put(ctx, k, v)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	cancel()
+	return clus.Members[0].GRPCAddr(),
+		c,
+		func() {
+			clus.Terminate(t)
+		}
+}
+
+type watcher interface {
+	Watch(context.Context) error
+}
+
+func testWatcher(t *testing.T, w watcher, xerr error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	updated := make(chan error)
+	go func() {
+		err := w.Watch(ctx)
+		updated <- err
+	}()
+	select {
+	case err := <-updated:
+		assert.Equal(t, xerr, errors.Cause(err))
+	case <-time.After(time.Second):
+		assert.Fail(t, "watch failed to return")
+	}
+	cancel()
+}

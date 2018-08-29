@@ -47,7 +47,7 @@ func TestGetterGet(t *testing.T) {
 		{"slice", "slice", []string{"a", "b"}, true},
 		{"slice[]", "slice[]", 2, true},
 		{"slice[1]", "slice[1]", "b", true},
-		{"slice[4]", "slice[3]", nil, false},
+		{"slice[3]", "slice[3]", nil, false},
 	}
 	prefix := "CFGENV_"
 	setup(prefix)
