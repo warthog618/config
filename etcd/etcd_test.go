@@ -18,16 +18,21 @@ import (
 	"github.com/warthog618/config/etcd"
 )
 
+var (
+	defaultTimeout = 100 * time.Millisecond
+	longTimeout    = 10 * time.Second
+)
+
 func TestNew(t *testing.T) {
 	// no server
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	e, err := etcd.New(ctx, "/my/config/")
 	cancel()
 	assert.Equal(t, context.DeadlineExceeded, err)
 	assert.Nil(t, e)
 
 	// no endpoint
-	ctx, cancel = context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
 	e, err = etcd.New(ctx, "/my/config/", etcd.WithEndpoint())
 	cancel()
 	assert.NotNil(t, err)
@@ -38,7 +43,7 @@ func TestNew(t *testing.T) {
 		"/my/config/hello": "world",
 	})
 	defer terminate()
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
 	e, err = etcd.New(ctx, "/my/config/", etcd.WithClient(cl))
 	cancel()
 	assert.Nil(t, err)
@@ -54,7 +59,7 @@ func TestClose(t *testing.T) {
 		"/my/config/hello": "world",
 	})
 	defer terminate()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
 	cancel()
 	assert.Nil(t, err)
@@ -94,7 +99,7 @@ func TestGet(t *testing.T) {
 	}
 	_, cl, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	e, err := etcd.New(ctx, "/my/config/", etcd.WithClient(cl))
 	cancel()
 	assert.Nil(t, err)
@@ -116,7 +121,7 @@ func TestWatch(t *testing.T) {
 	}
 	addr, cl, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
 	assert.Nil(t, err)
 	require.NotNil(t, s)
@@ -145,7 +150,7 @@ func TestCommitUpdate(t *testing.T) {
 	}
 	addr, cl, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
 	assert.Nil(t, err)
 	require.NotNil(t, s)
@@ -203,7 +208,7 @@ type watcher interface {
 
 func testWatcher(t *testing.T, w watcher, xerr error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	updated := make(chan error)
 	go func() {
 		err := w.Watch(ctx)

@@ -3,6 +3,8 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+// Package blob provides a getter that loads and decodes configuration from a
+// source where the configuration is stored in a known format.
 package blob
 
 import (
@@ -42,10 +44,10 @@ type Decoder interface {
 	Decode(b []byte, v interface{}) error
 }
 
-// Getter represents a two stage Getter.  The first stage is the Loader which
-// retrieves the configuration as a []byte blob from an underlying source. The
-// second stage is the Decoder, which converts the returned []byte blob into a
-// map[string]interface{}.
+// Getter represents a two stage getter for blobs.  The first stage is the
+// Loader which retrieves the configuration as a []byte blob from an underlying
+// source. The second stage is the Decoder, which converts the returned []byte
+// blob into a map[string]interface{}.
 type Getter struct {
 	// current committed configuration
 	msi map[string]interface{}
@@ -87,9 +89,9 @@ type WatchedGetter struct {
 	update map[string]interface{}
 }
 
-// NewWatched creates a new Blob using the provided loader and decoder.
-// The configuration is loaded and decoded during construction, else an error is
-// returned.
+// NewWatched creates a new Getter using the provided loader and decoder.
+// The initial configuration is loaded and decoded during construction, else an
+// error is returned.
 func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*WatchedGetter, error) {
 	g := WatchedGetter{l: l, d: d, pathSep: "."}
 	for _, option := range options {
@@ -106,7 +108,7 @@ func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*Watc
 	return &g, nil
 }
 
-// Close releases any resources allocated by the blob.
+// Close releases any resources allocated by the getter.
 // This implicitly closes any active Watches.
 // After closing, the blob is still readable via Get, but will no longer be
 // updated.

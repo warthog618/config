@@ -3,6 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+// Package bytes provides a loader from []byte for config.
 package bytes
 
 // Loader provides a source of configuration from an array of bytes in memory.

@@ -3,6 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+// Package hcl provides a HCL format decoder for config.
 package hcl
 
 import "github.com/hashicorp/hcl"

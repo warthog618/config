@@ -10,9 +10,10 @@ A lightweight and versatile configuration toolkit for Go.
 
 ## Overview
 
-**config** presents configuration as a unified key/value store, providing a
-single consistent API to access configuration parameters, independent of the
-underlying configuration storage formats, locations or technologies.
+**config** presents configuration from multiple sources as a unified key/value
+store, providing a single consistent API to access configuration parameters,
+independent of the underlying configuration storage formats, locations or
+technologies.
 
 **config** is lightweight as it has no dependencies itself - your application
 will only depend on the getters you explicitly include.  A collection of getters
@@ -53,7 +54,7 @@ could then be read using:
 ```
 
 Multiple configuration sources can be setup and customised to suit your
-application requirements.  The [Example Usage](#example-usage) section provides
+application requirements.  The [Example Usage](#usage) section provides
 a more extensive example.
 
 ### API
@@ -91,6 +92,13 @@ rather than being handled where the functions return. e.g.
 
 will panic if either "pin" or "ports" are not configured or cannot be converted
 to the requested type.
+
+Dynamic changes to configuration can be monitored by adding a watcher, either on
+a particular key, using
+[NewKeyWatcher](https://godoc.org/github.com/warthog618/config#Config.NewKeyWatcher),
+or the complete configuration using
+[NewWatcher](https://godoc.org/github.com/warthog618/config#Config.NewWatcher).
+
 
 ### Supported value types
 
@@ -161,8 +169,7 @@ form *a[]*. e.g.
 ```go
     ports := c.MustGet("ports").UintSlice()
 
-    // alternatively....
-    // alternatively....
+    // equivalently....
     size := int(c.MustGet("ports[]").Int())
     for i := 0; i < size; i++ {
         // get each port sequentially...
@@ -195,7 +202,7 @@ type Getter interface {
 }
 ```
 
-The source of configuration may be local or remote.
+The source of configuration may be local or remote.  Getters for remote configuration typically cache a snapshot of configuration locally.
 
 A collection of getters can be formed into a
 [Stack](https://godoc.org/github.com/warthog618/config#Stack).  A stack forms an
@@ -208,36 +215,42 @@ sub-packages:
 
 Getter | Configuration Source
 :-----:| -----
+[blob](https://github.com/warthog618/config/tree/master/blob) | files and other sources of configuration
 [dict](https://github.com/warthog618/config/tree/master/dict) | key/value maps
 [env](https://github.com/warthog618/config/tree/master/env) | environment variables
+[etcd](https://github.com/warthog618/config/tree/master/etcd) | etcd v3 key-value server
 [flag](https://github.com/warthog618/config/tree/master/flag) | Go style command line flags
 [pflag](https://github.com/warthog618/config/tree/master/pflag) | POSIX/GNU style command line flags
 
-Some other sources, such as files, are supported as described in [Sources](#sources).
-
 Alternatively you can roll your own.
 
-A couple of helper packages are available should you wish to roll your own
+Several helper packages are available should you wish to roll your own
 getter:
 
 The [**keys**](https://github.com/warthog618/config/tree/master/keys)
 sub-package provides a number of functions to assist in mapping between
 namespaces.
 
+The [**list**](https://github.com/warthog618/config/tree/master/list)
+sub-package provides functions to assist in decoding lists stored as strings in
+configuration sources.
+
 The [**tree**](https://github.com/warthog618/config/tree/master/tree)
 sub-package provides a Get method to get a value from a map[string]interface{}
 or map[interface{}]interface{}.
 
-### Sources
+### Blobs
 
-Sources are a type of getter that are partitioned into two layers, the Loader
-and the Decoder.  The configuration is first loaded by the Loader and then
-unmarshalled using the Decoder.
+Blobs are a type of getter that are partitioned into two layers, the Loader,
+which loads the configuration as a []byte blob from some source, and the
+Decoder, which decodes the blob into a form that can be used by config.  The
+configuration is first loaded by the Loader and then unmarshalled using the
+Decoder.
 
-The Loader may support being watched for changes, and if so the Source
+The Loader may support being watched for changes, and if so the Blob
 containing it can be added to the config using
-[AddWatchedSource](https://godoc.org/github.com/warthog618/config#Config.AddWatchedSource)
-to trigger changes to the configuration when the underlying source changes.  
+[AddWatchedGetter](https://godoc.org/github.com/warthog618/config#Config.AddWatchedGetter)
+to trigger changes to the configuration when the underlying source changes.
 
 #### Loaders
 
@@ -247,8 +260,8 @@ The included loaders are:
 
 Loader | Configuration Source
 :-----:| -----
-[bytes](https://github.com/warthog618/config/tree/master/loader/bytes) | []byte
-[file](https://github.com/warthog618/config/tree/master/loader/file) | local file
+[bytes](https://github.com/warthog618/config/tree/master/blob/loader/bytes) | []byte
+[file](https://github.com/warthog618/config/tree/master/blob/loader/file) | local file
 
 #### Decoders
 
@@ -256,12 +269,12 @@ Decoders unmarshal configuration from a particular text format.
 
 Decoders for the following formats are included:
 
-- [JSON](https://github.com/warthog618/config/tree/master/decoder/json)
-- [TOML](https://github.com/warthog618/config/tree/master/decoder/toml)
-- [YAML](https://github.com/warthog618/config/tree/master/decoder/yaml)
-- [HCL](https://github.com/warthog618/config/tree/master/decoder/hcl)
-- [INI](https://github.com/warthog618/config/tree/master/decoder/ini)
-- [properties](https://github.com/warthog618/config/tree/master/decoder/properties)
+- [JSON](https://github.com/warthog618/config/tree/master/blob/decoder/json)
+- [TOML](https://github.com/warthog618/config/tree/master/blob/decoder/toml)
+- [YAML](https://github.com/warthog618/config/tree/master/blob/decoder/yaml)
+- [HCL](https://github.com/warthog618/config/tree/master/blob/decoder/hcl)
+- [INI](https://github.com/warthog618/config/tree/master/blob/decoder/ini)
+- [properties](https://github.com/warthog618/config/tree/master/blob/decoder/properties)
 
 ### Decorators
 
@@ -380,7 +393,11 @@ values of any call to the getter.  This could be used for logging and
 diagnostics, such as determining what configuration keys are retrieved by an
 application.
 
-## Example Usage
+## Examples
+
+The following examples, and examples of more complex usage, can be found in the [example](https://github.com/warthog618/config/tree/master/example) directory.
+
+### Usage
 
 The following is an example of setting up a config using a number of sources
 (env, flag, JSON file, and a default map) and retrieving configuration
@@ -450,13 +467,48 @@ MYAPP_CONFIG_FILE="myfile.json" myapp
 APP_CONFIG_FILE="myfile.json" myapp --env.prefix=APP_
 ```
 
-This example, and examples of more complex usage, can be found in the [example](https://github.com/warthog618/config/tree/master/example) directory.
+### Key Watcher
+
+```go
+func main() {
+    l, _ := file.NewWatched("config.json")
+    g, _ := blob.NewWatched(l, json.NewDecoder())
+    c := config.NewConfig(g)
+    c.AddWatchedGetter(g)
+
+    update := make(chan int64)
+    w := c.NewKeyWatcher("somevariable")
+    ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+    defer cancel()
+    // watcher goroutine
+    go func() {
+        for {
+            v, err := w.Watch(ctx)
+            if err != nil {
+                close(update)
+                break
+            }
+            update <- v.Int()
+        }
+    }()
+    // main thread
+    for {
+        v, ok := <-update
+        if !ok {
+            break
+        }
+        log.Println("got update:", v)
+    }
+}
+```
+
+This is a simple example that omits error handling for brevity.  The implementation of the watcher goroutine and its interactions with other goroutines may vary to suit your application.
+
+A watcher for the whole configuration is very similar.  An example can be found in the [examples directory](https://github.com/warthog618/config/tree/master/example/readme/watcher).
 
 ## Future Work
 
-A list of things I haven't gotten around to yet, or am still thinking about...
+A list of things I haven't gotten around to yet...
 
-- Document Watchers.
 - Add more examples.
-- Add a loader for etcd.
-- Add a loader for consul.
+- Add a getter for consul.

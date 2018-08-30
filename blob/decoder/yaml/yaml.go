@@ -3,6 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+// Package yaml provides a YAML format decoder for config.
 package yaml
 
 import yaml "gopkg.in/yaml.v2"

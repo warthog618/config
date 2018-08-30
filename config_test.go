@@ -20,6 +20,8 @@ import (
 	"github.com/warthog618/config"
 )
 
+var defaultTimeout = 10 * time.Millisecond
+
 func TestNewConfig(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
 	c := config.NewConfig(&mr)
@@ -89,7 +91,7 @@ func TestAddWatchedGetter(t *testing.T) {
 
 	// Updated
 	ws.Notify()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	err := w.Watch(ctx)
 	assert.Nil(t, err)
 	assert.True(t, ws.Committed)
@@ -99,7 +101,7 @@ func TestAddWatchedGetter(t *testing.T) {
 	ws.Committed = false
 	ws.WatchError = config.WithTemporary(errors.New("temp watch error"))
 	ws.Notify()
-	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
 	err = w.Watch(ctx)
 	assert.Equal(t, context.DeadlineExceeded, err)
 	assert.False(t, ws.Committed)
@@ -110,7 +112,7 @@ func TestAddWatchedGetter(t *testing.T) {
 	cfg.AddWatchedGetter(ws)
 	ws.WatchError = errors.New("watch error")
 	ws.Notify()
-	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
 	err = w.Watch(ctx)
 	assert.Equal(t, context.DeadlineExceeded, err)
 	assert.False(t, ws.Committed)
@@ -760,11 +762,11 @@ func TestNewWatcher(t *testing.T) {
 		updated <- e
 	}()
 	cancel()
-	time.Sleep(time.Millisecond)
+	time.Sleep(defaultTimeout)
 	select {
 	case e := <-updated:
 		assert.Equal(t, context.Canceled, e)
-	case <-time.After(time.Millisecond):
+	case <-time.After(defaultTimeout):
 	}
 }
 
@@ -774,7 +776,7 @@ type watcher interface {
 
 func testWatcher(t *testing.T, w watcher, xerr error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	updated := make(chan error)
 	go func() {
 		err := w.Watch(ctx)
@@ -795,7 +797,7 @@ type keyWatcher interface {
 
 func testKeyWatcher(t *testing.T, w keyWatcher, xv string, xerr error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	updated := make(chan error)
 	var v config.Value
 	go func() {
@@ -860,15 +862,15 @@ func TestNewKeyWatcher(t *testing.T) {
 	select {
 	case <-updated:
 		assert.Fail(t, "unexpected value update")
-	case <-time.After(time.Millisecond):
+	case <-time.After(defaultTimeout):
 	}
 	cancel()
-	time.Sleep(time.Millisecond)
+	time.Sleep(defaultTimeout)
 	mr["foo"] = "this is new foo too"
 	select {
 	case e := <-updated:
 		assert.Equal(t, context.Canceled, e)
-	case <-time.After(time.Millisecond):
+	case <-time.After(defaultTimeout):
 		assert.Fail(t, "didn't cancel")
 	}
 }

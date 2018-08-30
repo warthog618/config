@@ -3,6 +3,8 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+// Package config provides tools to retrieve configuration from various sources
+// and present it to the application through a unified API.
 package config
 
 import (

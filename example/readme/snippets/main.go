@@ -1,3 +1,8 @@
+// Copyright © 2018 Kent Gibson <warthog618@gmail.com>.
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file.
+
 // Example snippets used in the config README.
 
 package main
@@ -61,8 +66,8 @@ func newConfig() {
 func must() {
 	g, _ := pflag.New()
 
-	m := config.NewConfig(g)
-	pin := m.MustGet("pin").Int()
+	c := config.NewConfig(g)
+	pin := c.MustGet("pin").Int()
 
 	if pin == 0 {
 	}
