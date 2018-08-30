@@ -215,10 +215,10 @@ sub-packages:
 
 Getter | Configuration Source
 :-----:| -----
-[blob](https://github.com/warthog618/config/tree/master/blob) | files and other sources of configuration
+[blob](https://github.com/warthog618/config/tree/master/blob) | files and other sources of formatted configuration
 [dict](https://github.com/warthog618/config/tree/master/dict) | key/value maps
 [env](https://github.com/warthog618/config/tree/master/env) | environment variables
-[etcd](https://github.com/warthog618/config/tree/master/etcd) | etcd v3 key-value server
+[etcd](https://github.com/warthog618/config/tree/master/etcd) | etcd v3 key/value server
 [flag](https://github.com/warthog618/config/tree/master/flag) | Go style command line flags
 [pflag](https://github.com/warthog618/config/tree/master/pflag) | POSIX/GNU style command line flags
 
@@ -241,11 +241,10 @@ or map[interface{}]interface{}.
 
 ### Blobs
 
-Blobs are a type of getter that are partitioned into two layers, the Loader,
-which loads the configuration as a []byte blob from some source, and the
-Decoder, which decodes the blob into a form that can be used by config.  The
-configuration is first loaded by the Loader and then unmarshalled using the
-Decoder.
+Blobs represent configuration sources containing configuration stored as a block
+and a known format, e.g. config files.  Blobs are partitioned into two layers,
+the Loader, which loads the configuration as a []byte blob from the source, and
+the Decoder, which decodes the blob into a form that can be used by config.
 
 The Loader may support being watched for changes, and if so the Blob
 containing it can be added to the config using
@@ -256,7 +255,7 @@ to trigger changes to the configuration when the underlying source changes.
 
 Loaders read configuration from some source.
 
-The included loaders are:
+The following loaders are provided:
 
 Loader | Configuration Source
 :-----:| -----
@@ -267,7 +266,7 @@ Loader | Configuration Source
 
 Decoders unmarshal configuration from a particular text format.
 
-Decoders for the following formats are included:
+Decoders for the following formats are provided:
 
 - [JSON](https://github.com/warthog618/config/tree/master/blob/decoder/json)
 - [TOML](https://github.com/warthog618/config/tree/master/blob/decoder/toml)
