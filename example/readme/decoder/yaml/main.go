@@ -10,8 +10,9 @@ import (
 )
 
 func main() {
-	f, _ := blob.New(file.New("config.yaml"), yaml.NewDecoder())
-	c := config.NewConfig(f)
+	f, _ := file.New("config.yaml")
+	b, _ := blob.New(f, yaml.NewDecoder())
+	c := config.NewConfig(b)
 	s := c.MustGet("nested.string").String()
 	fmt.Println("s:", s)
 	// ....

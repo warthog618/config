@@ -103,19 +103,20 @@ func loadConfig() *config.Config {
 	configFile, err := cfg.Get("config.file")
 	if err == nil {
 		// explicitly specified config file - must be there
-		cfgFile, err := file.NewWatched(configFile.String())
+		cfgFile, err := file.New(configFile.String(), file.WithWatcher())
 		if err != nil {
 			panic(err)
 		}
-		jget, err := blob.NewWatched(cfgFile, jsondec)
+		jget, err := blob.New(cfgFile, jsondec)
 		if err != nil {
 			panic(err)
 		}
 		sources.Append(jget)
-		cfg.AddWatchedGetter(jget)
+		cfg.AddGetterWatcher(jget.Watcher())
 	} else {
 		// implicit and optional default config file
-		jget, err := blob.New(file.New("app.json"), jsondec)
+		cfgFile, _ := file.New("app.json")
+		jget, err := blob.New(cfgFile, jsondec)
 		if err == nil {
 			sources.Append(jget)
 		} else {

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/coreos/etcd/clientv3"
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/keys"
 	"github.com/warthog618/config/list"
 	"github.com/warthog618/config/tree"
@@ -45,10 +46,13 @@ func New(ctx context.Context, prefix string, options ...Option) (*Getter, error)
 	ctx = clientv3.WithRequireLeader(ctx)
 	msi, err := g.load(ctx)
 	if err != nil {
-		g.Close()
+		g.client.Close()
 		return nil, err
 	}
 	g.msi = msi
+	if g.w == nil {
+		g.client.Close()
+	}
 	return &g, nil
 }
 
@@ -60,11 +64,7 @@ type Getter struct {
 	// The current snapshot of configuration loaded from etcd.
 	msi map[string]interface{}
 	// lastest revision committed from etcd.
-	msirev int64
-	// updated config... might actually be a set of ops on msi??
-	events []*clientv3.Event
-	// lastest uncommitted revision seen from etcd.
-	eventsrev int64
+	rev int64
 	// The configuration for the etcd client.
 	clientConfig clientv3.Config
 	// The etcd client.
@@ -76,16 +76,26 @@ type Getter struct {
 	// prefix defines the root of the configuration in the etcd space.
 	// Is defined in the etcd space, and must include any trailing separator.
 	prefix string
+	// The watcher.
+	w *watcher
+}
+
+type watcher struct {
+	g *Getter
+	// updated config... might actually be a set of ops on msi??
+	events []*clientv3.Event
+	// lastest uncommitted revision seen from etcd.
+	rev int64
 	// The channel providing update events from the etcd.
 	wchan clientv3.WatchChan
 }
 
-// Close releases any resources allocated by the etcd.
+// Close releases any resources allocated by the watcher.
 // This implicitly closes any active Watches.
 // After closing, the cached etcd configuration is still readable via Get, but
 // will no longer be updated.
-func (g *Getter) Close() (err error) {
-	return g.client.Close()
+func (w *watcher) Close() (err error) {
+	return w.g.client.Close()
 }
 
 // Get implements the Getter API.
@@ -93,6 +103,13 @@ func (g *Getter) Get(key string) (interface{}, bool) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	return tree.Get(g.msi, key, "")
+}
+
+// Watcher returns the watcher for the getter.
+// The watcher is created at construction time if the Loader has a watcher.
+// Returns nil if the getter is not watchable.
+func (g *Getter) Watcher() config.GetterWatcher {
+	return g.w
 }
 
 // Watch blocks until the etcd configuration changes.
@@ -103,40 +120,42 @@ func (g *Getter) Get(key string) (interface{}, bool) {
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
-func (g *Getter) Watch(ctx context.Context) error {
-	if g.wchan == nil {
+func (w *watcher) Watch(ctx context.Context) error {
+	if w.wchan == nil {
 		ctx = clientv3.WithRequireLeader(ctx)
-		g.wchan = g.client.Watch(
+		w.wchan = w.g.client.Watch(
 			context.Background(),
-			g.prefix,
+			w.g.prefix,
 			clientv3.WithPrefix(),
-			clientv3.WithRev(g.msirev+1),
+			clientv3.WithRev(w.g.rev+1),
 		)
 	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case ev, ok := <-g.wchan:
+	case ev, ok := <-w.wchan:
 		if !ok {
 			return context.Canceled
 		}
 		if ev.Err() != nil {
 			return ev.Err()
 		}
-		g.events = ev.Events
-		g.eventsrev = ev.Header.Revision
+		w.events = ev.Events
+		w.rev = ev.Header.Revision
 		return nil
 	}
 }
 
-// CommitUpdate commits a change to the configuration detected by Watch, making
+func (w *watcher) CommitUpdate() {
+	w.g.update(w.events, w.rev)
+	w.events = nil
+}
+
+// update commits a change to the configuration detected by Watch, making
 // the change visible to Get.
-// It is assumed that Watch and CommitUpdate will only be called from a single
-// goroutine, and with CommitUpdate only called after a successful return from
-// Watch.
-func (g *Getter) CommitUpdate() {
+func (g *Getter) update(events []*clientv3.Event, rev int64) {
 	g.mu.Lock()
-	for _, ev := range g.events {
+	for _, ev := range events {
 		key := string(ev.Kv.Key)
 		if !strings.HasPrefix(key, g.prefix) {
 			continue
@@ -149,8 +168,7 @@ func (g *Getter) CommitUpdate() {
 			g.msi[key] = g.listSplitter.Split(string(ev.Kv.Value))
 		}
 	}
-	g.msirev = g.eventsrev
-	g.events = nil
+	g.rev = rev
 	g.mu.Unlock()
 }
 
@@ -159,7 +177,7 @@ func (g *Getter) load(ctx context.Context) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	g.msirev = x.Header.Revision
+	g.rev = x.Header.Revision
 	msi := make(map[string]interface{})
 	for _, kv := range x.Kvs {
 		key := string(kv.Key)

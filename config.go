@@ -10,6 +10,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 	"sync"
 	"unicode"
@@ -57,8 +58,11 @@ type Config struct {
 	bgmu *sync.RWMutex
 }
 
-// WatchedGetter is a Getter that supports being watched.
-type WatchedGetter interface {
+// GetterWatcher watches a getter for updates.
+type GetterWatcher interface {
+	// Close releases any resources allocated to the watcher, and cancels any
+	// active watches.
+	io.Closer
 	// Watch blocks until the source has changed, or an error is detected.
 	Watch(context.Context) error
 	// CommitUpdate commits a change detected by Watch so that it becomes
@@ -66,8 +70,12 @@ type WatchedGetter interface {
 	CommitUpdate()
 }
 
-// AddWatchedGetter adds a WatchedGetter for the Config to monitor.
-func (c *Config) AddWatchedGetter(w WatchedGetter) {
+// AddGetterWatcher adds a WatchedGetter for the Config to monitor.
+// !!! Could obsolete this method by supporting optional Watcher method on getter.
+// (with watching enabled during construction)
+// But would also need to be supported by Getter decorators.
+// Suck on that for a bit...
+func (c *Config) AddGetterWatcher(w GetterWatcher) {
 	go func() {
 		for {
 			if err := w.Watch(context.Background()); err != nil {

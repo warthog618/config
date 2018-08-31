@@ -39,12 +39,12 @@ func TestNew(t *testing.T) {
 	assert.Nil(t, e)
 
 	// real server
-	_, cl, terminate := dummyEtcdServer(t, map[string]string{
+	addr, _, terminate := dummyEtcdServer(t, map[string]string{
 		"/my/config/hello": "world",
 	})
 	defer terminate()
 	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
-	e, err = etcd.New(ctx, "/my/config/", etcd.WithClient(cl))
+	e, err = etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
@@ -54,21 +54,23 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, "world", v)
 }
 
-func TestClose(t *testing.T) {
+func TestWatcherClose(t *testing.T) {
 	addr, _, terminate := dummyEtcdServer(t, map[string]string{
 		"/my/config/hello": "world",
 	})
 	defer terminate()
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
-	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
+	w := e.Watcher()
+	require.NotNil(t, w)
 	v, ok := e.Get("hello")
 	assert.True(t, ok)
 	assert.Equal(t, "world", v)
 	// Close breaks terminate - finds already closed!
-	e.Close()
+	w.Close()
 	// show updates stop...
 	// check server connections???
 }
@@ -97,10 +99,10 @@ func TestGet(t *testing.T) {
 		"/my/config/nested/leaf":  "44",
 		"/my/config/nested/slice": "c,d",
 	}
-	_, cl, terminate := dummyEtcdServer(t, cfg)
+	addr, _, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
-	e, err := etcd.New(ctx, "/my/config/", etcd.WithClient(cl))
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
@@ -122,61 +124,65 @@ func TestWatch(t *testing.T) {
 	addr, cl, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
-	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, s)
+	w := s.Watcher()
+	require.NotNil(t, w)
 	cancel()
 
 	// baseline
-	testWatcher(t, s, context.DeadlineExceeded)
+	testWatcher(t, w, context.DeadlineExceeded)
 
 	// update
 	cl.Put(context.Background(), "/my/config/leaf", "54")
-	testWatcher(t, s, nil)
+	testWatcher(t, w, nil)
 
 	// no content change, but still updated
 	cl.Put(context.Background(), "/my/config/leaf", "54")
-	testWatcher(t, s, nil)
+	testWatcher(t, w, nil)
 
 	// closed so no update
-	s.Close()
+	w.Close()
 	cl.Put(context.Background(), "/my/config/leaf", "54")
-	testWatcher(t, s, context.Canceled)
+	testWatcher(t, w, context.Canceled)
 }
 
-func TestCommitUpdate(t *testing.T) {
+func TestUpdate(t *testing.T) {
 	cfg := map[string]string{
 		"/my/config/leaf": "baseline",
 	}
 	addr, cl, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
-	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, s)
+	w := s.Watcher()
+	require.NotNil(t, w)
 	cancel()
 
 	// baseline
-	testWatcher(t, s, context.DeadlineExceeded)
+	testWatcher(t, w, context.DeadlineExceeded)
 
 	// update - put
 	cl.Put(context.Background(), "/my/config/leaf", "updated")
-	testWatcher(t, s, nil)
+	testWatcher(t, w, nil)
 	v, ok := s.Get("leaf")
 	assert.True(t, ok)
 	assert.Equal(t, "baseline", v)
-	s.CommitUpdate()
+	w.CommitUpdate()
 	v, ok = s.Get("leaf")
 	assert.True(t, ok)
 	assert.Equal(t, "updated", v)
 
 	// update - delete
 	cl.Delete(context.Background(), "/my/config/leaf")
-	testWatcher(t, s, nil)
+	testWatcher(t, w, nil)
 	v, ok = s.Get("leaf")
 	assert.True(t, ok)
 	assert.Equal(t, "updated", v)
-	s.CommitUpdate()
+	w.CommitUpdate()
 	v, ok = s.Get("leaf")
 	assert.False(t, ok)
 	assert.Nil(t, v)

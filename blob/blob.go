@@ -13,19 +13,27 @@ import (
 	"reflect"
 	"sync/atomic"
 
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/tree"
 )
 
 // Loader retrieves raw configuration data, as []byte, from some source.
-// The Loader may also support the WatchedLoader interface if it is watchable.
+// The Loader may also support the watchableLoader interface if it is watchable.
 type Loader interface {
 	Load() ([]byte, error)
 }
 
-// WatchedLoader represents an API supported by Loaders that can watch the
+// WatchableLoader is the interface supported by Loaders that can be watched for
+// changes.
+type WatchableLoader interface {
+	Watcher() WatcherCloser
+}
+
+// WatcherCloser represents an API supported by Loaders that can watch the
 // underlying source for configuration changes.
-type WatchedLoader interface {
-	Loader
+type WatcherCloser interface {
+	// Close releases any resources allocated to the watcher, and cancels any
+	// active watches.
 	io.Closer
 	// Watch blocks until the underlying source has changed since construction
 	// or the previous Watch call.
@@ -49,78 +57,70 @@ type Decoder interface {
 // source. The second stage is the Decoder, which converts the returned []byte
 // blob into a map[string]interface{}.
 type Getter struct {
+	l Loader
+	d Decoder
 	// current committed configuration
-	msi map[string]interface{}
+	msi atomic.Value // map[string]interface{}
 	// separator between tiers
 	pathSep string
+	// watcher on the loader
+	w *watcher
 }
 
 // New creates a new Blob using the provided loader and decoder.
 // The configuration is loaded and decoded during construction, else an error is
 // returned.
 func New(l Loader, d Decoder, options ...Option) (*Getter, error) {
-	g := Getter{pathSep: "."}
+	g := Getter{l: l, d: d, pathSep: "."}
 	for _, option := range options {
-		option.applyBlobOption(&g)
+		option.applyOption(&g)
 	}
-	msi, err := load(l, d)
+	if wl, ok := l.(WatchableLoader); ok {
+		w := wl.Watcher()
+		if w != nil {
+			// must be created before the initial load
+			g.w = &watcher{g: &g, w: w}
+		}
+	}
+	msi, err := load(l, d) // initial load
 	if err != nil {
+		if g.w != nil {
+			g.w.Close()
+		}
 		return nil, err
 	}
-	g.msi = msi
+	g.msi.Store(msi)
 	return &g, nil
 }
 
 // Get implements the Getter API.
 func (g *Getter) Get(key string) (interface{}, bool) {
-	v, ok := tree.Get(g.msi, key, g.pathSep)
+	msi := g.msi.Load().(map[string]interface{})
+	v, ok := tree.Get(msi, key, g.pathSep)
 	return v, ok
 }
 
-// WatchedGetter represents a Blob that can be watched for changes.
-type WatchedGetter struct {
-	l WatchedLoader
-	d Decoder
-	// current committed configuration
-	msi atomic.Value // map[string]interface{}
-	// separator between tiers
-	pathSep string
+// Watcher returns the watcher for the getter.
+// The watcher is created at construction time if the Loader has a watcher.
+// Returns nil if the getter is not watchable.
+func (g *Getter) Watcher() config.GetterWatcher {
+	return g.w
+}
+
+// watcher watches a Getter for changes.
+type watcher struct {
+	g *Getter
+	w WatcherCloser
 	// lastest uncommitted configuration
 	update map[string]interface{}
 }
 
-// NewWatched creates a new Getter using the provided loader and decoder.
-// The initial configuration is loaded and decoded during construction, else an
-// error is returned.
-func NewWatched(l WatchedLoader, d Decoder, options ...WatchedBlobOption) (*WatchedGetter, error) {
-	g := WatchedGetter{l: l, d: d, pathSep: "."}
-	for _, option := range options {
-		option.applyWatchedBlobOption(&g)
-	}
-	m, err := load(l, d)
-	if err != nil {
-		return nil, err
-	}
-	if m == nil {
-		m = make(map[string]interface{})
-	}
-	g.msi.Store(m)
-	return &g, nil
-}
-
-// Close releases any resources allocated by the getter.
-// This implicitly closes any active Watches.
-// After closing, the blob is still readable via Get, but will no longer be
-// updated.
-func (g *WatchedGetter) Close() (err error) {
-	return g.l.Close()
-}
-
-// Get implements the Getter API.
-func (g *WatchedGetter) Get(key string) (interface{}, bool) {
-	msi := g.msi.Load().(map[string]interface{})
-	v, ok := tree.Get(msi, key, g.pathSep)
-	return v, ok
+// Close releases any resources allocated by the watcher.
+// This implicitly closes any active watches.
+// After closing, the getter is still readable via Get, but will no longer be
+// updated by the watcher.
+func (w *watcher) Close() (err error) {
+	return w.w.Close()
 }
 
 // Watch blocks until the underlying source changes.
@@ -132,23 +132,23 @@ func (g *WatchedGetter) Get(key string) (interface{}, bool) {
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
-func (g *WatchedGetter) Watch(ctx context.Context) error {
+func (w *watcher) Watch(ctx context.Context) error {
 	for {
-		if err := g.l.Watch(ctx); err != nil {
+		if err := w.w.Watch(ctx); err != nil {
 			return err
 		}
-		updatedmsi, err := load(g.l, g.d)
+		updatedmsi, err := load(w.g.l, w.g.d)
 		if err != nil {
 			return WithTemporary(err)
 		}
 		if updatedmsi == nil {
 			continue
 		}
-		msi := g.msi.Load().(map[string]interface{})
+		msi := w.g.msi.Load().(map[string]interface{})
 		if reflect.DeepEqual(updatedmsi, msi) {
 			continue
 		}
-		g.update = updatedmsi
+		w.update = updatedmsi
 		return nil
 	}
 }
@@ -158,9 +158,9 @@ func (g *WatchedGetter) Watch(ctx context.Context) error {
 // It is assumed that Watch and CommitUpdate will only be called from a single
 // goroutine, and with CommitUpdate only called after a successful return from
 // Watch.
-func (g *WatchedGetter) CommitUpdate() {
-	g.msi.Store(g.update)
-	g.update = nil
+func (w *watcher) CommitUpdate() {
+	w.g.msi.Store(w.update)
+	w.update = nil
 }
 
 func load(l Loader, d Decoder) (map[string]interface{}, error) {

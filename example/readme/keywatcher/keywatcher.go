@@ -17,10 +17,10 @@ import (
 )
 
 func main() {
-	l, _ := file.NewWatched("config.json")
-	g, _ := blob.NewWatched(l, json.NewDecoder())
+	l, _ := file.New("config.json", file.WithWatcher())
+	g, _ := blob.New(l, json.NewDecoder())
 	c := config.NewConfig(g)
-	c.AddWatchedGetter(g)
+	c.AddGetterWatcher(g.Watcher())
 
 	update := make(chan int64)
 	w := c.NewKeyWatcher("somevariable")

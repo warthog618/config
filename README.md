@@ -99,7 +99,6 @@ a particular key, using
 or the complete configuration using
 [NewWatcher](https://godoc.org/github.com/warthog618/config#Config.NewWatcher).
 
-
 ### Supported value types
 
 **config** supports converting returned Values to the following types:
@@ -242,7 +241,7 @@ or map[interface{}]interface{}.
 ### Blobs
 
 Blobs represent configuration sources containing configuration stored as a block
-and a known format, e.g. config files.  Blobs are partitioned into two layers,
+and in a known format, e.g. config files.  Blobs are partitioned into two layers,
 the Loader, which loads the configuration as a []byte blob from the source, and
 the Decoder, which decodes the blob into a form that can be used by config.
 
@@ -467,6 +466,8 @@ APP_CONFIG_FILE="myfile.json" myapp --env.prefix=APP_
 ```
 
 ### Key Watcher
+
+This example watches a configuration file and prints updates to the configuration key "somevariable" whenever its value is changed.
 
 ```go
 func main() {

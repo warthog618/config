@@ -10,19 +10,19 @@ type Option interface {
 	applyConfigOption(c *Config)
 }
 
-// WithWatchedGetter adds one or more Getters for the Config to watch.
-func WithWatchedGetter(rr ...WatchedGetter) Option {
+// WithGetterWatcher adds one or more Getters for the Config to watch.
+func WithGetterWatcher(rr ...GetterWatcher) Option {
 	return WatchedGetterOption{rr}
 }
 
 // WatchedGetterOption contains the Getters to be watched by Config.
 type WatchedGetterOption struct {
-	rr []WatchedGetter
+	rr []GetterWatcher
 }
 
 func (u WatchedGetterOption) applyConfigOption(c *Config) {
 	for _, r := range u.rr {
-		c.AddWatchedGetter(r)
+		c.AddGetterWatcher(r)
 	}
 }
 

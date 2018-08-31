@@ -18,93 +18,80 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	f := file.New("nosuch.file")
-	assert.NotNil(t, f)
+	// Existent
+	f, err := file.New("file_test.go")
+	assert.Nil(t, err)
+	require.NotNil(t, f)
+
+	// Non-existent
+	f, err = file.New("nosuch.file")
+	assert.Nil(t, err)
+	require.NotNil(t, f)
 }
 
-func TestFileLoad(t *testing.T) {
+func TestLoad(t *testing.T) {
 	// Existent
-	f := file.New("file_test.go")
+	f, err := file.New("file_test.go")
+	assert.Nil(t, err)
 	require.NotNil(t, f)
 	l, err := f.Load()
 	assert.Nil(t, err)
 	assert.NotNil(t, l)
 
 	// Non-existent
-	f = file.New("nosuch.file")
+	f, err = file.New("nosuch.file")
+	assert.Nil(t, err)
 	require.NotNil(t, f)
 	l, err = f.Load()
 	assert.IsType(t, &os.PathError{}, err)
 	assert.Nil(t, l)
 }
 
-func TestNewWatched(t *testing.T) {
+func TestWatcher(t *testing.T) {
 	// Non-existent
-	f, err := file.NewWatched("nosuch.file")
+	f, err := file.New("nosuch.file", file.WithWatcher())
 	assert.NotNil(t, err)
 	assert.Nil(t, f)
 
-	// Existing
-	f, err = file.NewWatched("file_test.go")
-	assert.Nil(t, err)
-	assert.NotNil(t, f)
-}
-
-func TestWatchedFileLoad(t *testing.T) {
 	// Existent
-	wf, err := file.NewWatched("file_test.go")
+	f, err = file.New("file_test.go", file.WithWatcher())
 	assert.Nil(t, err)
-	require.NotNil(t, wf)
-	l, err := wf.Load()
-	assert.Nil(t, err)
-	assert.NotNil(t, l)
-
-	// Non-existent
-	tf, err := ioutil.TempFile(".", "file_test_")
-	assert.Nil(t, err)
-	require.NotNil(t, tf)
-	fname := tf.Name()
-	wf, err = file.NewWatched(fname)
-	assert.Nil(t, err)
-	require.NotNil(t, wf)
-	tf.Close()
-	os.Remove(fname)
-	l, err = wf.Load()
-	assert.NotNil(t, err)
-	assert.Nil(t, l)
+	require.NotNil(t, f)
+	w := f.Watcher()
+	assert.NotNil(t, w)
 }
 
-func TestWatchedFileClose(t *testing.T) {
+func TestClose(t *testing.T) {
 	f, err := ioutil.TempFile(".", "file_test_")
 	assert.Nil(t, err)
 	require.NotNil(t, f)
 	fname := f.Name()
 	defer os.Remove(fname)
-	wf, err := file.NewWatched(fname)
+	wf, err := file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	wf.Close()
-	err = wf.Watch(context.Background())
+	w := wf.Watcher()
+	require.NotNil(t, w)
+	w.Close()
+	err = w.Watch(context.Background())
 	assert.Equal(t, context.Canceled, err)
 }
 
-func testWatch(t *testing.T, w *file.WatchedLoader) {
-	t.Helper()
-}
-
-func TestWatchedFileWatch(t *testing.T) {
+func TestWatcherWatch(t *testing.T) {
 	// Write
 	tf, err := ioutil.TempFile(".", "file_test_")
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
 	fname := tf.Name()
-	wf, err := file.NewWatched(fname)
+	wf, err := file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
+	w := wf.Watcher()
+	require.NotNil(t, w)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error)
 	go func() {
-		err := wf.Watch(ctx)
+		err := w.Watch(ctx)
 		done <- err
 	}()
 	tf.Write([]byte("test pattern"))
@@ -118,10 +105,10 @@ func TestWatchedFileWatch(t *testing.T) {
 	// Close
 	done = make(chan error)
 	go func() {
-		err := wf.Watch(ctx)
+		err := w.Watch(ctx)
 		done <- err
 	}()
-	wf.Close()
+	w.Close()
 	select {
 	case err := <-done:
 		assert.Equal(t, context.Canceled, err)
@@ -130,12 +117,14 @@ func TestWatchedFileWatch(t *testing.T) {
 	}
 
 	// Remove
-	wf, err = file.NewWatched(fname)
+	wf, err = file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
+	w = wf.Watcher()
+	require.NotNil(t, w)
 	done = make(chan error)
 	go func() {
-		err := wf.Watch(ctx)
+		err := w.Watch(ctx)
 		done <- err
 	}()
 	tf.Close()
@@ -153,13 +142,15 @@ func TestWatchedFileWatch(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
 	fname = tf.Name()
-	wf, err = file.NewWatched(fname)
+	wf, err = file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
+	w = wf.Watcher()
+	require.NotNil(t, w)
 	ctx, cancel = context.WithCancel(context.Background())
 	done = make(chan error)
 	go func() {
-		err := wf.Watch(ctx)
+		err := w.Watch(ctx)
 		done <- err
 	}()
 	os.Rename(fname, fname+"r")
@@ -173,7 +164,7 @@ func TestWatchedFileWatch(t *testing.T) {
 	// Cancel
 	done = make(chan error)
 	go func() {
-		err := wf.Watch(ctx)
+		err := w.Watch(ctx)
 		done <- err
 	}()
 	cancel()

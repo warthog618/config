@@ -11,16 +11,25 @@ import (
 	"io/ioutil"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/warthog618/config/blob"
 )
 
-// Loader provides a read-once source of configuration from the local filesystem.
+// Loader provides reads configuration from the local filesystem.
 type Loader struct {
 	filename string
+	w        *watcher
 }
 
-// New creates a File loader with the specified path.
-func New(filename string) *Loader {
-	return &Loader{filename: filename}
+// New creates a loader with the specified path.
+func New(filename string, options ...Option) (*Loader, error) {
+	l := Loader{filename: filename}
+	for _, option := range options {
+		err := option.applyOption(&l)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &l, nil
 }
 
 // Load returns the current content of the file.
@@ -29,53 +38,33 @@ func (l *Loader) Load() ([]byte, error) {
 	return ioutil.ReadFile(l.filename)
 }
 
-// WatchedLoader provides an active source of configuration from the local filesystem.
-type WatchedLoader struct {
-	filename string
-	watcher  *fsnotify.Watcher
+// Watcher returns the watcher for the loader.
+// The watcher must be created using the WithWatch construction option.
+func (l *Loader) Watcher() blob.WatcherCloser {
+	return l.w
 }
 
-// NewWatched creates a WatchedFile with the specified path.
-// The file is expected to exist, else an error is returned.
-func NewWatched(filename string) (*WatchedLoader, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
-	err = watcher.Add(filename)
-	if err != nil {
-		return nil, err
-	}
-	return &WatchedLoader{filename: filename, watcher: watcher}, nil
-}
-
-// Close releases any resources allocated to the WatchedFile.
-// Once closed the file will no longer be monitored for changes.
-func (l *WatchedLoader) Close() error {
-	return l.watcher.Close()
-}
-
-// Load returns the current content of the watched file.
-func (l *WatchedLoader) Load() ([]byte, error) {
-	return ioutil.ReadFile(l.filename)
+// watcher watches a file for changes.
+type watcher struct {
+	*fsnotify.Watcher
 }
 
 // Watch blocks until the watched file is altered.
-// Alteration is relative to the construction of the WatchedFile, or the last
+// Alteration is relative to the construction of the Watcher, or the previous
 // call to Watch, whichever is more recent.
 // The Watch may be cancelled by providing a context WithCancel and
 // calling the cancel function.
 // The returned error is nil if file is changed, or an error if the context has
 // been cancelled or the WatchedFile closed.
-func (l *WatchedLoader) Watch(ctx context.Context) error {
+func (w *watcher) Watch(ctx context.Context) error {
 	for {
 		select {
-		case _, ok := <-l.watcher.Events:
+		case _, ok := <-w.Events:
 			if !ok {
 				return context.Canceled
 			}
 			return nil
-		case e, ok := <-l.watcher.Errors:
+		case e, ok := <-w.Errors:
 			if !ok {
 				return context.Canceled
 			}

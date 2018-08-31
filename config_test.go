@@ -87,7 +87,7 @@ func TestAddWatchedGetter(t *testing.T) {
 	ws := &watchedGetter{n: make(chan struct{})}
 	cfg := config.NewConfig(&mr)
 	w := cfg.NewWatcher()
-	cfg.AddWatchedGetter(ws)
+	cfg.AddGetterWatcher(ws)
 
 	// Updated
 	ws.Notify()
@@ -109,7 +109,7 @@ func TestAddWatchedGetter(t *testing.T) {
 
 	// exit
 	ws = &watchedGetter{n: make(chan struct{})}
-	cfg.AddWatchedGetter(ws)
+	cfg.AddGetterWatcher(ws)
 	ws.WatchError = errors.New("watch error")
 	ws.Notify()
 	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
@@ -748,7 +748,7 @@ func TestNewWatcher(t *testing.T) {
 
 	// Updated
 	ws := &watchedGetter{n: make(chan struct{})}
-	cfg = config.NewConfig(&mr, config.WithWatchedGetter(ws))
+	cfg = config.NewConfig(&mr, config.WithGetterWatcher(ws))
 	w = cfg.NewWatcher()
 	ws.Notify()
 	testWatcher(t, w, nil)
@@ -827,7 +827,7 @@ func TestNewKeyWatcher(t *testing.T) {
 
 	// Updated
 	ws := &watchedGetter{n: make(chan struct{})}
-	cfg = config.NewConfig(&mr, config.WithWatchedGetter(ws))
+	cfg = config.NewConfig(&mr, config.WithGetterWatcher(ws))
 	w = cfg.NewKeyWatcher("foo")
 	testKeyWatcher(t, w, "this is foo", nil)
 	testKeyWatcher(t, w, "", context.DeadlineExceeded)
@@ -886,6 +886,10 @@ type watchedGetter struct {
 	n          chan struct{}
 	WatchError error
 	Committed  bool
+}
+
+func (w *watchedGetter) Close() error {
+	return nil
 }
 
 func (w *watchedGetter) Watch(ctx context.Context) error {

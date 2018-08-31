@@ -10,8 +10,9 @@ import (
 )
 
 func main() {
-	f, _ := blob.New(file.New("config.hcl"), hcl.NewDecoder())
-	c := config.NewConfig(f)
+	f, _ := file.New("config.hcl")
+	b, _ := blob.New(f, hcl.NewDecoder())
+	c := config.NewConfig(b)
 	s := c.MustGet("nested[0].string").String()
 	fmt.Println("s:", s)
 	// ....

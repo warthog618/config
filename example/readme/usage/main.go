@@ -30,7 +30,8 @@ func main() {
 	g, _ = env.New(env.WithEnvPrefix(prefix))
 	sources.Append(g)
 	cf := cfg.MustGet("config.file").String()
-	g, _ = blob.New(file.New(cf), json.NewDecoder())
+	f, _ := file.New(cf)
+	g, _ = blob.New(f, json.NewDecoder())
 	sources.Append(g)
 
 	// read a config field from the root config

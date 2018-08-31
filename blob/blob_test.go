@@ -43,30 +43,23 @@ func TestNew(t *testing.T) {
 	require.Nil(t, s)
 }
 
-func TestNewWatched(t *testing.T) {
+func TestWatcher(t *testing.T) {
 	l := mockLoader{}
 	d := mockDecoder{}
 
 	// all good
-	s, err := blob.NewWatched(&l, &d)
+	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
+	w := s.Watcher()
+	require.NotNil(t, w)
 
-	dcerr := errors.New("decode error")
-	lderr := errors.New("load error")
-
-	// load error
-	l = mockLoader{LoadError: lderr}
-	d = mockDecoder{DecodeError: dcerr}
-	s, err = blob.NewWatched(&l, &d)
-	assert.Equal(t, lderr, err)
-	require.Nil(t, s)
-
-	// decode error
-	l = mockLoader{}
-	s, err = blob.NewWatched(&l, &d)
-	assert.Equal(t, dcerr, err)
-	require.Nil(t, s)
+	// not watchable
+	s, err = blob.New(&bareLoader{}, &d)
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+	w = s.Watcher()
+	require.Nil(t, w)
 }
 
 func TestNewWithSeparator(t *testing.T) {
@@ -84,34 +77,21 @@ func TestNewWithSeparator(t *testing.T) {
 	assert.Equal(t, true, v)
 }
 
-func TestNewWatchedWithSeparator(t *testing.T) {
-	l := mockLoader{}
-	d := mockDecoder{M: map[string]interface{}{
-		"a": map[string]interface{}{"b.c_d": true}}}
-	s, err := blob.NewWatched(&l, &d, blob.WithSeparator("-"))
-	assert.Nil(t, err)
-	require.NotNil(t, s)
-	v, ok := s.Get("a.b.c_d")
-	assert.False(t, ok)
-	assert.Nil(t, v)
-	v, ok = s.Get("a-b.c_d")
-	assert.True(t, ok)
-	assert.Equal(t, true, v)
-}
-
-func TestWatcheBlobClose(t *testing.T) {
+func TestWatcherClose(t *testing.T) {
 	clerr := errors.New("close error")
 	l := mockLoader{CloseError: clerr}
 	d := mockDecoder{}
-	s, err := blob.NewWatched(&l, &d)
+	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	err = s.Close()
+	w := s.Watcher()
+	require.NotNil(t, w)
+	err = w.Close()
 	assert.Equal(t, clerr, err)
 	assert.True(t, l.Closed)
 }
 
-func TestBlobGet(t *testing.T) {
+func TestGet(t *testing.T) {
 	l := mockLoader{}
 	d := mockDecoder{M: map[string]interface{}{
 		"a": map[string]interface{}{"b.c_d": true}}}
@@ -126,75 +106,60 @@ func TestBlobGet(t *testing.T) {
 	assert.Equal(t, true, v)
 }
 
-func TestWatchedBlobGet(t *testing.T) {
-	l := mockLoader{}
-	d := mockDecoder{M: map[string]interface{}{
-		"a": map[string]interface{}{"b.c_d": true}}}
-	s, err := blob.NewWatched(&l, &d)
-	assert.Nil(t, err)
-	require.NotNil(t, s)
-	v, ok := s.Get("")
-	assert.False(t, ok)
-	assert.Nil(t, v)
-	v, ok = s.Get("a.b.c_d")
-	assert.True(t, ok)
-	assert.Equal(t, true, v)
-}
-
-func TestWatchedBlobWatch(t *testing.T) {
+func TestWatch(t *testing.T) {
 	l := mockLoader{N: make(chan struct{})}
 	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := blob.NewWatched(&bareLoader{}, &d)
+	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-
-	s, err = blob.NewWatched(&l, &d)
-	assert.Nil(t, err)
+	w := s.Watcher()
 	require.NotNil(t, s)
 	// baseline
-	testWatcher(t, s, context.DeadlineExceeded)
+	testWatcher(t, w, context.DeadlineExceeded)
 
 	// update
 	d.M = map[string]interface{}{"a.b.c_d": "updated"}
-	l.Update()
-	testWatcher(t, s, nil)
+	l.Modify()
+	testWatcher(t, w, nil)
 
 	// no content change => no return
 	d.M = map[string]interface{}{"a.b.c_d": "baseline"}
-	l.Update()
-	testWatcher(t, s, context.DeadlineExceeded)
+	l.Modify()
+	testWatcher(t, w, context.DeadlineExceeded)
 
 	// bad load
 	d.M = map[string]interface{}{"a.b.c_d": "final"}
 	d.DecodeError = errors.New("Decode error")
-	l.Update()
-	testWatcher(t, s, d.DecodeError)
+	l.Modify()
+	testWatcher(t, w, d.DecodeError)
 
 	// pathological decoder
 	d.M = nil
 	d.DecodeError = nil
-	l.Update()
-	testWatcher(t, s, context.DeadlineExceeded)
+	l.Modify()
+	testWatcher(t, w, context.DeadlineExceeded)
 }
 
-func TestWatchedBlobCommitUpdate(t *testing.T) {
+func TestUpdate(t *testing.T) {
 	l := mockLoader{N: make(chan struct{})}
 	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := blob.NewWatched(&l, &d)
+	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
+	w := s.Watcher()
+	require.NotNil(t, w)
 
 	// baseline
-	testWatcher(t, s, context.DeadlineExceeded)
+	testWatcher(t, w, context.DeadlineExceeded)
 
 	// update
 	d.M = map[string]interface{}{"a.b.c_d": "updated"}
-	l.Update()
-	testWatcher(t, s, nil)
+	l.Modify()
+	testWatcher(t, w, nil)
 	v, ok := s.Get("a.b.c_d")
 	assert.True(t, ok)
 	assert.Equal(t, "baseline", v)
-	s.CommitUpdate()
+	w.CommitUpdate()
 	v, ok = s.Get("a.b.c_d")
 	assert.True(t, ok)
 	assert.Equal(t, "updated", v)
@@ -206,14 +171,6 @@ func (l *bareLoader) Load() ([]byte, error) {
 	return nil, nil
 }
 
-func (l *bareLoader) Close() error {
-	return nil
-}
-
-func (l *bareLoader) Watch(context.Context) error {
-	return nil
-}
-
 type mockLoader struct {
 	B          []byte
 	LoadError  error
@@ -222,13 +179,17 @@ type mockLoader struct {
 	N          chan struct{}
 }
 
+func (l *mockLoader) Load() ([]byte, error) {
+	return l.B, l.LoadError
+}
+
+func (l *mockLoader) Watcher() blob.WatcherCloser {
+	return l
+}
+
 func (l *mockLoader) Close() error {
 	l.Closed = true
 	return l.CloseError
-}
-
-func (l *mockLoader) Load() ([]byte, error) {
-	return l.B, l.LoadError
 }
 
 func (l *mockLoader) Watch(ctx context.Context) error {
@@ -241,7 +202,7 @@ func (l *mockLoader) Watch(ctx context.Context) error {
 	}
 }
 
-func (l *mockLoader) Update() {
+func (l *mockLoader) Modify() {
 	close(l.N)
 }
 

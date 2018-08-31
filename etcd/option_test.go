@@ -26,7 +26,7 @@ func TestNewWithClient(t *testing.T) {
 	})
 	defer terminate()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	e, err := etcd.New(ctx, "/my/config/", etcd.WithClient(cl))
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithClient(cl), etcd.WithWatcher())
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
@@ -88,10 +88,10 @@ func TestNewWithKeyReplacer(t *testing.T) {
 		"/my/config/nested.leaf":  "44",
 		"/my/config/nested.slice": "c,d",
 	}
-	_, cl, terminate := dummyEtcdServer(t, cfg)
+	ep, _, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	e, err := etcd.New(ctx, "/my/config/", etcd.WithClient(cl),
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(ep),
 		etcd.WithKeyReplacer(keys.CamelCaseReplacer()))
 	cancel()
 	assert.Nil(t, err)
@@ -107,7 +107,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	}
 }
 
-func TestNewWithListSeparator(t *testing.T) {
+func TestNewWithListSplitter(t *testing.T) {
 	patterns := []struct {
 		name string
 		sep  string
@@ -127,12 +127,12 @@ func TestNewWithListSeparator(t *testing.T) {
 		"/my/config/nested/hash":  "4#3",
 		"/my/config/nested/comma": "c,d",
 	}
-	_, cl, terminate := dummyEtcdServer(t, cfg)
+	ep, _, terminate := dummyEtcdServer(t, cfg)
 	defer terminate()
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			e, err := etcd.New(ctx, "/my/config/", etcd.WithClient(cl),
+			e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(ep),
 				etcd.WithListSplitter(list.NewSplitter(p.sep)))
 			cancel()
 			assert.Nil(t, err)
@@ -143,4 +143,18 @@ func TestNewWithListSeparator(t *testing.T) {
 		}
 		t.Run(p.name, f)
 	}
+}
+
+func TestNewWithWatcher(t *testing.T) {
+	addr, _, terminate := dummyEtcdServer(t, map[string]string{
+		"/my/config/hello": "world",
+	})
+	defer terminate()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
+	cancel()
+	assert.Nil(t, err)
+	require.NotNil(t, e)
+	w := e.Watcher()
+	require.NotNil(t, w)
 }
