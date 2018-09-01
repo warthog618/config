@@ -51,14 +51,16 @@ func TestWatcher(t *testing.T) {
 	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w := s.Watcher()
+	w, ok := s.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 
 	// not watchable
 	s, err = blob.New(&bareLoader{}, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w = s.Watcher()
+	w, ok = s.Watcher()
+	assert.False(t, ok)
 	require.Nil(t, w)
 }
 
@@ -84,7 +86,8 @@ func TestWatcherClose(t *testing.T) {
 	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w := s.Watcher()
+	w, ok := s.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 	err = w.Close()
 	assert.Equal(t, clerr, err)
@@ -112,7 +115,8 @@ func TestWatch(t *testing.T) {
 	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w := s.Watcher()
+	w, ok := s.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, s)
 	// baseline
 	testWatcher(t, w, context.DeadlineExceeded)
@@ -146,7 +150,8 @@ func TestUpdate(t *testing.T) {
 	s, err := blob.New(&l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w := s.Watcher()
+	w, ok := s.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 
 	// baseline

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/keys"
 )
@@ -62,32 +63,6 @@ func TestDecorate(t *testing.T) {
 	}
 }
 
-func TestOverlay(t *testing.T) {
-	under := mockGetter{
-		"a.b.c": 43,
-		"a.b.d": 41,
-	}
-	over := mockGetter{
-		"a.b.d": 42,
-	}
-	g := config.Overlay(over, under)
-
-	// under
-	c, ok := g.Get("a.b.c")
-	assert.True(t, ok)
-	assert.Equal(t, 43, c)
-
-	// shadowed by over
-	c, ok = g.Get("a.b.d")
-	assert.True(t, ok)
-	assert.Equal(t, 42, c)
-
-	// neither
-	c, ok = g.Get("a.b.e")
-	assert.False(t, ok)
-	assert.Nil(t, c)
-}
-
 func TestWithDefault(t *testing.T) {
 	def := mockGetter{
 		"a.b.c": 43,
@@ -115,6 +90,7 @@ func TestWithDefault(t *testing.T) {
 
 	// nil default
 	g = config.WithDefault(nil)(nondef)
+	assert.Equal(t, nondef, g)
 
 	// no longer defaulted
 	c, ok = g.Get("a.b.c")
@@ -125,6 +101,8 @@ func TestWithDefault(t *testing.T) {
 	c, ok = g.Get("a.b.d")
 	assert.True(t, ok)
 	assert.Equal(t, 42, c)
+
+	testDecoratorWatchable(t, config.WithDefault(&def))
 }
 
 func TestWithGraft(t *testing.T) {
@@ -154,12 +132,13 @@ func TestWithGraft(t *testing.T) {
 		}
 		t.Run(p.name, f)
 	}
+	testDecoratorWatchable(t, config.WithGraft("blah."))
 }
 func TestWithKeyReplacer(t *testing.T) {
 	patterns := []struct {
 		name     string
 		k        string
-		d        config.Replacer
+		d        keys.Replacer
 		expected string
 	}{
 		{"nil", "a.b.c.d", nil, "a.b.c.d"},
@@ -176,19 +155,21 @@ func TestWithKeyReplacer(t *testing.T) {
 		}
 		t.Run(p.name, f)
 	}
+	testDecoratorWatchable(t, config.WithKeyReplacer(keys.LowerCaseReplacer()))
 }
 
 func TestWithMustGet(t *testing.T) {
 	mg := mockGetter{
 		"a": "is a",
 	}
-	pr := config.WithMustGet()(&mg)
+	pr := config.WithMustGet()(mg)
 	v, ok := pr.Get("a")
 	assert.True(t, true, ok)
 	assert.Equal(t, "is a", v)
 	assert.Panics(t, func() {
 		pr.Get("nosuch")
 	})
+	testDecoratorWatchable(t, config.WithMustGet())
 }
 
 func TestWithPrefix(t *testing.T) {
@@ -211,6 +192,31 @@ func TestWithPrefix(t *testing.T) {
 		}
 		t.Run(p.name, f)
 	}
+	testDecoratorWatchable(t, config.WithPrefix("any prefix"))
+}
+
+func testDecoratorWatchable(t *testing.T, d config.Decorator) {
+	t.Helper()
+	// unwatchableGetter
+	mg := mockGetter{}
+	g := d(mg)
+	wg, ok := g.(config.WatchableGetter)
+	assert.True(t, ok)
+	require.NotNil(t, wg)
+	w, ok := wg.Watcher()
+	assert.False(t, ok)
+	require.Nil(t, w)
+
+	// watchableGetter
+	ws := &getterWatcher{n: make(chan struct{})}
+	mgw := watchedGetter{mg, ws}
+	g = d(mgw)
+	wg, ok = g.(config.WatchableGetter)
+	assert.True(t, ok)
+	require.NotNil(t, wg)
+	w, ok = wg.Watcher()
+	assert.True(t, ok)
+	require.NotNil(t, w)
 }
 
 type echoGetter struct{}

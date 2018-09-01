@@ -155,6 +155,7 @@ func TestNewWithWatcher(t *testing.T) {
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
-	w := e.Watcher()
+	w, ok := e.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 }

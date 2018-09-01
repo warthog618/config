@@ -20,7 +20,6 @@ func main() {
 	l, _ := file.New("config.json", file.WithWatcher())
 	g, _ := blob.New(l, json.NewDecoder())
 	c := config.NewConfig(g)
-	c.AddGetterWatcher(g.Watcher())
 
 	update := make(chan interface{})
 	w := c.NewWatcher()

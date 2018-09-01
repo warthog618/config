@@ -197,9 +197,31 @@ A getter must satisfy a simple interface:
 
 ```go
 type Getter interface {
+    // Get the value of the named config leaf key.
+    // Also returns an ok, similar to a map read, to indicate if the value was
+    // found.
+    // The type underlying the returned interface{} must be convertable to the
+    // expected type by cfgconv.
+    // ...
     Get(key string) (value interface{}, found bool)
 }
 ```
+
+Refer to the documentation for a more complete definition of the Getter interface.
+
+The Getter may optionally support the [WatchableGetter](https://godoc.org/github.com/warthog618/config#WatchableGetter) interface to indicate that
+it supports being watched for changes.  This is typically enabled via a
+construction option.
+
+```go
+type WatchableGetter interface {
+    // Watcher returns the watcher for a Getter.
+    // Returns false if the associated Getter does not support watches.
+    Watcher() (GetterWatcher, bool)
+}
+```
+
+If a Getter supports the WatchableGetter interface and indicates that it is watchable, by returning true form Watcher(), then the Config will monitor the Getter for changes and trigger its own Watchers and KeyWatchers when the underlying source changes.
 
 The source of configuration may be local or remote.  Getters for remote configuration typically cache a snapshot of configuration locally.
 
@@ -246,9 +268,7 @@ the Loader, which loads the configuration as a []byte blob from the source, and
 the Decoder, which decodes the blob into a form that can be used by config.
 
 The Loader may support being watched for changes, and if so the Blob
-containing it can be added to the config using
-[AddWatchedGetter](https://godoc.org/github.com/warthog618/config#Config.AddWatchedGetter)
-to trigger changes to the configuration when the underlying source changes.
+containing it will automatically support being watched for changes as well.
 
 #### Loaders
 
@@ -471,10 +491,9 @@ This example watches a configuration file and prints updates to the configuratio
 
 ```go
 func main() {
-    l, _ := file.NewWatched("config.json")
-    g, _ := blob.NewWatched(l, json.NewDecoder())
+    l, _ := file.New("config.json", file.WithWatcher())
+    g, _ := blob.New(l, json.NewDecoder())
     c := config.NewConfig(g)
-    c.AddWatchedGetter(g)
 
     update := make(chan int64)
     w := c.NewKeyWatcher("somevariable")

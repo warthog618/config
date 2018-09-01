@@ -9,13 +9,20 @@ package config
 // calls a TraceFunc with the result.
 func WithTrace(t TraceFunc) Decorator {
 	return func(g Getter) Getter {
-		return GetterFunc(func(key string) (interface{}, bool) {
-			v, ok := g.Get(key)
-			t(key, v, ok)
-			return v, ok
-		})
+		return traceDecorator{getterDecorator{g}, t}
 	}
 }
 
 // TraceFunc traces the parameters and results of a call to a Getter.
 type TraceFunc func(k string, v interface{}, ok bool)
+
+type traceDecorator struct {
+	getterDecorator
+	t TraceFunc
+}
+
+func (g traceDecorator) Get(key string) (interface{}, bool) {
+	v, ok := g.g.Get(key)
+	g.t(key, v, ok)
+	return v, ok
+}

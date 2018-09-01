@@ -112,7 +112,6 @@ func loadConfig() *config.Config {
 			panic(err)
 		}
 		sources.Append(jget)
-		cfg.AddGetterWatcher(jget.Watcher())
 	} else {
 		// implicit and optional default config file
 		cfgFile, _ := file.New("app.json")

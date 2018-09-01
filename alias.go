@@ -26,14 +26,22 @@ func NewAlias(options ...aliasOption) *Alias {
 // to a set of aliases if the lookup of the key fails.
 func WithAlias(a *Alias) Decorator {
 	return func(g Getter) Getter {
-		return GetterFunc(func(key string) (interface{}, bool) {
-			return a.Get(g, key)
-		})
+		return aliasDecorator{getterDecorator{g}, a}
 	}
+}
+
+type aliasDecorator struct {
+	getterDecorator
+	a *Alias
+}
+
+func (g aliasDecorator) Get(key string) (interface{}, bool) {
+	return g.a.Get(g.g, key)
 }
 
 // Alias provides a mapping from a key to a set of old or alternate keys.
 type Alias struct {
+	getterDecorator
 	// mutex lock covering aa and the arrays it contains.
 	mu      sync.RWMutex
 	aa      map[string][]string
@@ -81,10 +89,17 @@ func NewRegexAlias() *RegexAlias {
 // to a set of regular expression aliases if the lookup of the key fails.
 func WithRegexAlias(r *RegexAlias) Decorator {
 	return func(g Getter) Getter {
-		return GetterFunc(func(key string) (interface{}, bool) {
-			return r.Get(g, key)
-		})
+		return regexDecorator{getterDecorator{g}, r}
 	}
+}
+
+type regexDecorator struct {
+	getterDecorator
+	r *RegexAlias
+}
+
+func (g regexDecorator) Get(key string) (interface{}, bool) {
+	return g.r.Get(g.g, key)
 }
 
 type regex struct {

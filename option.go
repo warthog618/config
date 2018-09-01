@@ -10,22 +10,6 @@ type Option interface {
 	applyConfigOption(c *Config)
 }
 
-// WithGetterWatcher adds one or more Getters for the Config to watch.
-func WithGetterWatcher(rr ...GetterWatcher) Option {
-	return WatchedGetterOption{rr}
-}
-
-// WatchedGetterOption contains the Getters to be watched by Config.
-type WatchedGetterOption struct {
-	rr []GetterWatcher
-}
-
-func (u WatchedGetterOption) applyConfigOption(c *Config) {
-	for _, r := range u.rr {
-		c.AddGetterWatcher(r)
-	}
-}
-
 // SeparatorOption defines the string that separates tiers in keys.
 type SeparatorOption struct {
 	s string

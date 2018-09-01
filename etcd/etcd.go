@@ -107,9 +107,12 @@ func (g *Getter) Get(key string) (interface{}, bool) {
 
 // Watcher returns the watcher for the getter.
 // The watcher is created at construction time if the Loader has a watcher.
-// Returns nil if the getter is not watchable.
-func (g *Getter) Watcher() config.GetterWatcher {
-	return g.w
+// Returns false if the getter is not watchable.
+func (g *Getter) Watcher() (config.GetterWatcher, bool) {
+	if g.w == nil {
+		return nil, false
+	}
+	return g.w, true
 }
 
 // Watch blocks until the etcd configuration changes.

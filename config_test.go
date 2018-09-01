@@ -79,15 +79,15 @@ func TestNewConfigWithMust(t *testing.T) {
 	})
 }
 
-func TestAddWatchedGetter(t *testing.T) {
+func TestNewWatchedGetter(t *testing.T) {
 	mr := mockGetter{
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
 	}
-	ws := &watchedGetter{n: make(chan struct{})}
-	cfg := config.NewConfig(&mr)
+	ws := &getterWatcher{n: make(chan struct{})}
+	wg := watchedGetter{mr, ws}
+	cfg := config.NewConfig(&wg)
 	w := cfg.NewWatcher()
-	cfg.AddGetterWatcher(ws)
 
 	// Updated
 	ws.Notify()
@@ -108,8 +108,10 @@ func TestAddWatchedGetter(t *testing.T) {
 	cancel()
 
 	// exit
-	ws = &watchedGetter{n: make(chan struct{})}
-	cfg.AddGetterWatcher(ws)
+	ws = &getterWatcher{n: make(chan struct{})}
+	wg = watchedGetter{mr, ws}
+	cfg = config.NewConfig(&wg)
+	w = cfg.NewWatcher()
 	ws.WatchError = errors.New("watch error")
 	ws.Notify()
 	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
@@ -747,8 +749,9 @@ func TestNewWatcher(t *testing.T) {
 	testWatcher(t, w, context.DeadlineExceeded)
 
 	// Updated
-	ws := &watchedGetter{n: make(chan struct{})}
-	cfg = config.NewConfig(&mr, config.WithGetterWatcher(ws))
+	ws := &getterWatcher{n: make(chan struct{})}
+	wg := watchedGetter{mr, ws}
+	cfg = config.NewConfig(&wg)
 	w = cfg.NewWatcher()
 	ws.Notify()
 	testWatcher(t, w, nil)
@@ -826,8 +829,9 @@ func TestNewKeyWatcher(t *testing.T) {
 	testKeyWatcher(t, w, "this is foo", nil)
 
 	// Updated
-	ws := &watchedGetter{n: make(chan struct{})}
-	cfg = config.NewConfig(&mr, config.WithGetterWatcher(ws))
+	ws := &getterWatcher{n: make(chan struct{})}
+	wg := watchedGetter{mr, ws}
+	cfg = config.NewConfig(&wg)
 	w = cfg.NewKeyWatcher("foo")
 	testKeyWatcher(t, w, "this is foo", nil)
 	testKeyWatcher(t, w, "", context.DeadlineExceeded)
@@ -883,26 +887,45 @@ func (m mockGetter) Get(key string) (interface{}, bool) {
 }
 
 type watchedGetter struct {
+	mockGetter
+	w config.GetterWatcher
+}
+
+func (w watchedGetter) Watcher() (config.GetterWatcher, bool) {
+	if w.w == nil {
+		return nil, false
+	}
+	return w.w, true
+}
+
+type getterWatcher struct {
 	n          chan struct{}
 	WatchError error
 	Committed  bool
+	CloseError error
+	Closed     bool
 }
 
-func (w *watchedGetter) Close() error {
-	return nil
+func (w *getterWatcher) Close() error {
+	w.Closed = true
+	return w.CloseError
 }
 
-func (w *watchedGetter) Watch(ctx context.Context) error {
+func (w *getterWatcher) Watch(ctx context.Context) error {
 	<-w.n
 	return w.WatchError
 }
 
-func (w *watchedGetter) CommitUpdate() {
+func (w *getterWatcher) CommitUpdate() {
 	w.n = make(chan struct{})
 	w.Committed = true
 }
 
-func (w *watchedGetter) Notify() {
+func (w *getterWatcher) Reset() {
+	w.n = make(chan struct{})
+}
+
+func (w *getterWatcher) Notify() {
 	close(w.n)
 }
 
