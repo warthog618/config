@@ -441,7 +441,7 @@ func main() {
         "config.file":   "myapp.json",
         "sm.pin":        27,
         "sm.period":     "250ms",
-        "sm.thresholds": "23,45,64",
+        "sm.thresholds": []int8{23, 45, 64},
     }))
     var g config.Getter
     g, _ = pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"}))
@@ -452,7 +452,9 @@ func main() {
     g, _ = env.New(env.WithEnvPrefix(prefix))
     sources.Append(g)
     cf := cfg.MustGet("config.file").String()
-    g, _ = config.NewSource(file.New(cf), json.NewDecoder())
+    f, _ := file.New(cf)
+    g, _ = blob.New(f, json.NewDecoder())
+
     sources.Append(g)
 
     // read a config field from the root config
@@ -462,9 +464,19 @@ func main() {
     smCfg := cfg.GetConfig("sm")
     pin := smCfg.MustGet("pin").Uint()
     period := smCfg.MustGet("period").Duration()
-    thresholds, _ := smCfg.Get("thresholds")
+    thresholds := smCfg.MustGet("thresholds").IntSlice()
 
     fmt.Println(cf, name, pin, period, thresholds)
+
+    // or using Unmarshal to populate a config struct...
+    type SMConfig struct {
+        Pin        uint
+        Period     time.Duration
+        Thresholds []int
+    }
+    sc := SMConfig{}
+    cfg.Unmarshal("sm", &sc)
+    fmt.Println(cf, name, sc)
 }
 ```
 
