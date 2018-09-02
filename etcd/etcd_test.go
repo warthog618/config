@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	defaultTimeout = 100 * time.Millisecond
+	defaultTimeout = 500 * time.Millisecond
 	longTimeout    = 10 * time.Second
 )
 
@@ -230,7 +230,7 @@ func dummyEtcdServer(t *testing.T, mss map[string]string) (string, *clientv3.Cli
 	clus := integration.NewClusterV3(t,
 		&integration.ClusterConfig{Size: 1})
 	c := clus.RandClient()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	for k, v := range mss {
 		_, err := c.Put(ctx, k, v)
 		if err != nil {
@@ -260,7 +260,7 @@ func testWatcher(t *testing.T, w watcher, xerr error) {
 	select {
 	case err := <-updated:
 		assert.Equal(t, xerr, errors.Cause(err))
-	case <-time.After(time.Second):
+	case <-time.After(longTimeout):
 		assert.Fail(t, "watch failed to return")
 	}
 	cancel()
