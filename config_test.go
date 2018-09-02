@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/gob"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,41 +85,31 @@ func TestNewWatchedGetter(t *testing.T) {
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
 	}
-	ws := &getterWatcher{n: make(chan struct{})}
+	ws := NewGetterWatcher()
+	defer ws.Close()
 	wg := watchedGetter{mr, ws}
 	cfg := config.NewConfig(&wg)
 	w := cfg.NewWatcher()
 
 	// Updated
-	ws.Notify()
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	err := w.Watch(ctx)
-	assert.Nil(t, err)
+	testWatcher(t, w, ws.Notify, nil)
 	assert.True(t, ws.Committed)
-	cancel()
 
 	// Temporary error
 	ws.Committed = false
-	ws.WatchError = config.WithTemporary(errors.New("temp watch error"))
-	ws.Notify()
-	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
-	err = w.Watch(ctx)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	ws.WatchError(config.WithTemporary(errors.New("temp watch error")))
+	testWatcher(t, w, ws.Notify, context.DeadlineExceeded)
 	assert.False(t, ws.Committed)
-	cancel()
 
 	// exit
-	ws = &getterWatcher{n: make(chan struct{})}
+	ws = NewGetterWatcher()
+	defer ws.Close()
 	wg = watchedGetter{mr, ws}
 	cfg = config.NewConfig(&wg)
 	w = cfg.NewWatcher()
-	ws.WatchError = errors.New("watch error")
-	ws.Notify()
-	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
-	err = w.Watch(ctx)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	ws.WatchError(errors.New("watch error"))
+	testWatcher(t, w, ws.Notify, context.DeadlineExceeded)
 	assert.False(t, ws.Committed)
-	cancel()
 }
 
 func TestGet(t *testing.T) {
@@ -742,19 +733,19 @@ func TestNewWatcher(t *testing.T) {
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
 	}
+
 	// Static config
 	cfg := config.NewConfig(&mr)
-	ctx := context.Background()
 	w := cfg.NewWatcher()
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
 	// Updated
-	ws := &getterWatcher{n: make(chan struct{})}
+	ws := NewGetterWatcher()
+	defer ws.Close()
 	wg := watchedGetter{mr, ws}
 	cfg = config.NewConfig(&wg)
 	w = cfg.NewWatcher()
-	ws.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, ws.Notify, nil)
 
 	// Cancelled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -777,14 +768,17 @@ type watcher interface {
 	Watch(context.Context) error
 }
 
-func testWatcher(t *testing.T, w watcher, xerr error) {
+func testWatcher(t *testing.T, w watcher, notify func(), xerr error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*defaultTimeout)
 	updated := make(chan error)
 	go func() {
 		err := w.Watch(ctx)
 		updated <- err
 	}()
+	if notify != nil {
+		notify()
+	}
 	select {
 	case err := <-updated:
 		assert.Equal(t, xerr, errors.Cause(err))
@@ -798,7 +792,7 @@ type keyWatcher interface {
 	Watch(context.Context) (config.Value, error)
 }
 
-func testKeyWatcher(t *testing.T, w keyWatcher, xv string, xerr error) {
+func testKeyWatcher(t *testing.T, w keyWatcher, notify func(), xv string, xerr error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	updated := make(chan error)
@@ -808,6 +802,9 @@ func testKeyWatcher(t *testing.T, w keyWatcher, xv string, xerr error) {
 		v, err = w.Watch(ctx)
 		updated <- err
 	}()
+	if notify != nil {
+		notify()
+	}
 	select {
 	case err := <-updated:
 		assert.Equal(t, xerr, err)
@@ -826,29 +823,27 @@ func TestNewKeyWatcher(t *testing.T) {
 	// Static config
 	cfg := config.NewConfig(&mr)
 	w := cfg.NewKeyWatcher("foo")
-	testKeyWatcher(t, w, "this is foo", nil)
+	testKeyWatcher(t, w, nil, "this is foo", nil)
 
 	// Updated
-	ws := &getterWatcher{n: make(chan struct{})}
+	ws := NewGetterWatcher()
+	defer ws.Close()
 	wg := watchedGetter{mr, ws}
 	cfg = config.NewConfig(&wg)
 	w = cfg.NewKeyWatcher("foo")
-	testKeyWatcher(t, w, "this is foo", nil)
-	testKeyWatcher(t, w, "", context.DeadlineExceeded)
+	testKeyWatcher(t, w, nil, "this is foo", nil)
+	testKeyWatcher(t, w, nil, "", context.DeadlineExceeded)
 
 	// unchanged
-	ws.Notify()
-	testKeyWatcher(t, w, "", context.DeadlineExceeded)
+	testKeyWatcher(t, w, ws.Notify, "", context.DeadlineExceeded)
 
 	// changed
 	mr["foo"] = "this is new foo"
-	ws.Notify()
-	testKeyWatcher(t, w, "this is new foo", nil)
+	testKeyWatcher(t, w, ws.Notify, "this is new foo", nil)
 
 	// Deleted
 	delete(mr, "foo")
-	ws.Notify()
-	testKeyWatcher(t, w, "", config.NotFoundError{Key: "foo"})
+	testKeyWatcher(t, w, ws.Notify, "", config.NotFoundError{Key: "foo"})
 
 	// Cancelled
 	mr["foo"] = "this is foo too"
@@ -898,35 +893,64 @@ func (w watchedGetter) Watcher() (config.GetterWatcher, bool) {
 	return w.w, true
 }
 
+func NewGetterWatcher() *getterWatcher {
+	n := make(chan struct{})
+	return &getterWatcher{n: n, update: n}
+}
+
 type getterWatcher struct {
+	mu         sync.RWMutex
 	n          chan struct{}
-	WatchError error
+	update     <-chan struct{}
+	watchError error
 	Committed  bool
 	CloseError error
 	Closed     bool
 }
 
 func (w *getterWatcher) Close() error {
+	select {
+	case <-w.update:
+	default:
+		w.Notify()
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.watchError = context.Canceled
 	w.Closed = true
 	return w.CloseError
 }
 
 func (w *getterWatcher) Watch(ctx context.Context) error {
-	<-w.n
-	return w.WatchError
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-w.update:
+		w.mu.Lock()
+		w.update = w.n
+		err := w.watchError
+		w.mu.Unlock()
+		return err
+	}
 }
 
 func (w *getterWatcher) CommitUpdate() {
-	w.n = make(chan struct{})
+	w.mu.Lock()
 	w.Committed = true
+	w.mu.Unlock()
 }
 
-func (w *getterWatcher) Reset() {
-	w.n = make(chan struct{})
+func (w *getterWatcher) WatchError(err error) {
+	w.mu.Lock()
+	w.watchError = err
+	w.mu.Unlock()
 }
 
 func (w *getterWatcher) Notify() {
+	w.mu.Lock()
 	close(w.n)
+	w.n = make(chan struct{})
+	w.mu.Unlock()
 }
 
 func init() {

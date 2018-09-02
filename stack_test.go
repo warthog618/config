@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,6 +59,16 @@ func TestStackAppend(t *testing.T) {
 	v, ok = s.Get("something three")
 	assert.True(t, ok)
 	assert.Exactly(t, mr3["something three"], v)
+
+	// add non-watchable
+	s.Watcher() // to trigger append path
+	g3 := mockGetter{
+		"a.b.d": 123,
+	}
+	s.Append(g3)
+	v, ok = s.Get("a.b.d")
+	assert.True(t, ok)
+	assert.Exactly(t, g3["a.b.d"], v)
 }
 
 func TestStackGet(t *testing.T) {
@@ -161,6 +172,15 @@ func TestStackInsert(t *testing.T) {
 	assert.True(t, ok)
 	assert.Exactly(t, mr1["something bottom"], v)
 
+	// add non-watchable
+	s.Watcher() // to trigger append path
+	g3 := mockGetter{
+		"a.b.d": 123,
+	}
+	s.Insert(g3)
+	v, ok = s.Get("a.b.d")
+	assert.True(t, ok)
+	assert.Exactly(t, g3["a.b.d"], v)
 }
 
 func TestStackWatcher(t *testing.T) {
@@ -171,8 +191,10 @@ func TestStackWatcher(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := &getterWatcher{n: make(chan struct{})}
-	gw2 := &getterWatcher{n: make(chan struct{})}
+	gw1 := NewGetterWatcher()
+	defer gw1.Close()
+	gw2 := NewGetterWatcher()
+	defer gw2.Close()
 	wg1 := watchedGetter{g1, gw1}
 	wg2 := watchedGetter{g2, gw2}
 	g := config.NewStack(wg1, wg2)
@@ -194,8 +216,10 @@ func TestStackWatcherWatch(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := &getterWatcher{n: make(chan struct{})}
-	gw2 := &getterWatcher{n: make(chan struct{})}
+	gw1 := NewGetterWatcher()
+	defer gw1.Close()
+	gw2 := NewGetterWatcher()
+	defer gw2.Close()
 	wg1 := watchedGetter{g1, gw1}
 	wg2 := watchedGetter{g2, gw2}
 	g := config.NewStack(wg1, wg2)
@@ -204,34 +228,29 @@ func TestStackWatcherWatch(t *testing.T) {
 	assert.True(t, ok)
 	require.NotNil(t, w)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
-	gw1.WatchError = config.WithTemporary(errors.New("watch error"))
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
-	gw1.Reset()
-	gw1.WatchError = nil
+	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
+	gw1.WatchError(nil)
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw2.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw2.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.WatchError = errors.New("watch error")
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
+	gw1.WatchError(errors.New("watch error"))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
 	// Close after start
-	gw2.Notify() // force second watcher to block on commit
+	gw2.Notify()               // force second watcher to block on commit
+	time.Sleep(defaultTimeout) // wait for it to get there
 	assert.False(t, gw1.Closed)
 	assert.False(t, gw2.Closed)
 	w.Close()
@@ -247,8 +266,10 @@ func TestStackAppendWatch(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := &getterWatcher{n: make(chan struct{})}
-	gw2 := &getterWatcher{n: make(chan struct{})}
+	gw1 := NewGetterWatcher()
+	defer gw1.Close()
+	gw2 := NewGetterWatcher()
+	defer gw2.Close()
 	wg1 := watchedGetter{g1, gw1}
 	wg2 := watchedGetter{g2, gw2}
 	g := config.NewStack(wg1)
@@ -257,36 +278,30 @@ func TestStackAppendWatch(t *testing.T) {
 	assert.True(t, ok)
 	require.NotNil(t, w)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
 	g.Append(wg2)
 
 	wg3 := watchedGetter{g2, nil}
 	g.Append(wg3)
 
-	gw1.WatchError = config.WithTemporary(errors.New("watch error"))
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
-	gw1.Reset()
-	gw1.WatchError = nil
+	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
+	gw1.WatchError(nil)
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw2.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw2.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.WatchError = errors.New("watch error")
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
+	gw1.WatchError(errors.New("watch error"))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
 	// Close after start
 	assert.False(t, gw1.Closed)
@@ -304,8 +319,10 @@ func TestStackInsertWatch(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := &getterWatcher{n: make(chan struct{})}
-	gw2 := &getterWatcher{n: make(chan struct{})}
+	gw1 := NewGetterWatcher()
+	defer gw1.Close()
+	gw2 := NewGetterWatcher()
+	defer gw2.Close()
 	wg1 := watchedGetter{g1, gw1}
 	wg2 := watchedGetter{g2, gw2}
 	g := config.NewStack(wg1)
@@ -315,31 +332,25 @@ func TestStackInsertWatch(t *testing.T) {
 	require.NotNil(t, w)
 	g.Insert(wg2)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
-	gw1.WatchError = config.WithTemporary(errors.New("watch error"))
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
-	gw1.Reset()
-	gw1.WatchError = nil
+	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
+	gw1.WatchError(nil)
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw2.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw2.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.WatchError = errors.New("watch error")
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
+	gw1.WatchError(errors.New("watch error"))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
 	// Close after start
 	assert.False(t, gw1.Closed)

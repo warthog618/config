@@ -44,10 +44,8 @@ func (s *Stack) Append(g Getter) {
 	}
 	s.mu.Lock()
 	s.gg = append(s.gg, g)
-	if wg, ok := g.(WatchableGetter); ok && s.w != nil {
-		if w, ok := wg.Watcher(); ok {
-			s.w.append(w)
-		}
+	if s.w != nil {
+		s.w.append(g)
 	}
 	s.mu.Unlock()
 }
@@ -75,10 +73,8 @@ func (s *Stack) Insert(g Getter) {
 	}
 	s.mu.Lock()
 	s.gg = append([]Getter{g}, s.gg...)
-	if wg, ok := g.(WatchableGetter); ok && s.w != nil {
-		if w, ok := wg.Watcher(); ok {
-			s.w.append(w)
-		}
+	if s.w != nil {
+		s.w.append(g)
 	}
 	s.mu.Unlock()
 }
@@ -132,9 +128,15 @@ func (s *stackWatcher) Close() (rerr error) {
 }
 
 func (s *stackWatcher) CommitUpdate() {
-	g := <-s.cchan
-	g.CommitUpdate()
-	go s.watchGetter(s.wctx, g)
+	for {
+		select {
+		case g := <-s.cchan:
+			g.CommitUpdate()
+			go s.watchGetter(s.wctx, g)
+		default:
+			return
+		}
+	}
 }
 
 func (s *stackWatcher) Watch(ctx context.Context) error {
@@ -169,15 +171,24 @@ func (s *stackWatcher) watchGetter(ctx context.Context, gw GetterWatcher) {
 	}
 	select {
 	case <-ctx.Done():
+		return
 	case s.uchan <- gw:
 	}
 }
 
-func (s *stackWatcher) append(gw GetterWatcher) {
+func (s *stackWatcher) append(g Getter) {
+	wg, ok := g.(WatchableGetter)
+	if !ok {
+		return
+	}
+	w, ok := wg.Watcher()
+	if !ok {
+		return
+	}
 	s.mu.Lock()
-	s.gg = append(s.gg, gw)
+	s.gg = append(s.gg, w)
 	if s.wctx != nil {
-		go s.watchGetter(s.wctx, gw)
+		go s.watchGetter(s.wctx, w)
 	}
 	s.mu.Unlock()
 }

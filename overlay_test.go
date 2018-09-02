@@ -53,8 +53,10 @@ func TestOverlayWatcherClose(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := &getterWatcher{n: make(chan struct{})}
-	gw2 := &getterWatcher{n: make(chan struct{})}
+	gw1 := NewGetterWatcher()
+	defer gw1.Close()
+	gw2 := NewGetterWatcher()
+	defer gw2.Close()
 	wg1 := watchedGetter{g1, gw1}
 	wg2 := watchedGetter{g2, gw2}
 	g := config.Overlay(wg1, wg2)
@@ -77,8 +79,10 @@ func TestOverlayWatcherWatch(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := &getterWatcher{n: make(chan struct{})}
-	gw2 := &getterWatcher{n: make(chan struct{})}
+	gw1 := NewGetterWatcher()
+	defer gw1.Close()
+	gw2 := NewGetterWatcher()
+	defer gw2.Close()
 	wg1 := watchedGetter{g1, gw1}
 	wg2 := watchedGetter{g2, gw2}
 	g := config.Overlay(wg1, wg2)
@@ -87,31 +91,25 @@ func TestOverlayWatcherWatch(t *testing.T) {
 	assert.True(t, ok)
 	require.NotNil(t, w)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
-	gw1.WatchError = config.WithTemporary(errors.New("watch error"))
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
-	gw1.Reset()
-	gw1.WatchError = nil
+	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
+	gw1.WatchError(nil)
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw2.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw2.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.Notify()
-	testWatcher(t, w, nil)
+	testWatcher(t, w, gw1.Notify, nil)
 	w.CommitUpdate()
 
-	gw1.WatchError = errors.New("watch error")
-	gw1.Notify()
-	testWatcher(t, w, context.DeadlineExceeded)
+	gw1.WatchError(errors.New("watch error"))
+	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
 
-	testWatcher(t, w, context.DeadlineExceeded)
+	testWatcher(t, w, nil, context.DeadlineExceeded)
 
 	// Close after start
 	assert.False(t, gw1.Closed)

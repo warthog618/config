@@ -208,7 +208,8 @@ func testDecoratorWatchable(t *testing.T, d config.Decorator) {
 	require.Nil(t, w)
 
 	// watchableGetter
-	ws := &getterWatcher{n: make(chan struct{})}
+	ws := NewGetterWatcher()
+	defer ws.Close()
 	mgw := watchedGetter{mg, ws}
 	g = d(mgw)
 	wg, ok = g.(config.WatchableGetter)
