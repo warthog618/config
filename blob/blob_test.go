@@ -64,21 +64,6 @@ func TestWatcher(t *testing.T) {
 	require.Nil(t, w)
 }
 
-func TestNewWithSeparator(t *testing.T) {
-	l := mockLoader{}
-	d := mockDecoder{M: map[string]interface{}{
-		"a": map[string]interface{}{"b.c_d": true}}}
-	s, err := blob.New(&l, &d, blob.WithSeparator("-"))
-	assert.Nil(t, err)
-	require.NotNil(t, s)
-	v, ok := s.Get("a.b.c_d")
-	assert.False(t, ok)
-	assert.Nil(t, v)
-	v, ok = s.Get("a-b.c_d")
-	assert.True(t, ok)
-	assert.Equal(t, true, v)
-}
-
 func TestWatcherClose(t *testing.T) {
 	clerr := errors.New("close error")
 	l := mockLoader{CloseError: clerr}

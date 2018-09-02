@@ -47,20 +47,6 @@ func TestLoad(t *testing.T) {
 	assert.Nil(t, l)
 }
 
-func TestWatcher(t *testing.T) {
-	// Non-existent
-	f, err := file.New("nosuch.file", file.WithWatcher())
-	assert.NotNil(t, err)
-	assert.Nil(t, f)
-
-	// Existent
-	f, err = file.New("file_test.go", file.WithWatcher())
-	assert.Nil(t, err)
-	require.NotNil(t, f)
-	w := f.Watcher()
-	assert.NotNil(t, w)
-}
-
 func TestClose(t *testing.T) {
 	f, err := ioutil.TempFile(".", "file_test_")
 	assert.Nil(t, err)

@@ -54,8 +54,31 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, "world", v)
 }
 
-func TestWatcherClose(t *testing.T) {
+func TestWatcher(t *testing.T) {
 	addr, _, terminate := dummyEtcdServer(t, map[string]string{
+		"/my/config/hello": "world",
+	})
+	defer terminate()
+	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	cancel()
+	assert.Nil(t, err)
+	require.NotNil(t, e)
+	w, ok := e.Watcher()
+	assert.False(t, ok)
+	require.Nil(t, w)
+	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
+	e, err = etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
+	cancel()
+	assert.Nil(t, err)
+	require.NotNil(t, e)
+	w, ok = e.Watcher()
+	assert.True(t, ok)
+	require.NotNil(t, w)
+}
+
+func TestWatcherClose(t *testing.T) {
+	addr, cl, terminate := dummyEtcdServer(t, map[string]string{
 		"/my/config/hello": "world",
 	})
 	defer terminate()
@@ -70,10 +93,21 @@ func TestWatcherClose(t *testing.T) {
 	v, ok := e.Get("hello")
 	assert.True(t, ok)
 	assert.Equal(t, "world", v)
-	// Close breaks terminate - finds already closed!
+
+	cl.Put(context.Background(), "/my/config/hello", "updated")
+	testWatcher(t, w, nil)
+	w.CommitUpdate()
+	v, ok = e.Get("hello")
+	assert.True(t, ok)
+	assert.Equal(t, "updated", v)
+
 	w.Close()
-	// show updates stop...
-	// check server connections???
+
+	cl.Put(context.Background(), "/my/config/hello", "final")
+	testWatcher(t, w, context.Canceled)
+	v, ok = e.Get("hello")
+	assert.True(t, ok)
+	assert.Equal(t, "updated", v)
 }
 
 func TestGet(t *testing.T) {

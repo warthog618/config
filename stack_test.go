@@ -231,6 +231,7 @@ func TestStackWatcherWatch(t *testing.T) {
 	testWatcher(t, w, context.DeadlineExceeded)
 
 	// Close after start
+	gw2.Notify() // force second watcher to block on commit
 	assert.False(t, gw1.Closed)
 	assert.False(t, gw2.Closed)
 	w.Close()
