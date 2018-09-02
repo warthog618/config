@@ -69,6 +69,7 @@ func TestWatcher(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
 	fname := tf.Name()
+	defer os.Remove(fname)
 
 	// Not watched
 	wf, err := file.New(fname)
