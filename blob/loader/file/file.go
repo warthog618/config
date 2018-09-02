@@ -40,8 +40,11 @@ func (l *Loader) Load() ([]byte, error) {
 
 // Watcher returns the watcher for the loader.
 // The watcher must be created using the WithWatch construction option.
-func (l *Loader) Watcher() blob.WatcherCloser {
-	return l.w
+func (l *Loader) Watcher() (blob.WatcherCloser, bool) {
+	if l.w == nil {
+		return nil, false
+	}
+	return l.w, true
 }
 
 // watcher watches a file for changes.

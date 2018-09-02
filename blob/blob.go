@@ -26,7 +26,7 @@ type Loader interface {
 // WatchableLoader is the interface supported by Loaders that can be watched for
 // changes.
 type WatchableLoader interface {
-	Watcher() WatcherCloser
+	Watcher() (WatcherCloser, bool)
 }
 
 // WatcherCloser represents an API supported by Loaders that can watch the
@@ -76,8 +76,7 @@ func New(l Loader, d Decoder, options ...Option) (*Getter, error) {
 		option.applyOption(&g)
 	}
 	if wl, ok := l.(WatchableLoader); ok {
-		w := wl.Watcher()
-		if w != nil {
+		if w, ok := wl.Watcher(); ok {
 			// must be created before the initial load
 			g.w = &watcher{g: &g, w: w}
 		}

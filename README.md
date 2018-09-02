@@ -297,7 +297,7 @@ Decoders for the following formats are provided:
 ### Decorators
 
 Additionally, getters may be wrapped in decorators, such as the
-[WithAlias](#alias) or [WithDefault](#default), to perform a key translations
+[WithAlias](#alias) or [WithDefault](#default), to perform key translations
 before the key is passed to the getter, or to manipulate the value before
 returning it to the caller.
 
