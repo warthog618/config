@@ -1,3 +1,4 @@
 {
-    "name": "name from myapp.json"
+    "name": "name from myapp.json",
+    "sm.pin": 42
 }

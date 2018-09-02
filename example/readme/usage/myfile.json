@@ -1,3 +1,5 @@
 {
-    "name": "name from myfile.json"
+    "name": "name from myfile.json",
+    "sm.period": "100s",
+    "sm.thresholds": [1,2,3,4]
 }
