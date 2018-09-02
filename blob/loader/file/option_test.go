@@ -23,6 +23,7 @@ func TestNewWithWatcher(t *testing.T) {
 	f, err = file.New("file_test.go", file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, f)
-	w := f.Watcher()
+	w, ok := f.Watcher()
+	assert.True(t, ok)
 	assert.NotNil(t, w)
 }

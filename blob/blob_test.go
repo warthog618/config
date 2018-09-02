@@ -173,8 +173,8 @@ func (l *mockLoader) Load() ([]byte, error) {
 	return l.B, l.LoadError
 }
 
-func (l *mockLoader) Watcher() blob.WatcherCloser {
-	return l
+func (l *mockLoader) Watcher() (blob.WatcherCloser, bool) {
+	return l, true
 }
 
 func (l *mockLoader) Close() error {

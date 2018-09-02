@@ -56,11 +56,35 @@ func TestClose(t *testing.T) {
 	wf, err := file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w := wf.Watcher()
+	w, ok := wf.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 	w.Close()
 	err = w.Watch(context.Background())
 	assert.Equal(t, context.Canceled, err)
+}
+
+func TestWatcher(t *testing.T) {
+	tf, err := ioutil.TempFile(".", "file_test_")
+	assert.Nil(t, err)
+	require.NotNil(t, tf)
+	fname := tf.Name()
+
+	// Not watched
+	wf, err := file.New(fname)
+	assert.Nil(t, err)
+	require.NotNil(t, wf)
+	w, ok := wf.Watcher()
+	assert.False(t, ok)
+	require.Nil(t, w)
+
+	// Watched
+	wf, err = file.New(fname, file.WithWatcher())
+	assert.Nil(t, err)
+	require.NotNil(t, wf)
+	w, ok = wf.Watcher()
+	assert.True(t, ok)
+	require.NotNil(t, w)
 }
 
 func TestWatcherWatch(t *testing.T) {
@@ -72,7 +96,8 @@ func TestWatcherWatch(t *testing.T) {
 	wf, err := file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w := wf.Watcher()
+	w, ok := wf.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error)
@@ -106,7 +131,8 @@ func TestWatcherWatch(t *testing.T) {
 	wf, err = file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w = wf.Watcher()
+	w, ok = wf.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 	done = make(chan error)
 	go func() {
@@ -131,7 +157,8 @@ func TestWatcherWatch(t *testing.T) {
 	wf, err = file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w = wf.Watcher()
+	w, ok = wf.Watcher()
+	assert.True(t, ok)
 	require.NotNil(t, w)
 	ctx, cancel = context.WithCancel(context.Background())
 	done = make(chan error)
