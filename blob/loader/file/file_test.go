@@ -117,39 +117,16 @@ func TestWatcherWatch(t *testing.T) {
 	wchan := wf.NewWatcher(done)
 	require.NotNil(t, wchan)
 	// immediate update to trigger load
-	select {
-	case err, ok := <-wchan:
-		assert.True(t, ok)
-		assert.Nil(t, err)
-	case <-time.After(defaultTimeout):
-		assert.Fail(t, "watch didn't return")
-	}
+	testUpdated(t, wchan)
 	// then block until update
-	select {
-	case err, ok := <-wchan:
-		assert.False(t, ok)
-		assert.Fail(t, "unexpected update", err)
-	case <-time.After(5 * defaultTimeout):
-	}
+	testNotUpdated(t, wchan)
 	// but trigger on update
 	tf.Write([]byte("test pattern"))
-	select {
-	case err, ok := <-wchan:
-		assert.True(t, ok)
-		assert.Nil(t, err)
-	case <-time.After(time.Second):
-		assert.Fail(t, "watch didn't return")
-	}
+	testUpdated(t, wchan)
 
 	// Close
 	close(done)
-	select {
-	case err, ok := <-wchan:
-		assert.False(t, ok)
-		assert.Nil(t, err)
-	case <-time.After(time.Second):
-		assert.Fail(t, "watch didn't exit")
-	}
+	testCanceled(t, wchan)
 
 	// Remove
 	wf, err = file.New(fname, file.WithWatcher())
@@ -159,23 +136,10 @@ func TestWatcherWatch(t *testing.T) {
 	defer close(done)
 	wchan = wf.NewWatcher(done)
 	require.NotNil(t, wchan)
-	// immediate update to trigger load
-	select {
-	case err, ok := <-wchan:
-		assert.True(t, ok)
-		assert.Nil(t, err)
-	case <-time.After(defaultTimeout):
-		assert.Fail(t, "watch didn't return")
-	}
+	testUpdated(t, wchan)
 	tf.Close()
 	os.Remove(fname)
-	select {
-	case err, ok := <-wchan:
-		assert.True(t, ok)
-		assert.Nil(t, err)
-	case <-time.After(time.Second):
-		assert.Fail(t, "watch didn't return")
-	}
+	testUpdated(t, wchan)
 
 	// Rename
 	tf, err = ioutil.TempFile(".", "file_test_")
@@ -189,14 +153,14 @@ func TestWatcherWatch(t *testing.T) {
 	wchan = wf.NewWatcher(done)
 	require.NotNil(t, wchan)
 	// immediate update to trigger load
-	select {
-	case err, ok := <-wchan:
-		assert.True(t, ok)
-		assert.Nil(t, err)
-	case <-time.After(defaultTimeout):
-		assert.Fail(t, "watch didn't return")
-	}
+	testUpdated(t, wchan)
 	os.Rename(fname, fname+"r")
+	testUpdated(t, wchan)
+	os.Remove(fname + "r")
+}
+
+func testUpdated(t *testing.T, wchan <-chan error) {
+	t.Helper()
 	select {
 	case err, ok := <-wchan:
 		assert.True(t, ok)
@@ -204,5 +168,24 @@ func TestWatcherWatch(t *testing.T) {
 	case <-time.After(time.Second):
 		assert.Fail(t, "watch didn't return")
 	}
-	os.Remove(fname + "r")
+}
+
+func testCanceled(t *testing.T, wchan <-chan error) {
+	t.Helper()
+	select {
+	case err, ok := <-wchan:
+		assert.False(t, ok)
+		assert.Nil(t, err)
+	case <-time.After(time.Second):
+		assert.Fail(t, "watch didn't return")
+	}
+}
+func testNotUpdated(t *testing.T, wchan <-chan error) {
+	select {
+	case err, ok := <-wchan:
+		assert.False(t, ok)
+		assert.Fail(t, "unexpected update", err)
+	case <-time.After(5 * defaultTimeout):
+	}
+
 }
