@@ -32,30 +32,27 @@ func (o *overlay) Get(key string) (interface{}, bool) {
 }
 
 // Watcher implements the WatchableGetter interface.
-func (o *overlay) Watcher() (GetterWatcher, bool) {
+func (o *overlay) NewWatcher(done <-chan struct{}) GetterWatcher {
 	ww := []GetterWatcher{}
 	for _, g := range o.gg {
 		if wg, ok := g.(WatchableGetter); ok {
-			if w, ok := wg.Watcher(); ok {
+			w := wg.NewWatcher(done)
+			if w != nil {
 				ww = append(ww, w)
 			}
 		}
 	}
-	if len(ww) != 0 {
-		w := &stackWatcher{
-			mu:    nullLocker{},
-			gg:    ww,
-			uchan: make(chan GetterWatcher),
-			cchan: make(chan GetterWatcher, 1)}
-		return w, true
+	if len(ww) == 0 {
+		return nil
 	}
-	return nil, false
+	if len(ww) == 1 {
+		return ww[0]
+	}
+	s := &stackWatcher{
+		done: done,
+		gw:   newGetterWatcher()}
+	for _, w := range ww {
+		s.append(w)
+	}
+	return s.gw
 }
-
-// nullLocker implements a stubbed out locker for the stackWatcher for the
-// Overlay which is immutable and so does not require mutex locks.
-type nullLocker struct{}
-
-func (n nullLocker) Lock() {}
-
-func (n nullLocker) Unlock() {}

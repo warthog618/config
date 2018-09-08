@@ -71,7 +71,7 @@ func TestWithDefault(t *testing.T) {
 	nondef := mockGetter{
 		"a.b.d": 42,
 	}
-	g := config.WithDefault(&def)(nondef)
+	g := config.WithDefault(&def)(&nondef)
 
 	// defaulted
 	c, ok := g.Get("a.b.c")
@@ -89,8 +89,8 @@ func TestWithDefault(t *testing.T) {
 	assert.Nil(t, c)
 
 	// nil default
-	g = config.WithDefault(nil)(nondef)
-	assert.Equal(t, nondef, g)
+	g = config.WithDefault(nil)(&nondef)
+	assert.Equal(t, &nondef, g)
 
 	// no longer defaulted
 	c, ok = g.Get("a.b.c")
@@ -162,7 +162,7 @@ func TestWithMustGet(t *testing.T) {
 	mg := mockGetter{
 		"a": "is a",
 	}
-	pr := config.WithMustGet()(mg)
+	pr := config.WithMustGet()(&mg)
 	v, ok := pr.Get("a")
 	assert.True(t, true, ok)
 	assert.Equal(t, "is a", v)
@@ -197,27 +197,18 @@ func TestWithPrefix(t *testing.T) {
 
 func testDecoratorWatchable(t *testing.T, d config.Decorator) {
 	t.Helper()
-	// unwatchableGetter
 	mg := mockGetter{}
-	g := d(mg)
+	mgw := watchedGetter{mg, nil}
+	g := d(&mgw)
 	wg, ok := g.(config.WatchableGetter)
 	assert.True(t, ok)
 	require.NotNil(t, wg)
-	w, ok := wg.Watcher()
-	assert.False(t, ok)
-	require.Nil(t, w)
-
-	// watchableGetter
-	ws := NewGetterWatcher()
-	defer ws.Close()
-	mgw := watchedGetter{mg, ws}
-	g = d(mgw)
-	wg, ok = g.(config.WatchableGetter)
-	assert.True(t, ok)
-	require.NotNil(t, wg)
-	w, ok = wg.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
+	done := make(chan struct{})
+	w := wg.NewWatcher(done)
+	assert.NotNil(t, w)
+	ws := mgw.w
+	require.NotNil(t, ws)
+	assert.True(t, done == ws.donech)
 }
 
 type echoGetter struct{}

@@ -59,6 +59,6 @@ func WithListSplitter(splitter list.Splitter) Option {
 // watcher is a singleton.
 func WithWatcher() Option {
 	return func(g *Getter) {
-		g.w = &watcher{g: g}
+		g.watcher = true
 	}
 }

@@ -144,18 +144,3 @@ func TestNewWithListSplitter(t *testing.T) {
 		t.Run(p.name, f)
 	}
 }
-
-func TestNewWithWatcher(t *testing.T) {
-	addr, _, terminate := dummyEtcdServer(t, map[string]string{
-		"/my/config/hello": "world",
-	})
-	defer terminate()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
-	cancel()
-	assert.Nil(t, err)
-	require.NotNil(t, e)
-	w, ok := e.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-}

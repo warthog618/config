@@ -26,7 +26,7 @@ func TestNewRegexAlias(t *testing.T) {
 func TestNewAliasWithSeparator(t *testing.T) {
 	a := config.NewAlias(config.WithSeparator("_"))
 	assert.NotNil(t, a)
-	g := mockGetter{
+	g := &mockGetter{
 		"a.b.c_d": "d",
 		"a.b.c_e": "e",
 	}
@@ -51,7 +51,7 @@ func TestNewAliasWithSeparator(t *testing.T) {
 }
 
 func TestWithAlias(t *testing.T) {
-	g := mockGetter{
+	g := &mockGetter{
 		"a.b.c_d": "d",
 		"a.b.c_e": "e",
 	}
@@ -64,7 +64,7 @@ func TestWithAlias(t *testing.T) {
 }
 
 func TestWithRegexAlias(t *testing.T) {
-	g := mockGetter{
+	g := &mockGetter{
 		"a.b.c_d": "d",
 		"a.b.c_e": "e",
 	}
@@ -83,22 +83,22 @@ func TestAliasAppend(t *testing.T) {
 		"a.b.c_d": "d",
 		"a.b.c_e": "e",
 	}
-	v, ok := a.Get(g, "new")
+	v, ok := a.Get(&g, "new")
 	assert.False(t, ok)
 	assert.Nil(t, v)
 
 	a.Append("new", "a.b.c_d")
-	v, ok = a.Get(g, "new")
+	v, ok = a.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "d", v)
 
 	a.Append("new", "a.b.c_e")
-	v, ok = a.Get(g, "new")
+	v, ok = a.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "d", v)
 
 	delete(g, "a.b.c_d")
-	v, ok = a.Get(g, "new")
+	v, ok = a.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "e", v)
 }
@@ -110,28 +110,28 @@ func TestAliasInsert(t *testing.T) {
 		"a.b.c_d": "d",
 		"a.b.c_e": "e",
 	}
-	v, ok := a.Get(g, "new")
+	v, ok := a.Get(&g, "new")
 	assert.False(t, ok)
 	assert.Nil(t, v)
 
 	a.Insert("new", "a.b.c_d")
-	v, ok = a.Get(g, "new")
+	v, ok = a.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "d", v)
 
 	a.Insert("new", "a.b.c_e")
-	v, ok = a.Get(g, "new")
+	v, ok = a.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "e", v)
 
 	delete(g, "a.b.c_e")
-	v, ok = a.Get(g, "new")
+	v, ok = a.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "d", v)
 }
 
 func TestAliasGet(t *testing.T) {
-	mr := mockGetter{
+	mr := &mockGetter{
 		"a":     "a",
 		"foo.a": "foo.a",
 		"foo.b": "foo.b",
@@ -182,24 +182,24 @@ func TestRegexAliasAppend(t *testing.T) {
 		"a.b.c_d": "d",
 		"a.b.c_e": "e",
 	}
-	v, ok := r.Get(g, "new")
+	v, ok := r.Get(&g, "new")
 	assert.False(t, ok)
 	assert.Nil(t, v)
 
 	err := r.Append("new", "a.b.c_d")
 	assert.Nil(t, err)
-	v, ok = r.Get(g, "new")
+	v, ok = r.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "d", v)
 
 	err = r.Append("new", "a.b.c_e")
 	assert.Nil(t, err)
-	v, ok = r.Get(g, "new")
+	v, ok = r.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "d", v)
 
 	delete(g, "a.b.c_d")
-	v, ok = r.Get(g, "new")
+	v, ok = r.Get(&g, "new")
 	assert.True(t, ok)
 	assert.Equal(t, "e", v)
 
@@ -208,7 +208,7 @@ func TestRegexAliasAppend(t *testing.T) {
 }
 
 func TestRegexAliasGet(t *testing.T) {
-	mr := mockGetter{
+	mr := &mockGetter{
 		"a":      "a",
 		"foo.a":  "foo.a",
 		"foo.b":  "foo.b",

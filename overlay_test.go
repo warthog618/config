@@ -6,8 +6,6 @@
 package config_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,14 +14,27 @@ import (
 )
 
 func TestOverlay(t *testing.T) {
-	under := mockGetter{
+	under := &mockGetter{
 		"a.b.c": 43,
 		"a.b.d": 41,
 	}
-	over := mockGetter{
+	over := &mockGetter{
 		"a.b.d": 42,
 	}
 	g := config.Overlay(over, under)
+	require.NotNil(t, g)
+}
+
+func TestOverlayGet(t *testing.T) {
+	under := &mockGetter{
+		"a.b.c": 43,
+		"a.b.d": 41,
+	}
+	over := &mockGetter{
+		"a.b.d": 42,
+	}
+	g := config.Overlay(over, under)
+	require.NotNil(t, g)
 
 	// under
 	c, ok := g.Get("a.b.c")
@@ -45,76 +56,60 @@ func TestOverlay(t *testing.T) {
 	assert.Equal(t, over, g)
 }
 
-func TestOverlayWatcherClose(t *testing.T) {
-	g1 := mockGetter{
+func TestOverlayNewWatcher(t *testing.T) {
+	under := mockGetter{
 		"a.b.c": 43,
 		"a.b.d": 41,
 	}
-	g2 := mockGetter{
+	over := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := NewGetterWatcher()
-	defer gw1.Close()
-	gw2 := NewGetterWatcher()
-	defer gw2.Close()
-	wg1 := watchedGetter{g1, gw1}
-	wg2 := watchedGetter{g2, gw2}
-	g := config.Overlay(wg1, wg2)
-	require.NotNil(t, g)
-	assert.False(t, gw1.Closed)
-	assert.False(t, gw2.Closed)
-	w, ok := g.(config.WatchableGetter).Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-	w.Close()
-	assert.True(t, gw1.Closed)
-	assert.True(t, gw2.Closed)
-}
-
-func TestOverlayWatcherWatch(t *testing.T) {
-	g1 := mockGetter{
-		"a.b.c": 43,
-		"a.b.d": 41,
+	patterns := []struct {
+		name       string
+		overwatch  bool
+		underwatch bool
+		watchable  bool
+	}{
+		{"none", false, false, false},
+		{"under", false, true, true},
+		{"over", true, false, true},
+		{"both", true, true, true},
 	}
-	g2 := mockGetter{
-		"a.b.d": 42,
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			ow := &watchedGetter{over, nil}
+			uw := &watchedGetter{under, nil}
+			var o, u config.Getter
+			o = &over
+			if p.overwatch {
+				o = ow
+			}
+			u = &under
+			if p.underwatch {
+				u = uw
+			}
+			g := config.Overlay(o, u)
+			require.NotNil(t, g)
+			wg, ok := g.(config.WatchableGetter)
+			assert.True(t, ok)
+			require.NotNil(t, wg)
+			done := make(chan struct{})
+			defer close(done)
+			w := wg.NewWatcher(done)
+			if !p.watchable {
+				assert.Nil(t, w)
+				return
+			}
+			require.NotNil(t, w)
+			if p.overwatch {
+				testDonePropagation(t, o, done)
+				testUpdatePropagation(t, w, ow.w)
+			}
+			if p.underwatch {
+				testDonePropagation(t, u, done)
+				testUpdatePropagation(t, w, uw.w)
+			}
+		}
+		t.Run(p.name, f)
 	}
-	gw1 := NewGetterWatcher()
-	defer gw1.Close()
-	gw2 := NewGetterWatcher()
-	defer gw2.Close()
-	wg1 := watchedGetter{g1, gw1}
-	wg2 := watchedGetter{g2, gw2}
-	g := config.Overlay(wg1, wg2)
-	require.NotNil(t, g)
-	w, ok := g.(config.WatchableGetter).Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-
-	testWatcher(t, w, nil, context.DeadlineExceeded)
-
-	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-	gw1.WatchError(nil)
-
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw2.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	gw1.WatchError(errors.New("watch error"))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-
-	testWatcher(t, w, nil, context.DeadlineExceeded)
-
-	// Close after start
-	assert.False(t, gw1.Closed)
-	assert.False(t, gw2.Closed)
-	w.Close()
-	assert.True(t, gw1.Closed)
-	assert.True(t, gw2.Closed)
 }

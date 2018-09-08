@@ -6,8 +6,6 @@
 package config_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -59,29 +57,19 @@ func TestStackAppend(t *testing.T) {
 	v, ok = s.Get("something three")
 	assert.True(t, ok)
 	assert.Exactly(t, mr3["something three"], v)
-
-	// add non-watchable
-	s.Watcher() // to trigger append path
-	g3 := mockGetter{
-		"a.b.d": 123,
-	}
-	s.Append(g3)
-	v, ok = s.Get("a.b.d")
-	assert.True(t, ok)
-	assert.Exactly(t, g3["a.b.d"], v)
 }
 
 func TestStackGet(t *testing.T) {
-	mr1 := mockGetter{
+	mr1 := &mockGetter{
 		"a": "a - tier 1",
 		"b": "b - tier 1",
 		"c": "c - tier 1",
 	}
-	mr2 := mockGetter{
+	mr2 := &mockGetter{
 		"b": "b - tier 2",
 		"d": "d - tier 2",
 	}
-	mr3 := mockGetter{
+	mr3 := &mockGetter{
 		"c": "c - tier 3",
 		"d": "d - tier 3",
 	}
@@ -171,19 +159,9 @@ func TestStackInsert(t *testing.T) {
 	v, ok = s.Get("something bottom")
 	assert.True(t, ok)
 	assert.Exactly(t, mr1["something bottom"], v)
-
-	// add non-watchable
-	s.Watcher() // to trigger append path
-	g3 := mockGetter{
-		"a.b.d": 123,
-	}
-	s.Insert(g3)
-	v, ok = s.Get("a.b.d")
-	assert.True(t, ok)
-	assert.Exactly(t, g3["a.b.d"], v)
 }
 
-func TestStackWatcher(t *testing.T) {
+func TestStackNewWatcher(t *testing.T) {
 	g1 := mockGetter{
 		"a.b.c": 43,
 		"a.b.d": 41,
@@ -191,71 +169,21 @@ func TestStackWatcher(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := NewGetterWatcher()
-	defer gw1.Close()
-	gw2 := NewGetterWatcher()
-	defer gw2.Close()
-	wg1 := watchedGetter{g1, gw1}
-	wg2 := watchedGetter{g2, gw2}
+	wg1 := &watchedGetter{g1, nil}
+	wg2 := &watchedGetter{g2, nil}
 	g := config.NewStack(wg1, wg2)
 	require.NotNil(t, g)
-	w1, ok := g.Watcher()
-	assert.True(t, ok)
-	assert.NotNil(t, w1)
 
-	w2, ok := g.Watcher()
-	assert.True(t, ok)
-	assert.Equal(t, w1, w2)
-}
+	done := make(chan struct{})
+	w := g.NewWatcher(done)
+	assert.NotNil(t, w)
+	ws := wg1.w
+	require.NotNil(t, ws)
+	assert.True(t, done == ws.donech)
 
-func TestStackWatcherWatch(t *testing.T) {
-	g1 := mockGetter{
-		"a.b.c": 43,
-		"a.b.d": 41,
-	}
-	g2 := mockGetter{
-		"a.b.d": 42,
-	}
-	gw1 := NewGetterWatcher()
-	defer gw1.Close()
-	gw2 := NewGetterWatcher()
-	defer gw2.Close()
-	wg1 := watchedGetter{g1, gw1}
-	wg2 := watchedGetter{g2, gw2}
-	g := config.NewStack(wg1, wg2)
-	require.NotNil(t, g)
-	w, ok := g.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-
-	testWatcher(t, w, nil, context.DeadlineExceeded)
-
-	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-	gw1.WatchError(nil)
-
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw2.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	gw1.WatchError(errors.New("watch error"))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-
-	testWatcher(t, w, nil, context.DeadlineExceeded)
-
-	// Close after start
-	gw2.Notify()               // force second watcher to block on commit
-	time.Sleep(defaultTimeout) // wait for it to get there
-	assert.False(t, gw1.Closed)
-	assert.False(t, gw2.Closed)
-	w.Close()
-	assert.True(t, gw1.Closed)
-	assert.True(t, gw2.Closed)
+	ws = wg2.w
+	require.NotNil(t, ws)
+	assert.True(t, done == ws.donech)
 }
 
 func TestStackAppendWatch(t *testing.T) {
@@ -266,49 +194,58 @@ func TestStackAppendWatch(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := NewGetterWatcher()
-	defer gw1.Close()
-	gw2 := NewGetterWatcher()
-	defer gw2.Close()
-	wg1 := watchedGetter{g1, gw1}
-	wg2 := watchedGetter{g2, gw2}
-	g := config.NewStack(wg1)
-	require.NotNil(t, g)
-	w, ok := g.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-
-	testWatcher(t, w, nil, context.DeadlineExceeded)
-
-	g.Append(wg2)
-
-	wg3 := watchedGetter{g2, nil}
-	g.Append(wg3)
-
-	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-	gw1.WatchError(nil)
-
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw2.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	gw1.WatchError(errors.New("watch error"))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-
-	testWatcher(t, w, nil, context.DeadlineExceeded)
-
-	// Close after start
-	assert.False(t, gw1.Closed)
-	assert.False(t, gw2.Closed)
-	w.Close()
-	assert.True(t, gw1.Closed)
-	assert.True(t, gw2.Closed)
+	patterns := []struct {
+		name       string
+		overwatch  bool
+		underwatch bool
+		watchFirst bool
+	}{
+		{"none wf", false, false, true},
+		{"over wf", false, true, true},
+		{"under wf", true, false, true},
+		{"both wf", true, true, true},
+		{"none", false, false, false},
+		{"over", false, true, false},
+		{"under", true, false, false},
+		{"both", true, true, false},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			ow := &watchedGetter{g1, nil}
+			uw := &watchedGetter{g2, nil}
+			var o, u config.Getter
+			o = &g1
+			if p.overwatch {
+				o = ow
+			}
+			u = &g2
+			if p.underwatch {
+				u = uw
+			}
+			g := config.NewStack(o)
+			require.NotNil(t, g)
+			done := make(chan struct{})
+			defer close(done)
+			var w config.GetterWatcher
+			if p.watchFirst {
+				w = g.NewWatcher(done)
+			}
+			g.Append(u)
+			if !p.watchFirst {
+				w = g.NewWatcher(done)
+			}
+			require.NotNil(t, w)
+			if p.overwatch {
+				testDonePropagation(t, o, done)
+				testUpdatePropagation(t, w, ow.w)
+			}
+			if p.underwatch {
+				testDonePropagation(t, u, done)
+				testUpdatePropagation(t, w, uw.w)
+			}
+		}
+		t.Run(p.name, f)
+	}
 }
 
 func TestStackInsertWatch(t *testing.T) {
@@ -319,43 +256,113 @@ func TestStackInsertWatch(t *testing.T) {
 	g2 := mockGetter{
 		"a.b.d": 42,
 	}
-	gw1 := NewGetterWatcher()
-	defer gw1.Close()
-	gw2 := NewGetterWatcher()
-	defer gw2.Close()
-	wg1 := watchedGetter{g1, gw1}
-	wg2 := watchedGetter{g2, gw2}
-	g := config.NewStack(wg1)
+	patterns := []struct {
+		name       string
+		overwatch  bool
+		underwatch bool
+		watchFirst bool
+	}{
+		{"none wf", false, false, true},
+		{"over wf", false, true, true},
+		{"under wf", true, false, true},
+		{"both wf", true, true, true},
+		{"none", false, false, false},
+		{"over", false, true, false},
+		{"under", true, false, false},
+		{"both", true, true, false},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			ow := &watchedGetter{g1, nil}
+			uw := &watchedGetter{g2, nil}
+			var o, u config.Getter
+			o = &g1
+			if p.overwatch {
+				o = ow
+			}
+			u = &g2
+			if p.underwatch {
+				u = uw
+			}
+			g := config.NewStack(u)
+			require.NotNil(t, g)
+			done := make(chan struct{})
+			defer close(done)
+			var w config.GetterWatcher
+			if p.watchFirst {
+				w = g.NewWatcher(done)
+			}
+			g.Insert(o)
+			if !p.watchFirst {
+				w = g.NewWatcher(done)
+			}
+			require.NotNil(t, w)
+			if p.overwatch {
+				testDonePropagation(t, o, done)
+				testUpdatePropagation(t, w, ow.w)
+			}
+			if p.underwatch {
+				testDonePropagation(t, u, done)
+				testUpdatePropagation(t, w, uw.w)
+			}
+		}
+		t.Run(p.name, f)
+	}
+}
+
+func TestStackWatcherClosedDuringUpdate(t *testing.T) {
+	g1 := mockGetter{
+		"a.b.c": 43,
+		"a.b.d": 41,
+	}
+	ow := &watchedGetter{g1, nil}
+	g := config.NewStack(ow)
 	require.NotNil(t, g)
-	w, ok := g.Watcher()
+	done := make(chan struct{})
+	w := g.NewWatcher(done)
+	ow.w.Notify()
+	time.Sleep(defaultTimeout)
+	close(done)
+	testWatcherNotUpdated(t, w)
+}
+
+func testDonePropagation(t *testing.T, g config.Getter, done <-chan struct{}) {
+	t.Helper()
+	wg, ok := g.(*watchedGetter)
 	assert.True(t, ok)
-	require.NotNil(t, w)
-	g.Insert(wg2)
+	require.NotNil(t, wg)
+	require.NotNil(t, wg.w)
+	assert.True(t, done == wg.w.donech)
+}
 
-	testWatcher(t, w, nil, context.DeadlineExceeded)
+func testUpdatePropagation(t *testing.T, w config.GetterWatcher, gw *getterWatcher) {
+	t.Helper()
+	testWatcherNotUpdated(t, w)
+	go gw.Notify()
+	ud := testWatcherUpdated(t, w)
+	require.NotNil(t, ud)
+	gu, ok := ud.(update)
+	assert.True(t, ok)
+	require.NotNil(t, gu)
+	assert.Equal(t, gw, gu.w)
+}
 
-	gw1.WatchError(config.WithTemporary(errors.New("watch error")))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-	gw1.WatchError(nil)
+func testWatcherUpdated(t *testing.T, w config.GetterWatcher) config.GetterUpdate {
+	t.Helper()
+	select {
+	case update := <-w.Update():
+		return update
+	case <-time.After(time.Second):
+		assert.Fail(t, "watch failed to return")
+	}
+	return nil
+}
 
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw2.Notify, nil)
-	w.CommitUpdate()
-
-	testWatcher(t, w, gw1.Notify, nil)
-	w.CommitUpdate()
-
-	gw1.WatchError(errors.New("watch error"))
-	testWatcher(t, w, gw1.Notify, context.DeadlineExceeded)
-
-	testWatcher(t, w, nil, context.DeadlineExceeded)
-
-	// Close after start
-	assert.False(t, gw1.Closed)
-	assert.False(t, gw2.Closed)
-	w.Close()
-	assert.True(t, gw1.Closed)
-	assert.True(t, gw2.Closed)
+func testWatcherNotUpdated(t *testing.T, w config.GetterWatcher) {
+	t.Helper()
+	select {
+	case update := <-w.Update():
+		assert.Fail(t, "unexpected update", update)
+	case <-time.After(defaultTimeout):
+	}
 }

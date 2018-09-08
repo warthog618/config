@@ -8,7 +8,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -26,13 +25,15 @@ func NewConfig(g Getter, options ...Option) *Config {
 		tag:      "config",
 		notifier: NewNotifier(),
 		bgmu:     &sync.RWMutex{},
+		donech:   make(chan struct{}),
 	}
 	for _, option := range options {
 		option.applyConfigOption(&c)
 	}
 	if wg, ok := g.(WatchableGetter); ok {
-		if w, ok := wg.Watcher(); ok {
-			go c.watchGetter(w)
+		c.gw = wg.NewWatcher(c.donech)
+		if c.gw != nil {
+			go c.watcher()
 		}
 	}
 	return &c
@@ -60,22 +61,37 @@ type Config struct {
 	// unmarshalling blocks, as that could result in inconsistent and
 	// unpredicatable results.
 	bgmu *sync.RWMutex
+	// donech is closed to terminate all active watches and make config static.
+	donech chan struct{}
+	// the watcher for the getter.
+	// Is nil if the getter is not watchable.
+	gw GetterWatcher
 }
 
-// watchGetter adds a WatchedGetter for the Config to monitor.
-func (c *Config) watchGetter(w GetterWatcher) {
+func (c *Config) watcher() {
 	for {
-		if err := w.Watch(context.Background()); err != nil {
-			if IsTemporary(err) {
-				continue
-			}
+		select {
+		case <-c.donech:
 			return
+		case update := <-c.gw.Update():
+			c.bgmu.Lock()
+			update.Commit()
+			c.bgmu.Unlock()
+			c.notifier.Notify()
 		}
-		c.bgmu.Lock()
-		w.CommitUpdate()
-		c.bgmu.Unlock()
-		c.notifier.Notify()
 	}
+}
+
+// Close releases any resources allocated to the Config including
+// cancelling any actve watches.
+func (c *Config) Close() error {
+	select {
+	case <-c.donech:
+		// already closed
+	default:
+		close(c.donech)
+	}
+	return nil
 }
 
 // Get gets the raw value corresponding to the key.
@@ -259,7 +275,11 @@ func (c *Config) UnmarshalToMap(node string, objmap map[string]interface{}) (rer
 }
 
 // Watcher provides a synchronous watch of the overall configuration state.
+// The Watcher should not be called from multiple goroutines at a time.
+// If you need to watch the config in multiple goroutines then create a Watcher
+// per goroutine.
 type Watcher struct {
+	mu      sync.Mutex
 	updated <-chan struct{}
 	c       *Config
 }
@@ -269,11 +289,20 @@ func (c *Config) NewWatcher() *Watcher {
 	return &Watcher{updated: c.notifier.Notified(), c: c}
 }
 
-// Watch returns when the configuration has been changed.
-func (w *Watcher) Watch(ctx context.Context) error {
+// Watch returns when the configuration has been changed or the done is closed.
+// Returns an error if the watch was ended unexpectedly.
+// Watch should only be called once at a time.
+// To prevent races, multiple simultaneous calls are serialised.
+// If you need to watch the config in multiple goroutines then create a Watcher
+// per goroutine.
+func (w *Watcher) Watch(done <-chan struct{}) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-w.c.donech:
+		return ErrClosed
+	case <-done:
+		return ErrCanceled
 	case <-w.updated:
 		w.updated = w.c.notifier.Notified()
 		return nil
@@ -282,6 +311,9 @@ func (w *Watcher) Watch(ctx context.Context) error {
 
 // KeyWatcher watches a particular key/value, with the next returning
 // changed values.
+// The KeyWatcher should not be called from multiple goroutines simulataneously.
+// If you need to watch the key in multiple goroutines then create a KeyWatcher
+// per goroutine.
 type KeyWatcher struct {
 	w      *Watcher
 	getter func() (Value, error)
@@ -299,11 +331,14 @@ func (c *Config) NewKeyWatcher(key string, opts ...ValueOption) *KeyWatcher {
 
 // Watch returns the next value of the watched field.
 // On the first call it immediately returns the current value.
-// On subsequent calls it blocks until the value changes or the ctx is done.
-func (w *KeyWatcher) Watch(ctx context.Context) (Value, error) {
+// On subsequent calls it blocks until the value changes or the done is closed.
+// Returns an error if the watch was ended unexpectedly.
+// Watch should only be called once at a time - it does not support being called
+// by multiple goroutines simultaneously.
+func (w *KeyWatcher) Watch(done <-chan struct{}) (Value, error) {
 	for {
 		if w.last != nil {
-			err := w.w.Watch(ctx)
+			err := w.w.Watch(done)
 			if err != nil {
 				return Value{}, err
 			}

@@ -22,7 +22,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"os"
 	"time"
@@ -47,16 +46,20 @@ func main() {
 		dumpConfig(cfg)
 	}
 	w := cfg.NewWatcher()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	done := make(chan struct{})
+	go func() {
+		<-time.After(time.Minute)
+		close(done)
+	}()
 	for {
-		if err := w.Watch(ctx); err != nil {
-			log.Println("exiting...")
+		if err := w.Watch(done); err != nil {
+			log.Println("watch error:", err)
 			break
 		}
 		log.Println("updated to...")
 		dumpConfig(cfg)
 	}
-	cancel()
+	log.Println("finished.")
 }
 
 var defaultConfig = []byte(`{

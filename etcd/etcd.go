@@ -50,8 +50,9 @@ func New(ctx context.Context, prefix string, options ...Option) (*Getter, error)
 		return nil, err
 	}
 	g.msi = msi
-	if g.w == nil {
+	if !g.watcher {
 		g.client.Close()
+		g.client = nil
 	}
 	return &g, nil
 }
@@ -76,26 +77,20 @@ type Getter struct {
 	// prefix defines the root of the configuration in the etcd space.
 	// Is defined in the etcd space, and must include any trailing separator.
 	prefix string
-	// The watcher.
-	w *watcher
+	// watcher enable flag.
+	watcher bool
 }
 
-type watcher struct {
-	g *Getter
-	// updated config... might actually be a set of ops on msi??
-	events []*clientv3.Event
-	// lastest uncommitted revision seen from etcd.
-	rev int64
-	// The channel providing update events from the etcd.
-	wchan clientv3.WatchChan
-}
-
-// Close releases any resources allocated by the watcher.
-// This implicitly closes any active Watches.
-// After closing, the cached etcd configuration is still readable via Get, but
-// will no longer be updated.
-func (w *watcher) Close() (err error) {
-	return w.g.client.Close()
+// Close closes the getters connection to the server.
+// This automatically closes any active watchers.
+// The current configuration snapshot can still be accessed via Get.
+func (g *Getter) Close() error {
+	g.mu.Lock()
+	if g.client != nil {
+		g.client.Close()
+	}
+	g.mu.Unlock()
+	return nil
 }
 
 // Get implements the Getter API.
@@ -105,58 +100,55 @@ func (g *Getter) Get(key string) (interface{}, bool) {
 	return tree.Get(g.msi, key, "")
 }
 
-// Watcher returns the watcher for the getter.
-// The watcher is created at construction time if the Loader has a watcher.
-// Returns false if the getter is not watchable.
-func (g *Getter) Watcher() (config.GetterWatcher, bool) {
-	if g.w == nil {
-		return nil, false
-	}
-	return g.w, true
-}
-
-// Watch blocks until the etcd configuration changes.
-// The Watch returns nil if the source has changed and no error was encountered.
-// Otherwise the Watch returns the error encountered.
-// The Watch may be cancelled by providing a ctx WithCancel and
-// calling its cancel function.
-// It is assumed that Watch and CommitUpdate will only be called from a single
-// goroutine, and with CommitUpdate only called after a successful return from
-// Watch.
-func (w *watcher) Watch(ctx context.Context) error {
-	if w.wchan == nil {
-		ctx = clientv3.WithRequireLeader(ctx)
-		w.wchan = w.g.client.Watch(
-			context.Background(),
-			w.g.prefix,
+// NewWatcher creates a watcher goroutine if watcher was enabled during construction.
+func (g *Getter) NewWatcher(done <-chan struct{}) config.GetterWatcher {
+	if g.watcher {
+		ctx := clientv3.WithRequireLeader(context.Background())
+		g.mu.RLock()
+		wchan := g.client.Watch(
+			ctx,
+			g.prefix,
 			clientv3.WithPrefix(),
-			clientv3.WithRev(w.g.rev+1),
+			clientv3.WithRev(g.rev+1),
 		)
+		g.mu.RUnlock()
+		gw := &getterWatcher{uch: make(chan config.GetterUpdate)}
+		go g.watch(done, wchan, gw)
+		return gw
 	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case ev, ok := <-w.wchan:
-		if !ok {
-			return context.Canceled
+	return nil
+}
+
+func (g *Getter) watch(done <-chan struct{}, wchan clientv3.WatchChan, gw *getterWatcher) {
+	defer close(gw.uch)
+	send := func(u getterUpdate) {
+		select {
+		case gw.uch <- u:
+		case <-done:
+			return
 		}
-		if ev.Err() != nil {
-			return ev.Err()
+	}
+	for {
+		select {
+		case <-done:
+			return
+		case ev, ok := <-wchan:
+			if !ok {
+				return
+			}
+			if ev.Err() != nil {
+				// need more info on event types...
+				send(getterUpdate{g: g, err: ev.Err()})
+				continue
+			}
+			send(getterUpdate{g: g, commit: func() { g.commit(ev.Events, ev.Header.Revision) }})
 		}
-		w.events = ev.Events
-		w.rev = ev.Header.Revision
-		return nil
 	}
 }
 
-func (w *watcher) CommitUpdate() {
-	w.g.update(w.events, w.rev)
-	w.events = nil
-}
-
-// update commits a change to the configuration detected by Watch, making
+// commit commits a change to the configuration detected by Watch, making
 // the change visible to Get.
-func (g *Getter) update(events []*clientv3.Event, rev int64) {
+func (g *Getter) commit(events []*clientv3.Event, rev int64) {
 	g.mu.Lock()
 	for _, ev := range events {
 		key := string(ev.Kv.Key)
@@ -191,4 +183,38 @@ func (g *Getter) load(ctx context.Context) (map[string]interface{}, error) {
 		msi[key] = g.listSplitter.Split(string(kv.Value))
 	}
 	return msi, nil
+}
+
+type getterWatcher struct {
+	uch chan config.GetterUpdate
+}
+
+func (g *getterWatcher) Update() <-chan config.GetterUpdate {
+	return g.uch
+}
+
+type getterUpdate struct {
+	g       config.Getter
+	err     error
+	commit  func()
+	temperr bool
+}
+
+func (g getterUpdate) Getter() config.Getter {
+	return g.g
+}
+
+func (g getterUpdate) Err() error {
+	return g.err
+}
+
+func (g getterUpdate) TemporaryError() bool {
+	return g.temperr
+}
+
+func (g getterUpdate) Commit() {
+	if g.commit == nil {
+		return
+	}
+	g.commit()
 }

@@ -9,44 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// temporary indicates if an error condition is temporary or permanent.
-// If the interface is supported, and if Temporary returns true, then the
-// error is temporary, else it is assumed permanent.
-type temporary interface {
-	Temporary() bool
-}
-
-// IsTemporary returns true if an error is temporary.
-func IsTemporary(err error) bool {
-	te, ok := err.(temporary)
-	return ok && te.Temporary()
-}
-
-type withTemporary struct {
-	error
-}
-
-// WithTemporary wraps an error so it supports the temporary interface
-// and will be marked as temporary.
-func WithTemporary(err error) error {
-	if err == nil {
-		return nil
-	}
-	return withTemporary{error: err}
-}
-
-func (w withTemporary) Temporary() bool {
-	return true
-}
-
-func (w withTemporary) Cause() error {
-	return w.error
-}
-
-func (w withTemporary) Error() string {
-	return w.error.Error()
-}
-
 // NotFoundError indicates that the Key could not be found in the config tree.
 type NotFoundError struct {
 	Key string
@@ -68,6 +30,12 @@ func (e UnmarshalError) Error() string {
 	return "config: cannot unmarshal " + e.Key + " - " + e.Err.Error()
 }
 
-// ErrInvalidStruct indicates Unmarshal was provided an object to populate
-// which is not a pointer to struct.
-var ErrInvalidStruct = errors.New("unmarshal: provided obj is not pointer to struct")
+var (
+	// ErrCanceled indicates the Watch has been canceled.
+	ErrCanceled = errors.New("config: canceled")
+	// ErrClosed indicates the Config has been closed.
+	ErrClosed = errors.New("config: closed")
+	// ErrInvalidStruct indicates Unmarshal was provided an object to populate
+	// which is not a pointer to struct.
+	ErrInvalidStruct = errors.New("unmarshal: provided obj is not pointer to struct")
+)

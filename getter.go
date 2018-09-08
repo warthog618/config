@@ -6,8 +6,6 @@
 package config
 
 import (
-	"context"
-	"io"
 	"strings"
 
 	"github.com/warthog618/config/keys"
@@ -42,24 +40,41 @@ type Getter interface {
 	Get(key string) (value interface{}, found bool)
 }
 
+// UpdateCommit is a function that commits an update to a getter.
+// After the call the change becomes visible to Get.
+type UpdateCommit func()
+
 // WatchableGetter is the interface supported by Getters that may support being
 // watched.
 type WatchableGetter interface {
-	// Watcher returns the watcher for a Getter.
-	// Returns false if the associated Getter does not support watches.
-	Watcher() (GetterWatcher, bool)
+	// Create a watcher on the getter.
+	// Watcher will exit if the done chan closes.
+	// Watcher will send updates via the update channel.
+	// Watcher will send terminal errors via the err channel.
+	NewWatcher(done <-chan struct{}) GetterWatcher
 }
 
-// GetterWatcher watches a getter for updates.
+// GetterWatcher contains channels returning updates and errors from Getter
+// watchers.
 type GetterWatcher interface {
-	// Close releases any resources allocated to the watcher, and cancels any
-	// active watches.
-	io.Closer
-	// Watch blocks until the source has changed, or an error is detected.
-	Watch(context.Context) error
-	// CommitUpdate commits a change detected by Watch so that it becomes
-	// visible to Get.
-	CommitUpdate()
+	Update() <-chan GetterUpdate
+}
+
+// GetterUpdate contains an update from a getter.
+type GetterUpdate interface {
+	Commit()
+}
+
+type getterWatcher struct {
+	uch chan GetterUpdate
+}
+
+func (g *getterWatcher) Update() <-chan GetterUpdate {
+	return g.uch
+}
+
+func newGetterWatcher() *getterWatcher {
+	return &getterWatcher{uch: make(chan GetterUpdate)}
 }
 
 // Decorator is a func that takes one Getter and returns
@@ -71,12 +86,12 @@ type getterDecorator struct {
 	g Getter
 }
 
-// Watcher implements the WatchableGetter interface
-func (g getterDecorator) Watcher() (GetterWatcher, bool) {
+// NewWatcher implements the WatchableGetter interface
+func (g getterDecorator) NewWatcher(done <-chan struct{}) GetterWatcher {
 	if wg, ok := g.g.(WatchableGetter); ok {
-		return wg.Watcher()
+		return wg.NewWatcher(done)
 	}
-	return nil, false
+	return nil
 }
 
 // Decorate applies an ordered list of decorators to a Getter.

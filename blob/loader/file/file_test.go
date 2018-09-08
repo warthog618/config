@@ -6,7 +6,6 @@
 package file_test
 
 import (
-	"context"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warthog618/config/blob"
 	"github.com/warthog618/config/blob/loader/file"
 )
 
@@ -27,6 +27,7 @@ func TestNew(t *testing.T) {
 	f, err = file.New("nosuch.file")
 	assert.Nil(t, err)
 	require.NotNil(t, f)
+	assert.Implements(t, (*blob.WatchableLoader)(nil), f)
 }
 
 func TestLoad(t *testing.T) {
@@ -47,7 +48,9 @@ func TestLoad(t *testing.T) {
 	assert.Nil(t, l)
 }
 
-func TestClose(t *testing.T) {
+var defaultTimeout = time.Millisecond
+
+func TestWatcherClose(t *testing.T) {
 	f, err := ioutil.TempFile(".", "file_test_")
 	assert.Nil(t, err)
 	require.NotNil(t, f)
@@ -56,12 +59,25 @@ func TestClose(t *testing.T) {
 	wf, err := file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w, ok := wf.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-	w.Close()
-	err = w.Watch(context.Background())
-	assert.Equal(t, context.Canceled, err)
+	done := make(chan struct{})
+	wchan := wf.NewWatcher(done)
+	require.NotNil(t, wchan)
+	// immediate update to trigger load
+	select {
+	case err, ok := <-wchan:
+		assert.True(t, ok)
+		assert.Nil(t, err)
+	case <-time.After(defaultTimeout):
+		assert.Fail(t, "watch didn't return")
+	}
+	close(done)
+	select {
+	case err, ok := <-wchan:
+		assert.False(t, ok)
+		assert.Nil(t, err)
+	case <-time.After(time.Second):
+		assert.Fail(t, "watch did not terminate")
+	}
 }
 
 func TestWatcher(t *testing.T) {
@@ -75,17 +91,17 @@ func TestWatcher(t *testing.T) {
 	wf, err := file.New(fname)
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w, ok := wf.Watcher()
-	assert.False(t, ok)
-	require.Nil(t, w)
+	done := make(chan struct{})
+	defer close(done)
+	wchan := wf.NewWatcher(done)
+	require.Nil(t, wchan)
 
 	// Watched
 	wf, err = file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w, ok = wf.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
+	wchan = wf.NewWatcher(done)
+	require.NotNil(t, wchan)
 }
 
 func TestWatcherWatch(t *testing.T) {
@@ -97,58 +113,69 @@ func TestWatcherWatch(t *testing.T) {
 	wf, err := file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w, ok := wf.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error)
-	go func() {
-		err := w.Watch(ctx)
-		done <- err
-	}()
+	done := make(chan struct{})
+	wchan := wf.NewWatcher(done)
+	require.NotNil(t, wchan)
+	// immediate update to trigger load
+	select {
+	case err, ok := <-wchan:
+		assert.True(t, ok)
+		assert.Nil(t, err)
+	case <-time.After(defaultTimeout):
+		assert.Fail(t, "watch didn't return")
+	}
+	// then block until update
+	select {
+	case err, ok := <-wchan:
+		assert.False(t, ok)
+		assert.Fail(t, "unexpected update", err)
+	case <-time.After(5 * defaultTimeout):
+	}
+	// but trigger on update
 	tf.Write([]byte("test pattern"))
 	select {
-	case err := <-done:
+	case err, ok := <-wchan:
+		assert.True(t, ok)
 		assert.Nil(t, err)
 	case <-time.After(time.Second):
 		assert.Fail(t, "watch didn't return")
 	}
 
 	// Close
-	done = make(chan error)
-	go func() {
-		err := w.Watch(ctx)
-		done <- err
-	}()
-	w.Close()
+	close(done)
 	select {
-	case err := <-done:
-		assert.Equal(t, context.Canceled, err)
+	case err, ok := <-wchan:
+		assert.False(t, ok)
+		assert.Nil(t, err)
 	case <-time.After(time.Second):
-		assert.Fail(t, "watch didn't return")
+		assert.Fail(t, "watch didn't exit")
 	}
 
 	// Remove
 	wf, err = file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w, ok = wf.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-	done = make(chan error)
-	go func() {
-		err := w.Watch(ctx)
-		done <- err
-	}()
+	done = make(chan struct{})
+	defer close(done)
+	wchan = wf.NewWatcher(done)
+	require.NotNil(t, wchan)
+	// immediate update to trigger load
+	select {
+	case err, ok := <-wchan:
+		assert.True(t, ok)
+		assert.Nil(t, err)
+	case <-time.After(defaultTimeout):
+		assert.Fail(t, "watch didn't return")
+	}
 	tf.Close()
 	os.Remove(fname)
 	select {
-	case err := <-done:
+	case err, ok := <-wchan:
+		assert.True(t, ok)
 		assert.Nil(t, err)
 	case <-time.After(time.Second):
 		assert.Fail(t, "watch didn't return")
 	}
-	cancel()
 
 	// Rename
 	tf, err = ioutil.TempFile(".", "file_test_")
@@ -158,33 +185,22 @@ func TestWatcherWatch(t *testing.T) {
 	wf, err = file.New(fname, file.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, wf)
-	w, ok = wf.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-	ctx, cancel = context.WithCancel(context.Background())
-	done = make(chan error)
-	go func() {
-		err := w.Watch(ctx)
-		done <- err
-	}()
-	os.Rename(fname, fname+"r")
+	done = make(chan struct{})
+	wchan = wf.NewWatcher(done)
+	require.NotNil(t, wchan)
+	// immediate update to trigger load
 	select {
-	case err := <-done:
+	case err, ok := <-wchan:
+		assert.True(t, ok)
 		assert.Nil(t, err)
-	case <-time.After(time.Second):
+	case <-time.After(defaultTimeout):
 		assert.Fail(t, "watch didn't return")
 	}
-
-	// Cancel
-	done = make(chan error)
-	go func() {
-		err := w.Watch(ctx)
-		done <- err
-	}()
-	cancel()
+	os.Rename(fname, fname+"r")
 	select {
-	case err := <-done:
-		assert.Equal(t, context.Canceled, err)
+	case err, ok := <-wchan:
+		assert.True(t, ok)
+		assert.Nil(t, err)
 	case <-time.After(time.Second):
 		assert.Fail(t, "watch didn't return")
 	}

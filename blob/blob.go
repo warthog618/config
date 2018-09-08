@@ -8,8 +8,6 @@
 package blob
 
 import (
-	"context"
-	"io"
 	"reflect"
 	"sync/atomic"
 
@@ -26,24 +24,7 @@ type Loader interface {
 // WatchableLoader is the interface supported by Loaders that can be watched for
 // changes.
 type WatchableLoader interface {
-	Watcher() (WatcherCloser, bool)
-}
-
-// WatcherCloser represents an API supported by Loaders that can watch the
-// underlying source for configuration changes.
-type WatcherCloser interface {
-	// Close releases any resources allocated to the watcher, and cancels any
-	// active watches.
-	io.Closer
-	// Watch blocks until the underlying source has changed since construction
-	// or the previous Watch call.
-	// The Watch should return context.Canceled if it has been terminated for
-	// any reason, including the context being done or the underlying source
-	// closing.
-	// The Watch should return an error supporting the temporary interface if
-	// the Watch has failed due to some underlying error condition, but could
-	// recover if the underlying error condition is cleared.
-	Watch(context.Context) error
+	NewWatcher(done <-chan struct{}) <-chan error
 }
 
 // Decoder unmarshals configuration from raw []byte into the provided type,
@@ -63,8 +44,6 @@ type Getter struct {
 	msi atomic.Value // map[string]interface{}
 	// separator between tiers
 	pathSep string
-	// watcher on the loader
-	w *watcher
 }
 
 // New creates a new Blob using the provided loader and decoder.
@@ -75,17 +54,8 @@ func New(l Loader, d Decoder, options ...Option) (*Getter, error) {
 	for _, option := range options {
 		option.applyOption(&g)
 	}
-	if wl, ok := l.(WatchableLoader); ok {
-		if w, ok := wl.Watcher(); ok {
-			// must be created before the initial load
-			g.w = &watcher{g: &g, w: w}
-		}
-	}
 	msi, err := load(l, d) // initial load
 	if err != nil {
-		if g.w != nil {
-			g.w.Close()
-		}
 		return nil, err
 	}
 	g.msi.Store(msi)
@@ -99,70 +69,57 @@ func (g *Getter) Get(key string) (interface{}, bool) {
 	return v, ok
 }
 
-// Watcher returns the watcher for the getter.
-// The watcher is created at construction time if the Loader has a watcher.
-// Returns false if the getter is not watchable.
-func (g *Getter) Watcher() (config.GetterWatcher, bool) {
-	if g.w == nil {
-		return nil, false
+// NewWatcher creates a watcher for the getter.
+// Returns nil if the getter does not support being watched.
+func (g *Getter) NewWatcher(done <-chan struct{}) config.GetterWatcher {
+	if wl, ok := g.l.(WatchableLoader); ok {
+		w := wl.NewWatcher(done)
+		if w == nil {
+			return nil
+		}
+		gw := &getterWatcher{uch: make(chan config.GetterUpdate)}
+		go g.watch(done, w, gw)
+		return gw
 	}
-	return g.w, true
+	return nil
 }
 
-// watcher watches a Getter for changes.
-type watcher struct {
-	g *Getter
-	w WatcherCloser
-	// lastest uncommitted configuration
-	update map[string]interface{}
-}
-
-// Close releases any resources allocated by the watcher.
-// This implicitly closes any active watches.
-// After closing, the getter is still readable via Get, but will no longer be
-// updated by the watcher.
-func (w *watcher) Close() (err error) {
-	return w.w.Close()
-}
-
-// Watch blocks until the underlying source changes.
-// The Watch returns nil if the source has changed and no error was encountered.
-// Otherwise the Watch returns the error encountered.
-// If the error is temporary it will support the temporary interface.
-// The Watch may be cancelled by providing a ctx WithCancel and
-// calling its cancel function.
-// It is assumed that Watch and CommitUpdate will only be called from a single
-// goroutine, and with CommitUpdate only called after a successful return from
-// Watch.
-func (w *watcher) Watch(ctx context.Context) error {
+func (g *Getter) watch(done <-chan struct{}, update <-chan error, gw *getterWatcher) {
+	defer close(gw.uch)
+	send := func(u getterUpdate) {
+		select {
+		case gw.uch <- u:
+		case <-done:
+			return
+		}
+	}
 	for {
-		if err := w.w.Watch(ctx); err != nil {
-			return err
+		select {
+		case <-done:
+			return
+		case err, ok := <-update:
+			if !ok {
+				return
+			}
+			if err != nil {
+				send(getterUpdate{g: g, err: err})
+				continue
+			}
+			msi, err := load(g.l, g.d)
+			if err != nil {
+				send(getterUpdate{g: g, err: err, temperr: true})
+				continue
+			}
+			if msi == nil {
+				continue
+			}
+			oldmsi := g.msi.Load().(map[string]interface{})
+			if reflect.DeepEqual(msi, oldmsi) {
+				continue
+			}
+			send(getterUpdate{g: g, commit: func() { g.msi.Store(msi) }})
 		}
-		updatedmsi, err := load(w.g.l, w.g.d)
-		if err != nil {
-			return WithTemporary(err)
-		}
-		if updatedmsi == nil {
-			continue
-		}
-		msi := w.g.msi.Load().(map[string]interface{})
-		if reflect.DeepEqual(updatedmsi, msi) {
-			continue
-		}
-		w.update = updatedmsi
-		return nil
 	}
-}
-
-// CommitUpdate commits a change to the configuration detected by Watch, making
-// the change visible to Get.
-// It is assumed that Watch and CommitUpdate will only be called from a single
-// goroutine, and with CommitUpdate only called after a successful return from
-// Watch.
-func (w *watcher) CommitUpdate() {
-	w.g.msi.Store(w.update)
-	w.update = nil
 }
 
 func load(l Loader, d Decoder) (map[string]interface{}, error) {
@@ -176,4 +133,38 @@ func load(l Loader, d Decoder) (map[string]interface{}, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+type getterWatcher struct {
+	uch chan config.GetterUpdate
+}
+
+func (g *getterWatcher) Update() <-chan config.GetterUpdate {
+	return g.uch
+}
+
+type getterUpdate struct {
+	g       config.Getter
+	err     error
+	commit  func()
+	temperr bool
+}
+
+func (g getterUpdate) Getter() config.Getter {
+	return g.g
+}
+
+func (g getterUpdate) Err() error {
+	return g.err
+}
+
+func (g getterUpdate) TemporaryError() bool {
+	return g.temperr
+}
+
+func (g getterUpdate) Commit() {
+	if g.commit == nil {
+		return
+	}
+	g.commit()
 }

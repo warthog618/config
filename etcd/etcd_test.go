@@ -12,9 +12,9 @@ import (
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/etcd"
 )
 
@@ -30,6 +30,8 @@ func TestNew(t *testing.T) {
 	cancel()
 	assert.Equal(t, context.DeadlineExceeded, err)
 	assert.Nil(t, e)
+	assert.Implements(t, (*config.Getter)(nil), e)
+	assert.Implements(t, (*config.WatchableGetter)(nil), e)
 
 	// no endpoint
 	ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
@@ -54,8 +56,9 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, "world", v)
 }
 
-func TestWatcher(t *testing.T) {
-	addr, _, terminate := dummyEtcdServer(t, map[string]string{
+func TestNewWatcher(t *testing.T) {
+	// also tests WithWatcher
+	addr, cl, terminate := dummyEtcdServer(t, map[string]string{
 		"/my/config/hello": "world",
 	})
 	defer terminate()
@@ -64,50 +67,51 @@ func TestWatcher(t *testing.T) {
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
-	w, ok := e.Watcher()
-	assert.False(t, ok)
-	require.Nil(t, w)
+	done := make(chan struct{})
+	defer close(done)
+	w := e.NewWatcher(done)
+	assert.Nil(t, w)
+
 	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
 	e, err = etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
-	w, ok = e.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
+	w = e.NewWatcher(done)
+	testNotUpdated(t, w)
+	cl.Put(context.Background(), "/my/config/hello", "final")
+	testUpdated(t, w, nil)
 }
 
-func TestWatcherClose(t *testing.T) {
+func TestClose(t *testing.T) {
 	addr, cl, terminate := dummyEtcdServer(t, map[string]string{
 		"/my/config/hello": "world",
 	})
 	defer terminate()
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
-	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
 	cancel()
 	assert.Nil(t, err)
 	require.NotNil(t, e)
-	w, ok := e.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-	v, ok := e.Get("hello")
-	assert.True(t, ok)
-	assert.Equal(t, "world", v)
+	done := make(chan struct{})
+	defer close(done)
+	w := e.NewWatcher(done)
+	assert.Nil(t, w)
+	err = e.Close()
+	assert.Nil(t, err)
 
-	cl.Put(context.Background(), "/my/config/hello", "updated")
-	testWatcher(t, w, nil)
-	w.CommitUpdate()
-	v, ok = e.Get("hello")
-	assert.True(t, ok)
-	assert.Equal(t, "updated", v)
-
-	w.Close()
-
+	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
+	e, err = etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
+	cancel()
+	assert.Nil(t, err)
+	require.NotNil(t, e)
+	w = e.NewWatcher(done)
+	testNotUpdated(t, w)
 	cl.Put(context.Background(), "/my/config/hello", "final")
-	testWatcher(t, w, context.Canceled)
-	v, ok = e.Get("hello")
-	assert.True(t, ok)
-	assert.Equal(t, "updated", v)
+	testUpdated(t, w, nil)
+	err = e.Close()
+	assert.Nil(t, err)
+	testClosed(t, w.Update())
 }
 
 func TestGet(t *testing.T) {
@@ -162,26 +166,25 @@ func TestWatch(t *testing.T) {
 	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w, ok := s.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
+	done := make(chan struct{})
+	w := s.NewWatcher(done)
 	cancel()
 
 	// baseline
-	testWatcher(t, w, context.DeadlineExceeded)
+	testNotUpdated(t, w)
 
 	// update
 	cl.Put(context.Background(), "/my/config/leaf", "54")
-	testWatcher(t, w, nil)
+	testUpdated(t, w, nil)
 
 	// no content change, but still updated
 	cl.Put(context.Background(), "/my/config/leaf", "54")
-	testWatcher(t, w, nil)
+	testUpdated(t, w, nil)
 
 	// closed so no update
-	w.Close()
+	close(done)
 	cl.Put(context.Background(), "/my/config/leaf", "54")
-	testWatcher(t, w, context.Canceled)
+	testClosed(t, w.Update())
 }
 
 func TestUpdate(t *testing.T) {
@@ -194,36 +197,60 @@ func TestUpdate(t *testing.T) {
 	s, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr), etcd.WithWatcher())
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w, ok := s.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
+	done := make(chan struct{})
+	w := s.NewWatcher(done)
 	cancel()
 
 	// baseline
-	testWatcher(t, w, context.DeadlineExceeded)
+	testNotUpdated(t, w)
 
 	// update - put
 	cl.Put(context.Background(), "/my/config/leaf", "updated")
-	testWatcher(t, w, nil)
+	update := testUpdated(t, w, nil)
+	require.NotNil(t, update)
 	v, ok := s.Get("leaf")
 	assert.True(t, ok)
 	assert.Equal(t, "baseline", v)
-	w.CommitUpdate()
+	update.Commit()
 	v, ok = s.Get("leaf")
 	assert.True(t, ok)
 	assert.Equal(t, "updated", v)
+	ge, ok := update.(Getter)
+	assert.True(t, ok)
+	assert.Equal(t, s, ge.Getter())
+	te, ok := update.(TemporaryError)
+	assert.True(t, ok)
+	assert.False(t, te.TemporaryError())
 
 	// update - delete
 	cl.Delete(context.Background(), "/my/config/leaf")
-	testWatcher(t, w, nil)
+	update = testUpdated(t, w, nil)
+	require.NotNil(t, update)
 	v, ok = s.Get("leaf")
 	assert.True(t, ok)
 	assert.Equal(t, "updated", v)
-	w.CommitUpdate()
+	update.Commit()
 	v, ok = s.Get("leaf")
 	assert.False(t, ok)
 	assert.Nil(t, v)
 
+	// closed while updating
+	cl.Put(context.Background(), "/my/config/leaf", "readded")
+	time.Sleep(defaultTimeout)
+	close(done)
+	time.Sleep(defaultTimeout)
+	testClosed(t, w.Update())
+}
+
+type Error interface {
+	Err() error
+}
+
+type Getter interface {
+	Getter() config.Getter
+}
+type TemporaryError interface {
+	TemporaryError() bool
 }
 
 func dummyEtcdServer(t *testing.T, mss map[string]string) (string, *clientv3.Client, func()) {
@@ -249,19 +276,34 @@ type watcher interface {
 	Watch(context.Context) error
 }
 
-func testWatcher(t *testing.T, w watcher, xerr error) {
+func testUpdated(t *testing.T, w config.GetterWatcher, xerr error) config.GetterUpdate {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	updated := make(chan error)
-	go func() {
-		err := w.Watch(ctx)
-		updated <- err
-	}()
 	select {
-	case err := <-updated:
-		assert.Equal(t, xerr, errors.Cause(err))
-	case <-time.After(longTimeout):
+	case update := <-w.Update():
+		ue := update.(Error)
+		assert.Equal(t, xerr, ue.Err())
+		return update
+	case <-time.After(time.Second):
 		assert.Fail(t, "watch failed to return")
 	}
-	cancel()
+	return nil
+}
+
+func testNotUpdated(t *testing.T, w config.GetterWatcher) {
+	t.Helper()
+	select {
+	case update := <-w.Update():
+		assert.Fail(t, "unexpected update", update)
+	case <-time.After(defaultTimeout):
+	}
+}
+
+func testClosed(t *testing.T, u <-chan config.GetterUpdate) {
+	t.Helper()
+	select {
+	case update, ok := <-u:
+		assert.False(t, ok)
+		assert.Nil(t, update)
+	case <-time.After(defaultTimeout):
+	}
 }

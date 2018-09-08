@@ -173,6 +173,7 @@ form *a[]*. e.g.
     for i := 0; i < size; i++ {
         // get each port sequentially...
         ports[i] = c.MustGet(fmt.Sprintf("ports[%d]", i)).Uint()
+    }
 ```
 
 ### Config

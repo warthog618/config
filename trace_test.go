@@ -35,7 +35,7 @@ func TestWithTrace(t *testing.T) {
 				assert.Equal(t, tv, v)
 				assert.Equal(t, tok, ok)
 			}
-			c := config.WithTrace(tf)(mr)
+			c := config.WithTrace(tf)(&mr)
 			v, ok := c.Get(p.tp)
 			tv, tok := mr[p.tp]
 			assert.Equal(t, tv, v)

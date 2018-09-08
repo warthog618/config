@@ -7,27 +7,22 @@
 package file
 
 import (
-	"context"
 	"io/ioutil"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/warthog618/config/blob"
 )
 
 // Loader provides reads configuration from the local filesystem.
 type Loader struct {
 	filename string
-	w        *watcher
+	watcher  bool
 }
 
 // New creates a loader with the specified path.
 func New(filename string, options ...Option) (*Loader, error) {
 	l := Loader{filename: filename}
 	for _, option := range options {
-		err := option.applyOption(&l)
-		if err != nil {
-			return nil, err
-		}
+		option.applyOption(&l)
 	}
 	return &l, nil
 }
@@ -38,42 +33,59 @@ func (l *Loader) Load() ([]byte, error) {
 	return ioutil.ReadFile(l.filename)
 }
 
-// Watcher returns the watcher for the loader.
-// The watcher must be created using the WithWatch construction option.
-func (l *Loader) Watcher() (blob.WatcherCloser, bool) {
-	if l.w == nil {
-		return nil, false
+// NewWatcher returns a channel of update events the loader.
+// The watcher must be enabled using the WithWatch construction option.
+// The watcher will send nil events when the loader has changed.
+// If a terminal error occurs it is sent to the update channel which is then closed.
+// The watcher will exit when the done is closed or a terminal error occurs.
+func (l *Loader) NewWatcher(done <-chan struct{}) <-chan error {
+	if !l.watcher {
+		return nil
 	}
-	return l.w, true
+	update := make(chan error)
+	w := watcher{}
+	go w.watcher(l.filename, done, update)
+	return update
 }
 
 // watcher watches a file for changes.
 type watcher struct {
-	*fsnotify.Watcher
 }
 
-// Watch blocks until the watched file is altered.
-// Alteration is relative to the construction of the Watcher, or the previous
-// call to Watch, whichever is more recent.
-// The Watch may be cancelled by providing a context WithCancel and
-// calling the cancel function.
-// The returned error is nil if file is changed, or an error if the context has
-// been cancelled or the WatchedFile closed.
-func (w *watcher) Watch(ctx context.Context) error {
+func (w *watcher) watcher(filename string, done <-chan struct{}, updatech chan error) {
+	update := func(err error) {
+		select {
+		case updatech <- err:
+		case <-done:
+		}
+	}
+	defer close(updatech)
+	fsn, err := fsnotify.NewWatcher()
+	if err != nil {
+		update(err)
+		return
+	}
+	err = fsn.Add(filename)
+	if err != nil {
+		update(err)
+		return
+	}
+	defer fsn.Close()
+	// immediate update to trigger load AFTER fsnotify is active
+	update(nil)
 	for {
 		select {
-		case _, ok := <-w.Events:
+		case _, ok := <-fsn.Events:
 			if !ok {
-				return context.Canceled
+				return
 			}
-			return nil
-		case e, ok := <-w.Errors:
+			update(nil)
+		case _, ok := <-fsn.Errors:
 			if !ok {
-				return context.Canceled
+				return
 			}
-			return e
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-done:
+			return
 		}
 	}
 }

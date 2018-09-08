@@ -6,7 +6,7 @@
 package blob_test
 
 import (
-	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,76 +14,75 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/blob"
 )
 
+var defaultTimeout = 10 * time.Millisecond
+
 func TestNew(t *testing.T) {
-	l := mockLoader{}
+	l := newMockLoader(nil)
 	d := mockDecoder{}
 
 	// all good
-	s, err := blob.New(&l, &d)
+	s, err := blob.New(l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
+	assert.Implements(t, (*config.Getter)(nil), s)
+	assert.Implements(t, (*config.WatchableGetter)(nil), s)
 
 	dcerr := errors.New("decode error")
 	lderr := errors.New("load error")
 
 	// load error
-	l = mockLoader{LoadError: lderr}
+	l = newMockLoader(nil)
+	l.LoadError = lderr
 	d = mockDecoder{DecodeError: dcerr}
-	s, err = blob.New(&l, &d)
+	s, err = blob.New(l, &d)
 	assert.Equal(t, lderr, err)
 	require.Nil(t, s)
 
 	// decode error
-	l = mockLoader{}
-	s, err = blob.New(&l, &d)
+	l = newMockLoader(nil)
+	s, err = blob.New(l, &d)
 	assert.Equal(t, dcerr, err)
 	require.Nil(t, s)
 }
 
-func TestWatcher(t *testing.T) {
-	l := mockLoader{}
+func TestNewWatcher(t *testing.T) {
+	l := newMockLoader(nil)
 	d := mockDecoder{}
 
-	// all good
-	s, err := blob.New(&l, &d)
+	// unwatchable
+	s, err := blob.New(&bareLoader{}, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w, ok := s.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
+	assert.Implements(t, (*config.WatchableGetter)(nil), s)
+	done := make(chan struct{})
+	defer close(done)
+	w := s.NewWatcher(done)
+	assert.Nil(t, w)
 
-	// not watchable
-	s, err = blob.New(&bareLoader{}, &d)
+	// watchable
+	s, err = blob.New(l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w, ok = s.Watcher()
-	assert.False(t, ok)
-	require.Nil(t, w)
-}
+	w = s.NewWatcher(done)
+	assert.NotNil(t, w)
 
-func TestWatcherClose(t *testing.T) {
-	clerr := errors.New("close error")
-	l := mockLoader{CloseError: clerr}
-	d := mockDecoder{}
-	s, err := blob.New(&l, &d)
+	// watchable, but disabled
+	s, err = blob.New(&mockLoader{}, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w, ok := s.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, w)
-	err = w.Close()
-	assert.Equal(t, clerr, err)
-	assert.True(t, l.Closed)
+	w = s.NewWatcher(done)
+	assert.Nil(t, w)
 }
 
 func TestGet(t *testing.T) {
-	l := mockLoader{}
+	l := newMockLoader(nil)
 	d := mockDecoder{M: map[string]interface{}{
 		"a": map[string]interface{}{"b.c_d": true}}}
-	s, err := blob.New(&l, &d)
+	s, err := blob.New(l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 	v, ok := s.Get("")
@@ -95,66 +94,107 @@ func TestGet(t *testing.T) {
 }
 
 func TestWatch(t *testing.T) {
-	l := mockLoader{N: make(chan struct{})}
+	l := newMockLoader(nil)
 	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := blob.New(&l, &d)
+	s, err := blob.New(l, &d)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	w, ok := s.Watcher()
-	assert.True(t, ok)
-	require.NotNil(t, s)
-	// baseline
-	testWatcher(t, w, context.DeadlineExceeded)
-
-	// update
-	d.M = map[string]interface{}{"a.b.c_d": "updated"}
-	l.Modify()
-	testWatcher(t, w, nil)
-
-	// no content change => no return
-	d.M = map[string]interface{}{"a.b.c_d": "baseline"}
-	l.Modify()
-	testWatcher(t, w, context.DeadlineExceeded)
-
-	// bad load
-	d.M = map[string]interface{}{"a.b.c_d": "final"}
-	d.DecodeError = errors.New("Decode error")
-	l.Modify()
-	testWatcher(t, w, d.DecodeError)
-
-	// pathological decoder
-	d.M = nil
-	d.DecodeError = nil
-	l.Modify()
-	testWatcher(t, w, context.DeadlineExceeded)
-}
-
-func TestUpdate(t *testing.T) {
-	l := mockLoader{N: make(chan struct{})}
-	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := blob.New(&l, &d)
-	assert.Nil(t, err)
-	require.NotNil(t, s)
-	w, ok := s.Watcher()
-	assert.True(t, ok)
+	done := make(chan struct{})
+	defer close(done)
+	w := s.NewWatcher(done)
 	require.NotNil(t, w)
 
 	// baseline
-	testWatcher(t, w, context.DeadlineExceeded)
+	testNotUpdated(t, w)
 
 	// update
-	d.M = map[string]interface{}{"a.b.c_d": "updated"}
-	l.Modify()
-	testWatcher(t, w, nil)
+	d.SetM(map[string]interface{}{"a.b.c_d": "updated"})
+	go l.Modify(nil)
+	testUpdated(t, w, nil)
+
+	// no content change => no return
+	d.SetM(map[string]interface{}{"a.b.c_d": "baseline"})
+	go l.Modify(nil)
+	testNotUpdated(t, w)
+
+	// load watch error
+	loadError := errors.New("Load error")
+	go l.Modify(loadError)
+	update := testUpdated(t, w, loadError)
+	require.NotNil(t, update)
+	assert.NotPanics(t, update.Commit)
+
+	// bad decode
+	d.SetM(map[string]interface{}{"a.b.c_d": "final"})
+	d.DecodeError = errors.New("Decode error")
+	go l.Modify(nil)
+	update = testUpdated(t, w, d.DecodeError)
+	require.NotNil(t, update)
+	assert.NotPanics(t, update.Commit)
+
+	// pathological decoder
+	d.SetM(nil)
+	d.DecodeError = nil
+	go l.Modify(nil)
+	testNotUpdated(t, w)
+
+	// loader closed
+	l.Close()
+	d.SetM(map[string]interface{}{"a.b.c_d": "closed"})
+	testClosed(t, w.Update())
+}
+
+func TestUpdate(t *testing.T) {
+	l := newMockLoader(nil)
+	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
+	s, err := blob.New(l, &d)
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+	done := make(chan struct{})
+	w := s.NewWatcher(done)
+	require.NotNil(t, w)
+
+	// baseline
+	testNotUpdated(t, w)
+
+	// update
+	d.SetM(map[string]interface{}{"a.b.c_d": "updated"})
+	go l.Modify(nil)
+	update := testUpdated(t, w, nil)
+	require.NotNil(t, update)
 	v, ok := s.Get("a.b.c_d")
 	assert.True(t, ok)
 	assert.Equal(t, "baseline", v)
-	w.CommitUpdate()
+	assert.NotPanics(t, update.Commit)
 	v, ok = s.Get("a.b.c_d")
 	assert.True(t, ok)
 	assert.Equal(t, "updated", v)
+	ge, ok := update.(Getter)
+	assert.True(t, ok)
+	assert.Equal(t, s, ge.Getter())
+	te, ok := update.(TemporaryError)
+	assert.True(t, ok)
+	assert.False(t, te.TemporaryError())
+
+	// closed while updating
+	d.SetM(map[string]interface{}{"a.b.c_d": "final"})
+	go l.Modify(nil)
+	time.Sleep(defaultTimeout)
+	close(done)
+	time.Sleep(defaultTimeout)
+	testClosed(t, w.Update())
 }
 
+type Error interface {
+	Err() error
+}
+
+type Getter interface {
+	Getter() config.Getter
+}
+type TemporaryError interface {
+	TemporaryError() bool
+}
 type bareLoader struct{}
 
 func (l *bareLoader) Load() ([]byte, error) {
@@ -162,68 +202,85 @@ func (l *bareLoader) Load() ([]byte, error) {
 }
 
 type mockLoader struct {
-	B          []byte
-	LoadError  error
-	Closed     bool
-	CloseError error
-	N          chan struct{}
+	mu        sync.Mutex
+	B         []byte
+	LoadError error
+	update    chan error
 }
 
+func newMockLoader(b []byte) *mockLoader {
+	return &mockLoader{B: b, update: make(chan error)}
+}
 func (l *mockLoader) Load() ([]byte, error) {
 	return l.B, l.LoadError
 }
 
-func (l *mockLoader) Watcher() (blob.WatcherCloser, bool) {
-	return l, true
+func (l *mockLoader) NewWatcher(done <-chan struct{}) <-chan error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.update
 }
 
-func (l *mockLoader) Close() error {
-	l.Closed = true
-	return l.CloseError
+func (l *mockLoader) Modify(err error) {
+	l.mu.Lock()
+	l.update <- err
+	l.mu.Unlock()
 }
 
-func (l *mockLoader) Watch(ctx context.Context) error {
-	select {
-	case <-l.N:
-		l.N = make(chan struct{})
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (l *mockLoader) Modify() {
-	close(l.N)
+func (l *mockLoader) Close() {
+	l.mu.Lock()
+	close(l.update)
+	l.mu.Unlock()
 }
 
 type mockDecoder struct {
+	mu          sync.Mutex
 	M           map[string]interface{}
 	DecodeError error
 }
 
 func (d *mockDecoder) Decode(b []byte, v interface{}) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	m := v.(*map[string]interface{})
 	*m = d.M
 	return d.DecodeError
 }
 
-type watcher interface {
-	Watch(context.Context) error
+func (d *mockDecoder) SetM(m map[string]interface{}) {
+	d.mu.Lock()
+	d.M = m
+	d.mu.Unlock()
 }
 
-func testWatcher(t *testing.T, w watcher, xerr error) {
+func testUpdated(t *testing.T, w config.GetterWatcher, xerr error) config.GetterUpdate {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
-	updated := make(chan error)
-	go func() {
-		err := w.Watch(ctx)
-		updated <- err
-	}()
 	select {
-	case err := <-updated:
-		assert.Equal(t, xerr, errors.Cause(err))
+	case update := <-w.Update():
+		ue := update.(Error)
+		assert.Equal(t, xerr, ue.Err())
+		return update
 	case <-time.After(time.Second):
 		assert.Fail(t, "watch failed to return")
 	}
-	cancel()
+	return nil
+}
+
+func testNotUpdated(t *testing.T, w config.GetterWatcher) {
+	t.Helper()
+	select {
+	case update := <-w.Update():
+		assert.Fail(t, "unexpected update", update)
+	case <-time.After(defaultTimeout):
+	}
+}
+
+func testClosed(t *testing.T, u <-chan config.GetterUpdate) {
+	t.Helper()
+	select {
+	case update, ok := <-u:
+		assert.False(t, ok)
+		assert.Nil(t, update)
+	case <-time.After(defaultTimeout):
+	}
 }

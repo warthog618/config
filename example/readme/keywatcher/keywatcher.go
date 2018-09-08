@@ -6,7 +6,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"time"
 
@@ -21,27 +20,21 @@ func main() {
 	g, _ := blob.New(l, json.NewDecoder())
 	c := config.NewConfig(g)
 
-	update := make(chan int64)
-	w := c.NewKeyWatcher("somevariable")
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	done := make(chan struct{})
+	defer close(done)
 	// watcher goroutine
 	go func() {
+		w := c.NewKeyWatcher("somevariable")
 		for {
-			v, err := w.Watch(ctx)
+			v, err := w.Watch(done)
 			if err != nil {
-				close(update)
-				break
+				log.Println("watch error:", err)
+				return
 			}
-			update <- v.Int()
+			log.Println("got update:", v.Int())
 		}
 	}()
 	// main thread
-	for {
-		v, ok := <-update
-		if !ok {
-			break
-		}
-		log.Println("got update:", v)
-	}
+	time.Sleep(time.Minute)
+	log.Println("finished.")
 }

@@ -6,7 +6,6 @@
 package config
 
 import (
-	"context"
 	"sync"
 )
 
@@ -45,7 +44,7 @@ func (s *Stack) Append(g Getter) {
 	s.mu.Lock()
 	s.gg = append(s.gg, g)
 	if s.w != nil {
-		s.w.append(g)
+		s.w.append(s.w.getterWatcher(g))
 	}
 	s.mu.Unlock()
 }
@@ -74,121 +73,54 @@ func (s *Stack) Insert(g Getter) {
 	s.mu.Lock()
 	s.gg = append([]Getter{g}, s.gg...)
 	if s.w != nil {
-		s.w.append(g)
+		s.w.append(s.w.getterWatcher(g))
 	}
 	s.mu.Unlock()
 }
 
-// Watcher implements the WatchableGetter interface.
-func (s *Stack) Watcher() (GetterWatcher, bool) {
+// NewWatcher implements the WatchableGetter interface.
+func (s *Stack) NewWatcher(done <-chan struct{}) GetterWatcher {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.w != nil {
-		return s.w, true
-	}
-	ww := []GetterWatcher{}
-	for _, g := range s.gg {
-		if wg, ok := g.(WatchableGetter); ok {
-			if w, ok := wg.Watcher(); ok {
-				ww = append(ww, w)
-			}
-		}
-	}
+	// create stack watcher
 	s.w = &stackWatcher{
-		mu:    &sync.Mutex{},
-		gg:    ww,
-		uchan: make(chan GetterWatcher),
-		cchan: make(chan GetterWatcher, 1)}
-	return s.w, true
+		done: done,
+		gw:   newGetterWatcher()}
+	for _, g := range s.gg {
+		s.w.append(s.w.getterWatcher(g))
+	}
+	return s.w.gw
 }
 
 type stackWatcher struct {
-	mu      sync.Locker
-	gg      []GetterWatcher
-	wctx    context.Context
-	wcancel func()
-	uchan   chan GetterWatcher
-	cchan   chan GetterWatcher
+	done <-chan struct{}
+	gw   *getterWatcher
 }
 
-func (s *stackWatcher) Close() (rerr error) {
-	s.mu.Lock()
-	if s.wcancel != nil {
-		s.wcancel()
-	}
-	gg := s.gg
-	s.mu.Unlock()
-	for _, g := range gg {
-		err := g.Close()
-		if rerr == nil {
-			rerr = err
-		}
-	}
-	return
-}
-
-func (s *stackWatcher) CommitUpdate() {
-	for {
-		select {
-		case g := <-s.cchan:
-			g.CommitUpdate()
-			go s.watchGetter(s.wctx, g)
-		default:
-			return
-		}
-	}
-}
-
-func (s *stackWatcher) Watch(ctx context.Context) error {
-	s.mu.Lock()
-	if s.wctx == nil {
-		ctx, cancel := context.WithCancel(context.Background())
-		for _, g := range s.gg {
-			go s.watchGetter(ctx, g)
-		}
-		s.wctx = ctx
-		s.wcancel = cancel
-	}
-	s.mu.Unlock()
-	select {
-	case g := <-s.uchan:
-		s.cchan <- g
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (s *stackWatcher) watchGetter(ctx context.Context, gw GetterWatcher) {
-	for {
-		if err := gw.Watch(ctx); err != nil {
-			if IsTemporary(err) {
-				continue
-			}
-			return
-		}
-		break
-	}
-	select {
-	case <-ctx.Done():
-		return
-	case s.uchan <- gw:
-	}
-}
-
-func (s *stackWatcher) append(g Getter) {
+func (s *stackWatcher) getterWatcher(g Getter) GetterWatcher {
 	wg, ok := g.(WatchableGetter)
 	if !ok {
+		return nil
+	}
+	return wg.NewWatcher(s.done)
+}
+
+func (s *stackWatcher) append(w GetterWatcher) {
+	if w == nil {
 		return
 	}
-	w, ok := wg.Watcher()
-	if !ok {
-		return
-	}
-	s.mu.Lock()
-	s.gg = append(s.gg, w)
-	if s.wctx != nil {
-		go s.watchGetter(s.wctx, w)
-	}
-	s.mu.Unlock()
+	go func() {
+		for {
+			select {
+			case <-s.done:
+				return
+			case u := <-w.Update():
+				select {
+				case s.gw.uch <- u:
+				case <-s.done:
+					return
+				}
+			}
+		}
+	}()
 }
