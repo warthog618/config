@@ -824,7 +824,7 @@ func testNotUpdated(t *testing.T, w watcher, notify func()) {
 	}
 	select {
 	case err := <-updated:
-		assert.Fail(t, "unexpected update", err)
+		assert.Fail(t, "unexpected update", "err: %#v", err)
 	case <-time.After(5 * defaultTimeout):
 	}
 	close(done)

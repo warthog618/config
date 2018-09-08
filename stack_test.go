@@ -363,7 +363,7 @@ func testWatcherNotUpdated(t *testing.T, w config.GetterWatcher) {
 	t.Helper()
 	select {
 	case update := <-w.Update():
-		assert.Fail(t, "unexpected update", update)
+		assert.Fail(t, "unexpected update", "update: %#v", update)
 	case <-time.After(defaultTimeout):
 	}
 }
