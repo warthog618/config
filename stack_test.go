@@ -323,6 +323,7 @@ func TestStackWatcherClosedDuringUpdate(t *testing.T) {
 	ow.w.Notify()
 	time.Sleep(defaultTimeout)
 	close(done)
+	time.Sleep(defaultTimeout)
 	testWatcherNotUpdated(t, w)
 }
 
