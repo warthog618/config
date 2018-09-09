@@ -7,6 +7,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,9 +160,7 @@ func TestWithKeyReplacer(t *testing.T) {
 }
 
 func TestWithMustGet(t *testing.T) {
-	mg := mockGetter{
-		"a": "is a",
-	}
+	mg := mockGetter{"a": "is a"}
 	pr := config.WithMustGet()(&mg)
 	v, ok := pr.Get("a")
 	assert.True(t, true, ok)
@@ -195,6 +194,62 @@ func TestWithPrefix(t *testing.T) {
 	testDecoratorWatchable(t, config.WithPrefix("any prefix"))
 }
 
+func TestWithUpdateHandler(t *testing.T) {
+	mg := mockGetter{
+		"a":     "a",
+		"a.b":   "a.b",
+		"a.b.c": "a.b.c",
+	}
+	patterns := []struct {
+		name string
+		k    string
+		v    string
+	}{
+		{"one", "a", "a"},
+		{"two", "a.b", "a.b"},
+		{"three", "a.b.c", "a.b.c"},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			// unwatchable
+			pr := config.WithUpdateHandler(nil)(echoGetter{})
+			v, ok := pr.Get(p.k)
+			assert.Equal(t, true, ok, p.k)
+			assert.Equal(t, p.v, v)
+			// watchable
+			mgw := watchedGetter{mg, nil}
+			pr = config.WithUpdateHandler(nil)(&mgw)
+			v, ok = pr.Get(p.k)
+			assert.Equal(t, true, ok, p.k)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.name, f)
+	}
+	passthru := func(done <-chan struct{}, in <-chan config.GetterUpdate, out chan<- config.GetterUpdate) {
+		for {
+			select {
+			case <-done:
+				return
+			case u, ok := <-in:
+				if !ok {
+					return
+				}
+				select {
+				case <-done:
+					return
+				case out <- u:
+				}
+			}
+		}
+	}
+	testDecoratorWatchable(t, config.WithUpdateHandler(config.UpdateHandler(passthru)))
+	dropper := func(done <-chan struct{}, in <-chan config.GetterUpdate, out chan<- config.GetterUpdate) {
+		<-done
+	}
+	testDecoratorNoUpdate(t, config.WithUpdateHandler(config.UpdateHandler(dropper)))
+
+}
+
 func testDecoratorWatchable(t *testing.T, d config.Decorator) {
 	t.Helper()
 	mg := mockGetter{}
@@ -209,6 +264,34 @@ func testDecoratorWatchable(t *testing.T, d config.Decorator) {
 	ws := mgw.w
 	require.NotNil(t, ws)
 	assert.True(t, done == ws.donech)
+	go mgw.w.Notify()
+	select {
+	case <-w.Update():
+	case <-time.After(defaultTimeout):
+		assert.Fail(t, "failed to propagate update")
+	}
+}
+
+func testDecoratorNoUpdate(t *testing.T, d config.Decorator) {
+	t.Helper()
+	mg := mockGetter{}
+	mgw := watchedGetter{mg, nil}
+	g := d(&mgw)
+	wg, ok := g.(config.WatchableGetter)
+	assert.True(t, ok)
+	require.NotNil(t, wg)
+	done := make(chan struct{})
+	w := wg.NewWatcher(done)
+	assert.NotNil(t, w)
+	ws := mgw.w
+	require.NotNil(t, ws)
+	assert.True(t, done == ws.donech)
+	go mgw.w.Notify()
+	select {
+	case u := <-w.Update():
+		assert.Fail(t, "unexpected update", "%#v", u)
+	case <-time.After(defaultTimeout):
+	}
 }
 
 type echoGetter struct{}

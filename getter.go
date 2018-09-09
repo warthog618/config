@@ -86,7 +86,7 @@ type getterDecorator struct {
 	g Getter
 }
 
-// NewWatcher implements the WatchableGetter interface
+// NewWatcher implements the WatchableGetter interface.
 func (g getterDecorator) NewWatcher(done <-chan struct{}) GetterWatcher {
 	if wg, ok := g.g.(WatchableGetter); ok {
 		return wg.NewWatcher(done)
@@ -201,4 +201,38 @@ type prefixDecorator struct {
 
 func (g prefixDecorator) Get(key string) (interface{}, bool) {
 	return g.g.Get(g.prefix + key)
+}
+
+// UpdateHandler receives an update, performs some transformation
+// on it, and forwards (or not) the transformed update.
+// Must return if the done or in channels are closed.
+type UpdateHandler func(done <-chan struct{}, in <-chan GetterUpdate, out chan<- GetterUpdate)
+
+// WithUpdateHandler adds an update processing decorator to a getter.
+func WithUpdateHandler(handler UpdateHandler) Decorator {
+	return func(g Getter) Getter {
+		if _, ok := g.(WatchableGetter); !ok {
+			return g
+		}
+		return updateDecorator{g: g, h: handler}
+	}
+}
+
+type updateDecorator struct {
+	g Getter
+	h UpdateHandler
+}
+
+// NewWatcher implements the WatchableGetter interface.
+func (g updateDecorator) NewWatcher(done <-chan struct{}) GetterWatcher {
+	wg := g.g.(WatchableGetter)
+	w := newGetterWatcher()
+	gw := wg.NewWatcher(done)
+	go g.h(done, gw.Update(), w.uch)
+	return w
+}
+
+// Get implements the Watcher interface.
+func (g updateDecorator) Get(key string) (interface{}, bool) {
+	return g.g.Get(key)
 }
