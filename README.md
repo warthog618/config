@@ -445,17 +445,21 @@ func main() {
         "sm.thresholds": []int8{23, 45, 64},
     }))
     var g config.Getter
+    // from flags and defaults...
     g, _ = pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"}))
     sources := config.NewStack(g)
     cfg := config.NewConfig(
         config.Decorate(sources, config.WithDefault(defaultConfig)))
+
+    // and from environment...
     prefix := cfg.MustGet("env.prefix").String()
     g, _ = env.New(env.WithEnvPrefix(prefix))
     sources.Append(g)
+
+    // and from config file...
     cf := cfg.MustGet("config.file").String()
     f, _ := file.New(cf)
     g, _ = blob.New(f, json.NewDecoder())
-
     sources.Append(g)
 
     // read a config field from the root config
@@ -479,6 +483,7 @@ func main() {
     cfg.Unmarshal("sm", &sc)
     fmt.Println(cf, name, sc)
 }
+
 ```
 
 In this example, the config file name for *myapp*, with key *config.file*, could
@@ -508,29 +513,23 @@ func main() {
     g, _ := blob.New(l, json.NewDecoder())
     c := config.NewConfig(g)
 
-    update := make(chan int64)
-    w := c.NewKeyWatcher("somevariable")
-    ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-    defer cancel()
+    done := make(chan struct{})
+    defer close(done)
     // watcher goroutine
     go func() {
+        w := c.NewKeyWatcher("somevariable")
         for {
-            v, err := w.Watch(ctx)
+            v, err := w.Watch(done)
             if err != nil {
-                close(update)
-                break
+                log.Println("watch error:", err)
+                return
             }
-            update <- v.Int()
+            log.Println("got update:", v.Int())
         }
     }()
     // main thread
-    for {
-        v, ok := <-update
-        if !ok {
-            break
-        }
-        log.Println("got update:", v)
-    }
+    time.Sleep(time.Minute)
+    log.Println("finished.")
 }
 ```
 
