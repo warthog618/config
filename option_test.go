@@ -21,6 +21,19 @@ func TestNewAliasWithSeparator(t *testing.T) {
 	assert.Equal(t, "X", a.pathSep)
 }
 
+func TestNewConfigWithDefault(t *testing.T) {
+	g := mockGetter{"a": 42}
+	d := mockGetter{"a": 45, "d": 47}
+	c := NewConfig(g, WithDefault(d))
+	require.NotNil(t, c)
+	val, err := c.Get("a")
+	assert.Nil(t, err)
+	assert.Equal(t, val.Int(), int64(42))
+	val, err = c.Get("d")
+	assert.Nil(t, err)
+	assert.Equal(t, val.Int(), int64(47))
+}
+
 func TestNewConfigWithSeparator(t *testing.T) {
 	g := mockGetter{"a": 42}
 	c := NewConfig(g)
