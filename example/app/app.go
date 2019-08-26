@@ -23,7 +23,6 @@ package main
 
 import (
 	"log"
-	"os"
 	"time"
 
 	"github.com/warthog618/config"
@@ -79,54 +78,21 @@ var defaultConfig = []byte(`{
 
 func loadConfig() *config.Config {
 	jsondec := json.NewDecoder()
-	def, err := blob.New(bytes.New(defaultConfig), jsondec)
-	if err != nil {
-		panic(err)
-	}
+	def := blob.New(bytes.New(defaultConfig), jsondec, blob.MustLoad())
 	shortFlags := map[byte]string{
 		'b': "module2.bool",
 		'c': "config-file",
 		'u': "unmarshal",
 	}
-	fget, err := pflag.New(pflag.WithShortFlags(shortFlags))
-	if err != nil {
-		panic(err)
-	}
-	// environment next
-	eget, err := env.New(env.WithEnvPrefix("APP_"))
-	if err != nil {
-		panic(err)
-	}
 	// highest priority sources first - flags override environment
-	sources := config.NewStack(fget, eget)
-	cfg := config.NewConfig(config.Decorate(sources, config.WithDefault(def)))
-
+	sources := config.NewStack(
+		pflag.New(pflag.WithShortFlags(shortFlags)),
+		env.New(env.WithEnvPrefix("APP_")))
+	cfg := config.NewConfig(sources, config.WithDefault(def))
 	// config file may be specified via flag or env, so check for it
 	// and if present add it with lower priority than flag and env.
-	configFile, err := cfg.Get("config.file")
-	if err == nil {
-		// explicitly specified config file - must be there
-		cfgFile, err := file.New(configFile.String(), file.WithWatcher())
-		if err != nil {
-			panic(err)
-		}
-		jget, err := blob.New(cfgFile, jsondec)
-		if err != nil {
-			panic(err)
-		}
-		sources.Append(jget)
-	} else {
-		// implicit and optional default config file
-		cfgFile, _ := file.New("app.json")
-		jget, err := blob.New(cfgFile, jsondec)
-		if err == nil {
-			sources.Append(jget)
-		} else {
-			if _, ok := err.(*os.PathError); !ok {
-				panic(err)
-			}
-		}
-	}
+	sources.Append(blob.NewConfigFile(
+		cfg, "config.file", "app.json", jsondec, file.WithWatcher()))
 	return cfg
 }
 

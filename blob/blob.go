@@ -8,10 +8,12 @@
 package blob
 
 import (
+	"os"
 	"reflect"
 	"sync/atomic"
 
 	"github.com/warthog618/config"
+	"github.com/warthog618/config/blob/loader/file"
 	"github.com/warthog618/config/tree"
 )
 
@@ -33,6 +35,9 @@ type Decoder interface {
 	Decode(b []byte, v interface{}) error
 }
 
+// ErrorHandler handles an error.
+type ErrorHandler func(error)
+
 // Getter represents a two stage getter for blobs.  The first stage is the
 // Loader which retrieves the configuration as a []byte blob from an underlying
 // source. The second stage is the Decoder, which converts the returned []byte
@@ -44,27 +49,36 @@ type Getter struct {
 	msi atomic.Value // map[string]interface{}
 	// separator between tiers
 	pathSep string
+	// handler for construction load errors
+	ceh ErrorHandler
 }
 
 // New creates a new Blob using the provided loader and decoder.
 // The configuration is loaded and decoded during construction, else an error is
 // returned.
-func New(l Loader, d Decoder, options ...Option) (*Getter, error) {
+func New(l Loader, d Decoder, options ...Option) *Getter {
 	g := Getter{l: l, d: d, pathSep: "."}
 	for _, option := range options {
 		option.applyOption(&g)
 	}
 	msi, err := load(l, d) // initial load
-	if err != nil {
-		return nil, err
+	if err == nil {
+		g.msi.Store(msi)
+	} else {
+		if g.ceh != nil {
+			g.ceh(err)
+		}
 	}
-	g.msi.Store(msi)
-	return &g, nil
+	return &g
 }
 
 // Get implements the Getter API.
 func (g *Getter) Get(key string) (interface{}, bool) {
-	msi := g.msi.Load().(map[string]interface{})
+	msi := g.msi.Load()
+	if msi == nil {
+		return nil, false
+	}
+	msi = msi.(map[string]interface{})
 	v, ok := tree.Get(msi, key, g.pathSep)
 	return v, ok
 }
@@ -167,4 +181,31 @@ func (g getterUpdate) Commit() {
 		return
 	}
 	g.commit()
+}
+
+// NewConfigFile is a helper function that creates a File getter.
+// The config file path is defined in either the existing config, in a field
+// indicated by pathfield, or a default path.
+// If the config file is specified in the config then it must exist and load, or
+// the function will panic.
+// If the config file is not specified in the config then the default config
+// file is used, if it exists, or an empty Getter.
+// Any provided foptions are passed to the File constructor.
+func NewConfigFile(cfg *config.Config, pathfield string,
+	defpath string, fdec Decoder, foptions ...file.Option) config.Getter {
+	path, err := cfg.Get(pathfield)
+	if err == nil {
+		// explicitly specified config file - must be there
+		cfgFile := file.New(path.String(), foptions...)
+		jget := New(cfgFile, fdec, MustLoad())
+		return jget
+	}
+	// implicit and optional default config file
+	cfgFile := file.New(defpath)
+	jget := New(cfgFile, fdec, WithErrorHandler(func(e error) {
+		if _, ok := e.(*os.PathError); !ok {
+			panic(e)
+		}
+	}))
+	return jget
 }

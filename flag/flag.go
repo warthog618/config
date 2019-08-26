@@ -22,7 +22,7 @@ import (
 // - parse the flags provides by flag using flag.Visit
 // - replace '-' in the flag space with '.' in the config space.
 // - split list values with the ',' separator.
-func New(options ...Option) (*Getter, error) {
+func New(options ...Option) *Getter {
 	g := Getter{}
 	for _, option := range options {
 		option(&g)
@@ -37,7 +37,7 @@ func New(options ...Option) (*Getter, error) {
 		g.visit = flag.Visit
 	}
 	g.parse()
-	return &g, nil
+	return &g
 }
 
 // Getter provides the mapping from flags to a config.Getter.

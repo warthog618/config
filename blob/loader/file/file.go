@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// Package file provides a loader from file for config.
+// Package file provides a file loader for config.
 package file
 
 import (
@@ -19,12 +19,12 @@ type Loader struct {
 }
 
 // New creates a loader with the specified path.
-func New(filename string, options ...Option) (*Loader, error) {
+func New(filename string, options ...Option) *Loader {
 	l := Loader{filename: filename}
 	for _, option := range options {
 		option.applyOption(&l)
 	}
-	return &l, nil
+	return &l
 }
 
 // Load returns the current content of the file.
@@ -61,11 +61,9 @@ func (w *watcher) watcher(filename string, done <-chan struct{}, updatech chan e
 	}
 	defer close(updatech)
 	fsn, err := fsnotify.NewWatcher()
-	if err != nil {
-		update(err)
-		return
+	if err == nil {
+		err = fsn.Add(filename)
 	}
-	err = fsn.Add(filename)
 	if err != nil {
 		update(err)
 		return
@@ -75,9 +73,17 @@ func (w *watcher) watcher(filename string, done <-chan struct{}, updatech chan e
 	update(nil)
 	for {
 		select {
-		case _, ok := <-fsn.Events:
+		case evt, ok := <-fsn.Events:
 			if !ok {
 				return
+			}
+			if evt.Op == fsnotify.Remove {
+				fsn.Remove(filename)
+				err = fsn.Add(filename)
+				if err != nil {
+					update(err)
+					return
+				}
 			}
 			update(nil)
 		case _, ok := <-fsn.Errors:

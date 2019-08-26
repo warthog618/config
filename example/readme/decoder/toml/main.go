@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	f, _ := file.New("config.toml")
-	b, _ := blob.New(f, toml.NewDecoder())
+	f := file.New("config.toml")
+	b := blob.New(f, toml.NewDecoder())
 	c := config.NewConfig(b)
 	s := c.MustGet("nested.string").String()
 	fmt.Println("s:", s)

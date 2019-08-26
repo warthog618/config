@@ -107,9 +107,9 @@ func Decorate(g Getter, dd ...Decorator) Getter {
 	return dg
 }
 
-// WithDefault provides a Decorator that falls back to a default Getter if the
+// WithFallback provides a Decorator that falls back to a default Getter if the
 // key is not found in the decorated Getter.
-func WithDefault(d Getter) Decorator {
+func WithFallback(d Getter) Decorator {
 	return func(g Getter) Getter {
 		if d == nil {
 			return g

@@ -26,8 +26,7 @@ func init() {
 	goflag.String("nested-slice", "", "")
 }
 func TestNew(t *testing.T) {
-	f, err := flag.New()
-	assert.Nil(t, err)
+	f := flag.New()
 	require.NotNil(t, f)
 	// basic get
 	v, ok := f.Get("config.file")
@@ -74,9 +73,8 @@ func TestGetterGet(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, p.args...)
 			goflag.Parse()
-			f, err := flag.New()
+			f := flag.New()
 			os.Args = oldArgs
-			assert.Nil(t, err)
 			require.NotNil(t, f)
 			for _, x := range p.expected {
 				v, ok := f.Get(x.k)
@@ -108,9 +106,8 @@ func TestNewWithAllFlags(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, args...)
 			goflag.Parse()
-			r, err := flag.New(flag.WithAllFlags())
+			r := flag.New(flag.WithAllFlags())
 			os.Args = oldArgs
-			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get(p.key)
 			assert.True(t, ok)
@@ -137,9 +134,8 @@ func TestNewWithKeyReplacer(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, args...)
 			goflag.Parse()
-			r, err := flag.New(flag.WithKeyReplacer(p.r))
+			r := flag.New(flag.WithKeyReplacer(p.r))
 			os.Args = oldArgs
-			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get(p.expected)
 			assert.True(t, ok)
@@ -168,9 +164,8 @@ func TestNewWithListSplitter(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, args...)
 			goflag.Parse()
-			r, err := flag.New(flag.WithListSplitter(list.NewSplitter(p.sep)))
+			r := flag.New(flag.WithListSplitter(list.NewSplitter(p.sep)))
 			os.Args = oldArgs
-			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get("slice")
 			assert.True(t, ok)
@@ -197,7 +192,7 @@ func BenchmarkGet(b *testing.B) {
 	oldArgs := os.Args
 	os.Args = append([]string{"flagTest"}, "--leaf", "44")
 	goflag.Parse()
-	g, _ := flag.New()
+	g := flag.New()
 	os.Args = oldArgs
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -210,7 +205,7 @@ func BenchmarkGetNested(b *testing.B) {
 	oldArgs := os.Args
 	os.Args = append([]string{"flagTest"}, "--nested-leaf", "44")
 	goflag.Parse()
-	g, _ := flag.New()
+	g := flag.New()
 	os.Args = oldArgs
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -223,7 +218,7 @@ func BenchmarkGetArray(b *testing.B) {
 	oldArgs := os.Args
 	os.Args = append([]string{"flagTest"}, "--slice", "42,44")
 	goflag.Parse()
-	g, _ := flag.New()
+	g := flag.New()
 	os.Args = oldArgs
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -236,7 +231,7 @@ func BenchmarkGetArrayLen(b *testing.B) {
 	oldArgs := os.Args
 	os.Args = append([]string{"flagTest"}, "--slice", "42,44")
 	goflag.Parse()
-	g, _ := flag.New()
+	g := flag.New()
 	os.Args = oldArgs
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
@@ -249,7 +244,7 @@ func BenchmarkGetArrayElement(b *testing.B) {
 	oldArgs := os.Args
 	os.Args = append([]string{"flagTest"}, "--slice", "42,44")
 	goflag.Parse()
-	g, _ := flag.New()
+	g := flag.New()
 	os.Args = oldArgs
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {

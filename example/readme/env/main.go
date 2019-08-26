@@ -8,8 +8,7 @@ import (
 )
 
 func main() {
-	e, _ := env.New()
-	c := config.NewConfig(e)
+	c := config.NewConfig(env.New())
 	cfgFile := c.MustGet("config.file").String()
 	fmt.Println("config-file:", cfgFile)
 	// ....

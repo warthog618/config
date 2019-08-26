@@ -26,8 +26,7 @@ func setup(prefix string) {
 }
 
 func TestNew(t *testing.T) {
-	e, err := env.New()
-	assert.Nil(t, err)
+	e := env.New()
 	require.NotNil(t, e)
 	assert.Implements(t, (*config.Getter)(nil), e)
 }
@@ -52,8 +51,7 @@ func TestGetterGet(t *testing.T) {
 	}
 	prefix := "CFGENV_"
 	setup(prefix)
-	e, err := env.New(env.WithEnvPrefix(prefix))
-	assert.Nil(t, err)
+	e := env.New(env.WithEnvPrefix(prefix))
 	require.NotNil(t, e)
 
 	for _, p := range patterns {
@@ -97,10 +95,9 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e, err := env.New(
+			e := env.New(
 				env.WithEnvPrefix(prefix),
 				env.WithKeyReplacer(p.r))
-			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get(p.expected)
 			assert.True(t, ok)
@@ -125,10 +122,9 @@ func TestNewWithListSplitter(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e, err := env.New(
+			e := env.New(
 				env.WithEnvPrefix(prefix),
 				env.WithListSplitter(list.NewSplitter(p.sep)))
-			assert.Nil(t, err)
 			require.NotNil(t, e)
 			v, ok := e.Get("slice")
 			assert.True(t, ok)
@@ -152,8 +148,7 @@ func TestNewWithEnvPrefix(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			e, err := env.New(env.WithEnvPrefix(p.prefix))
-			assert.Nil(t, err)
+			e := env.New(env.WithEnvPrefix(p.prefix))
 			require.NotNil(t, e)
 			v, ok := e.Get(p.k)
 			assert.True(t, ok)
@@ -178,7 +173,7 @@ func BenchmarkGet(b *testing.B) {
 	prefix := "CFGENV_"
 	setup(prefix)
 	b.StartTimer()
-	g, _ := env.New(env.WithEnvPrefix(prefix))
+	g := env.New(env.WithEnvPrefix(prefix))
 	for n := 0; n < b.N; n++ {
 		g.Get("leaf")
 	}
@@ -188,7 +183,7 @@ func BenchmarkGetNested(b *testing.B) {
 	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
-	g, _ := env.New(env.WithEnvPrefix(prefix))
+	g := env.New(env.WithEnvPrefix(prefix))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
@@ -199,7 +194,7 @@ func BenchmarkGetArray(b *testing.B) {
 	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
-	g, _ := env.New(env.WithEnvPrefix(prefix))
+	g := env.New(env.WithEnvPrefix(prefix))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice")
@@ -210,7 +205,7 @@ func BenchmarkGetArrayLen(b *testing.B) {
 	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
-	g, _ := env.New(env.WithEnvPrefix(prefix))
+	g := env.New(env.WithEnvPrefix(prefix))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice[]")
@@ -221,7 +216,7 @@ func BenchmarkGetArrayElement(b *testing.B) {
 	b.StopTimer()
 	prefix := "CFGENV_"
 	setup(prefix)
-	g, _ := env.New(env.WithEnvPrefix(prefix))
+	g := env.New(env.WithEnvPrefix(prefix))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice[1]")

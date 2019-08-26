@@ -41,13 +41,27 @@ func WithTag(t string) TagOption {
 	return TagOption{t}
 }
 
-// TagOption defines the string that identies field names during unmarshaling.
+// TagOption defines the string that identifies field names during unmarshaling.
 type TagOption struct {
 	t string
 }
 
 func (t TagOption) applyConfigOption(c *Config) {
 	c.tag = t.t
+}
+
+// DefaultOption defines default configuration uses as a fall back if a field is not returned by the main getter.
+type DefaultOption struct {
+	d Getter
+}
+
+func (o DefaultOption) applyConfigOption(c *Config) {
+	c.getter = Overlay(c.getter, o.d)
+}
+
+// WithDefault is an Option that sets the default configuration.
+func WithDefault(d Getter) DefaultOption {
+	return DefaultOption{d}
 }
 
 // ErrorHandlerOption defines the handler for errors.

@@ -10,6 +10,29 @@ type Option interface {
 	applyOption(s *Getter)
 }
 
+// ErrorHandlerOption defines the handler for errors returned during construction and the initial load.
+type ErrorHandlerOption struct {
+	e ErrorHandler
+}
+
+func (o ErrorHandlerOption) applyOption(g *Getter) {
+	g.ceh = o.e
+}
+
+// WithErrorHandler is an Option that sets the error handling for an object.
+func WithErrorHandler(e ErrorHandler) ErrorHandlerOption {
+	return ErrorHandlerOption{e}
+}
+
+// MustLoad requires that the Blob successfully loads during construction.
+// Note that this option overrides any earlier ErrorHandlerOptions.
+func MustLoad() ErrorHandlerOption {
+	eh := func(e error) {
+		panic(e)
+	}
+	return ErrorHandlerOption{eh}
+}
+
 // SeparatorOption defines the string that separates tiers in keys.
 type SeparatorOption struct {
 	s string

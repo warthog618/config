@@ -48,7 +48,7 @@ import (
 // - parse the command line os.Args[1:]
 // - replace '-' in the flag space with '.' in the config space.
 // - split list values with the ',' separator.
-func New(options ...Option) (*Getter, error) {
+func New(options ...Option) *Getter {
 	g := Getter{}
 	for _, option := range options {
 		option(&g)
@@ -63,7 +63,7 @@ func New(options ...Option) (*Getter, error) {
 		g.cmdArgs = os.Args[1:]
 	}
 	g.parse()
-	return &g, nil
+	return &g
 }
 
 // Getter provides the mapping from command line arguments to a config.Getter.

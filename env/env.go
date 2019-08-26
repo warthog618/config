@@ -16,7 +16,7 @@ import (
 )
 
 // New creates an environment variable Getter.
-func New(options ...Option) (*Getter, error) {
+func New(options ...Option) *Getter {
 	g := Getter{}
 	for _, option := range options {
 		option(&g)
@@ -30,7 +30,7 @@ func New(options ...Option) (*Getter, error) {
 		g.listSplitter = list.NewSplitter(":")
 	}
 	g.load()
-	return &g, nil
+	return &g
 }
 
 // Getter provides the mapping from environment variables to a config.Getter.

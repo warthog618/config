@@ -15,13 +15,11 @@ import (
 
 func TestNewWithWatcher(t *testing.T) {
 	// Non-existent
-	f, err := file.New("nosuch.file", file.WithWatcher())
-	assert.Nil(t, err)
+	f := file.New("nosuch.file", file.WithWatcher())
 	assert.NotNil(t, f)
 
 	// Existent
-	f, err = file.New("file_test.go", file.WithWatcher())
-	assert.Nil(t, err)
+	f = file.New("file_test.go", file.WithWatcher())
 	require.NotNil(t, f)
 	done := make(chan struct{})
 	defer close(done)

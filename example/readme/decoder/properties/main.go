@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	f, _ := file.New("config.properties")
-	b, _ := blob.New(f, properties.NewDecoder())
+	f := file.New("config.properties")
+	b := blob.New(f, properties.NewDecoder())
 	c := config.NewConfig(b)
 	s := c.MustGet("nested.string").String()
 	fmt.Println("s:", s)

@@ -11,6 +11,9 @@ import (
 	"fmt"
 
 	"github.com/warthog618/config"
+	"github.com/warthog618/config/blob"
+	"github.com/warthog618/config/blob/decoder/json"
+	"github.com/warthog618/config/blob/loader/file"
 	"github.com/warthog618/config/pflag"
 )
 
@@ -18,8 +21,7 @@ func main() {
 }
 
 func arrays() {
-	g, _ := pflag.New()
-	c := config.NewConfig(g)
+	c := config.NewConfig(pflag.New())
 
 	// arrays
 	ports := c.MustGet("ports").UintSlice()
@@ -33,30 +35,25 @@ func arrays() {
 }
 
 func alias() {
-	g, _ := pflag.New()
 	var newKey, oldKey string
 
 	a := config.NewAlias()
-	c := config.NewConfig(config.Decorate(g, config.WithAlias(a)))
+	c := config.NewConfig(config.Decorate(pflag.New(), config.WithAlias(a)))
 	a.Append(newKey, oldKey)
 
 	c.Get("")
 }
 
 func regexalias() {
-	g, _ := pflag.New()
-
 	r := config.NewRegexAlias()
 	r.Append(`somearray\[\d+\](.*)`, "somearray[0]$1")
-	c := config.NewConfig(config.Decorate(g, config.WithRegexAlias(r)))
+	c := config.NewConfig(config.Decorate(pflag.New(), config.WithRegexAlias(r)))
 
 	c.Get("")
 }
 
 func newConfig() {
-	g, _ := pflag.New()
-
-	c := config.NewConfig(g)
+	c := config.NewConfig(pflag.New())
 	pin := c.MustGet("pin").Int()
 	ports := c.MustGet("ports").UintSlice()
 
@@ -64,11 +61,25 @@ func newConfig() {
 }
 
 func must() {
-	g, _ := pflag.New()
-
-	c := config.NewConfig(g)
+	c := config.NewConfig(pflag.New())
 	pin := c.MustGet("pin").Int()
 
 	if pin == 0 {
 	}
+}
+
+func blobDef() {
+	cfgFile := blob.New(file.New("config.json"), json.NewDecoder())
+	c := config.NewConfig(cfgFile)
+
+	c.Close()
+}
+
+func blobStack() {
+	sources := config.NewStack()
+	c := config.NewConfig(sources)
+	cfgFile := blob.New(file.New("config.json"), json.NewDecoder())
+	sources.Append(cfgFile)
+
+	c.Close()
 }

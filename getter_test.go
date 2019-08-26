@@ -64,7 +64,7 @@ func TestDecorate(t *testing.T) {
 	}
 }
 
-func TestWithDefault(t *testing.T) {
+func TestWithFallback(t *testing.T) {
 	def := mockGetter{
 		"a.b.c": 43,
 		"a.b.d": 41,
@@ -72,7 +72,7 @@ func TestWithDefault(t *testing.T) {
 	nondef := mockGetter{
 		"a.b.d": 42,
 	}
-	g := config.WithDefault(&def)(&nondef)
+	g := config.WithFallback(&def)(&nondef)
 
 	// defaulted
 	c, ok := g.Get("a.b.c")
@@ -90,7 +90,7 @@ func TestWithDefault(t *testing.T) {
 	assert.Nil(t, c)
 
 	// nil default
-	g = config.WithDefault(nil)(&nondef)
+	g = config.WithFallback(nil)(&nondef)
 	assert.Equal(t, &nondef, g)
 
 	// no longer defaulted
@@ -103,7 +103,7 @@ func TestWithDefault(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 42, c)
 
-	testDecoratorWatchable(t, config.WithDefault(&def))
+	testDecoratorWatchable(t, config.WithFallback(&def))
 }
 
 func TestWithGraft(t *testing.T) {

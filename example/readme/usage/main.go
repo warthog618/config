@@ -22,23 +22,18 @@ func main() {
 		"sm.period":     "250ms",
 		"sm.thresholds": []int8{23, 45, 64},
 	}))
-	var g config.Getter
 	// from flags and defaults...
-	g, _ = pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"}))
-	sources := config.NewStack(g)
-	cfg := config.NewConfig(
-		config.Decorate(sources, config.WithDefault(defaultConfig)))
+	sources := config.NewStack(
+		pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"})))
+	cfg := config.NewConfig(sources, config.WithDefault(defaultConfig))
 
 	// and from environment...
 	prefix := cfg.MustGet("env.prefix").String()
-	g, _ = env.New(env.WithEnvPrefix(prefix))
-	sources.Append(g)
+	sources.Append(env.New(env.WithEnvPrefix(prefix)))
 
 	// and from config file...
 	cf := cfg.MustGet("config.file").String()
-	f, _ := file.New(cf)
-	g, _ = blob.New(f, json.NewDecoder())
-	sources.Append(g)
+	sources.Append(blob.New(file.New(cf), json.NewDecoder(), blob.MustLoad()))
 
 	// read a config field from the root config
 	name := cfg.MustGet("name").String()

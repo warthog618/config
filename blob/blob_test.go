@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/warthog618/config"
 	"github.com/warthog618/config/blob"
+	"github.com/warthog618/config/blob/decoder/json"
 )
 
 var defaultTimeout = 10 * time.Millisecond
@@ -25,8 +26,7 @@ func TestNew(t *testing.T) {
 	d := mockDecoder{}
 
 	// all good
-	s, err := blob.New(l, &d)
-	assert.Nil(t, err)
+	s := blob.New(l, &d)
 	require.NotNil(t, s)
 	assert.Implements(t, (*config.Getter)(nil), s)
 	assert.Implements(t, (*config.WatchableGetter)(nil), s)
@@ -37,16 +37,18 @@ func TestNew(t *testing.T) {
 	// load error
 	l = newMockLoader(nil)
 	l.LoadError = lderr
-	d = mockDecoder{DecodeError: dcerr}
-	s, err = blob.New(l, &d)
-	assert.Equal(t, lderr, err)
-	require.Nil(t, s)
+	tl := func() {
+		blob.New(l, &d, blob.MustLoad())
+	}
+	assert.PanicsWithValue(t, lderr, tl, "MustLoad - load error didn't panic")
 
 	// decode error
 	l = newMockLoader(nil)
-	s, err = blob.New(l, &d)
-	assert.Equal(t, dcerr, err)
-	require.Nil(t, s)
+	d = mockDecoder{DecodeError: dcerr}
+	tl = func() {
+		blob.New(l, &d, blob.MustLoad())
+	}
+	assert.PanicsWithValue(t, dcerr, tl, "MustLoad - decode error didn't panic")
 }
 
 func TestNewWatcher(t *testing.T) {
@@ -54,8 +56,7 @@ func TestNewWatcher(t *testing.T) {
 	d := mockDecoder{}
 
 	// unwatchable
-	s, err := blob.New(&bareLoader{}, &d)
-	assert.Nil(t, err)
+	s := blob.New(&bareLoader{}, &d)
 	require.NotNil(t, s)
 	assert.Implements(t, (*config.WatchableGetter)(nil), s)
 	done := make(chan struct{})
@@ -64,15 +65,13 @@ func TestNewWatcher(t *testing.T) {
 	assert.Nil(t, w)
 
 	// watchable
-	s, err = blob.New(l, &d)
-	assert.Nil(t, err)
+	s = blob.New(l, &d)
 	require.NotNil(t, s)
 	w = s.NewWatcher(done)
 	assert.NotNil(t, w)
 
 	// watchable, but disabled
-	s, err = blob.New(&mockLoader{}, &d)
-	assert.Nil(t, err)
+	s = blob.New(&mockLoader{}, &d)
 	require.NotNil(t, s)
 	w = s.NewWatcher(done)
 	assert.Nil(t, w)
@@ -82,8 +81,7 @@ func TestGet(t *testing.T) {
 	l := newMockLoader(nil)
 	d := mockDecoder{M: map[string]interface{}{
 		"a": map[string]interface{}{"b.c_d": true}}}
-	s, err := blob.New(l, &d)
-	assert.Nil(t, err)
+	s := blob.New(l, &d)
 	require.NotNil(t, s)
 	v, ok := s.Get("")
 	assert.False(t, ok)
@@ -91,13 +89,24 @@ func TestGet(t *testing.T) {
 	v, ok = s.Get("a.b.c_d")
 	assert.True(t, ok)
 	assert.Equal(t, true, v)
+
+	// bad load
+	lderr := errors.New("load error")
+	l.LoadError = lderr
+	s = blob.New(l, &d)
+	require.NotNil(t, s)
+	v, ok = s.Get("")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+	v, ok = s.Get("a.b.c_d")
+	assert.False(t, ok)
+	assert.Nil(t, v)
 }
 
 func TestWatch(t *testing.T) {
 	l := newMockLoader(nil)
 	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := blob.New(l, &d)
-	assert.Nil(t, err)
+	s := blob.New(l, &d)
 	require.NotNil(t, s)
 	done := make(chan struct{})
 	defer close(done)
@@ -147,8 +156,7 @@ func TestWatch(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	l := newMockLoader(nil)
 	d := mockDecoder{M: map[string]interface{}{"a.b.c_d": "baseline"}}
-	s, err := blob.New(l, &d)
-	assert.Nil(t, err)
+	s := blob.New(l, &d)
 	require.NotNil(t, s)
 	done := make(chan struct{})
 	w := s.NewWatcher(done)
@@ -183,6 +191,45 @@ func TestUpdate(t *testing.T) {
 	close(done)
 	time.Sleep(defaultTimeout)
 	testClosed(t, w.Update())
+}
+
+func TestNewConfigFile(t *testing.T) {
+	// specified
+	l := newMockLoader(nil)
+	d := mockDecoder{M: map[string]interface{}{
+		"cfg": "blob_test.json",
+		"go":  "blob_test.go"}}
+	b := blob.New(l, &d)
+	c := config.NewConfig(b)
+	defer c.Close()
+	jsondec := json.NewDecoder()
+	f := blob.NewConfigFile(c, "cfg", "no_such_file.json", jsondec)
+	assert.NotNil(t, f)
+	a, ok := f.Get("a")
+	assert.True(t, ok)
+	assert.Equal(t, a, "from blob_test.json")
+
+	// specified wont load
+	p := func() { f = blob.NewConfigFile(c, "go", "no_such_file.json", jsondec) }
+	assert.Panics(t, p)
+
+	// default
+	f = blob.NewConfigFile(c, "cfg2", "blob_test.json", jsondec)
+	assert.NotNil(t, f)
+	a, ok = f.Get("a")
+	assert.True(t, ok)
+	assert.Equal(t, a, "from blob_test.json")
+
+	// default wont load
+	p = func() { f = blob.NewConfigFile(c, "cfg2", "blob_test.go", jsondec) }
+	assert.Panics(t, p)
+
+	// neither
+	f = blob.NewConfigFile(c, "cfg2", "no_such_file.json", jsondec)
+	assert.NotNil(t, f)
+	a, ok = f.Get("a")
+	assert.False(t, ok)
+	assert.Nil(t, a)
 }
 
 type Error interface {

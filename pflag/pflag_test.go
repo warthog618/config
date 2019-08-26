@@ -18,8 +18,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	f, err := pflag.New()
-	assert.Nil(t, err)
+	f := pflag.New()
 	require.NotNil(t, f)
 	// basic get
 	v, ok := f.Get("config.file")
@@ -64,10 +63,9 @@ func TestArgs(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			f, err := pflag.New(
+			f := pflag.New(
 				pflag.WithCommandLine(p.in),
 				pflag.WithShortFlags(p.shorts))
-			assert.Nil(t, err)
 			assert.Equal(t, p.args, f.Args())
 			assert.Equal(t, len(p.args), f.NArg())
 		}
@@ -76,9 +74,8 @@ func TestArgs(t *testing.T) {
 		f = func(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, p.in...)
-			f, err := pflag.New(pflag.WithShortFlags(p.shorts))
+			f := pflag.New(pflag.WithShortFlags(p.shorts))
 			os.Args = oldArgs
-			assert.Nil(t, err)
 			assert.Equal(t, p.args, f.Args())
 			assert.Equal(t, len(p.args), f.NArg())
 		}
@@ -158,10 +155,9 @@ func TestNFlag(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			f, err := pflag.New(
+			f := pflag.New(
 				pflag.WithCommandLine(p.in),
 				pflag.WithShortFlags(p.shorts))
-			assert.Nil(t, err)
 			assert.Equal(t, p.nflag, f.NFlag())
 		}
 		t.Run(p.name, f)
@@ -279,10 +275,9 @@ func TestGetterGet(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			f, err := pflag.New(
+			f := pflag.New(
 				pflag.WithCommandLine(p.args),
 				pflag.WithShortFlags(p.shorts))
-			assert.Nil(t, err)
 			require.NotNil(t, f)
 			for _, x := range p.expected {
 				v, ok := f.Get(x.k)
@@ -314,11 +309,10 @@ func TestNewWithKeyReplacer(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r, err := pflag.New(
+			r := pflag.New(
 				pflag.WithCommandLine(args),
 				pflag.WithShortFlags(shorts),
 				pflag.WithKeyReplacer(p.r))
-			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get(p.expected)
 			assert.True(t, ok)
@@ -333,8 +327,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 
 func TestNewWithCommandLine(t *testing.T) {
 	args := []string{"-avbcvv", "--config-file", "woot"}
-	f, err := pflag.New(pflag.WithCommandLine(args))
-	assert.Nil(t, err)
+	f := pflag.New(pflag.WithCommandLine(args))
 	require.NotNil(t, f)
 	// basic get
 	v, ok := f.Get("config.file")
@@ -357,11 +350,10 @@ func TestNewWithListSplitter(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			r, err := pflag.New(
+			r := pflag.New(
 				pflag.WithCommandLine(args),
 				pflag.WithShortFlags(shorts),
 				pflag.WithListSplitter(list.NewSplitter(p.sep)))
-			assert.Nil(t, err)
 			require.NotNil(t, r)
 			v, ok := r.Get("slice")
 			assert.True(t, ok)
@@ -374,11 +366,10 @@ func TestNewWithListSplitter(t *testing.T) {
 func TestNewWithShortFlags(t *testing.T) {
 	args := []string{"-avbcvv", "-c", "woot"}
 	shorts := map[byte]string{'c': "config-file"}
-	f, err := pflag.New(
+	f := pflag.New(
 		pflag.WithCommandLine(args),
 		pflag.WithShortFlags(shorts),
 	)
-	assert.Nil(t, err)
 	require.NotNil(t, f)
 	// basic get
 	v, ok := f.Get("config.file")
@@ -395,7 +386,7 @@ func BenchmarkNew(b *testing.B) {
 
 func BenchmarkGet(b *testing.B) {
 	b.StopTimer()
-	g, _ := pflag.New(pflag.WithCommandLine([]string{"--leaf", "44"}))
+	g := pflag.New(pflag.WithCommandLine([]string{"--leaf", "44"}))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("leaf")
@@ -404,7 +395,7 @@ func BenchmarkGet(b *testing.B) {
 
 func BenchmarkGetNested(b *testing.B) {
 	b.StopTimer()
-	g, _ := pflag.New(pflag.WithCommandLine([]string{"--nested-leaf", "44"}))
+	g := pflag.New(pflag.WithCommandLine([]string{"--nested-leaf", "44"}))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("nested.leaf")
@@ -413,7 +404,7 @@ func BenchmarkGetNested(b *testing.B) {
 
 func BenchmarkGetArray(b *testing.B) {
 	b.StopTimer()
-	g, _ := pflag.New(pflag.WithCommandLine([]string{"--slice", "42,44"}))
+	g := pflag.New(pflag.WithCommandLine([]string{"--slice", "42,44"}))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice")
@@ -422,7 +413,7 @@ func BenchmarkGetArray(b *testing.B) {
 
 func BenchmarkGetArrayLen(b *testing.B) {
 	b.StopTimer()
-	g, _ := pflag.New(pflag.WithCommandLine([]string{"--slice", "42,44"}))
+	g := pflag.New(pflag.WithCommandLine([]string{"--slice", "42,44"}))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice[]")
@@ -431,7 +422,7 @@ func BenchmarkGetArrayLen(b *testing.B) {
 
 func BenchmarkGetArrayElement(b *testing.B) {
 	b.StopTimer()
-	g, _ := pflag.New(pflag.WithCommandLine([]string{"--slice", "42,44"}))
+	g := pflag.New(pflag.WithCommandLine([]string{"--slice", "42,44"}))
 	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		g.Get("slice[1]")

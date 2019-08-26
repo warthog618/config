@@ -15,10 +15,12 @@ store, providing a single consistent API to access configuration parameters,
 independent of the underlying configuration storage formats, locations or
 technologies.
 
-**config** is lightweight as it has no dependencies itself - your application
-will only depend on the getters you explicitly include.  A collection of getters
-for common configuration sources is provided, each in its own sub-package, or
-you can roll your own.
+**config** provides simple access to common configuration sources, including environment variables, command line flags, and configuration files (in JSON, INI, TOML, YAML, INI, and properties formats), and networked stores such as etcd.  And you can roll your own getters
+if you have unusual requirements.
+
+**config** provides functions to coax configuration values from the
+configuration source into the types your code requires, including ints, string,
+bool, time, duration, and slices.
 
 **config** is versatile as it allows you to control all aspects of your
 configuration, including the configuration sources, their location, format, and
@@ -28,17 +30,14 @@ the order in which they are searched.
 
 A couple of steps are required to setup and use **config**:
 
-- Create one or more getters (configuration sources)
-- Create a Config to provide type conversions for values from the getter
-- Read configuration Value from the Config
-- Convert the Value to the required type
+- Create a Config to provide type conversions for values from the your configuration sources
+- Read and convert configuration Value from the Config
 
-A minimal setup to access configuration from POSIX/GNU style command line flags
+A minimal setup to access configuration from POSIX/GNU style command line flags,
 might look like:
 
 ```go
-    flags, _ := pflag.New()
-    c := config.NewConfig(flags)
+    c := config.NewConfig(pflag.New())
 ```
 
 A command line parameter such as
@@ -51,6 +50,12 @@ could then be read using:
 
 ```go
    cfgFile := c.MustGet("config.file").String()
+```
+
+Or read configuration from a configuration file - in this case a TOML file:
+
+```go
+    c := config.NewConfig(blob.New(file.New("myconfig.toml"), toml.NewDecoder()))
 ```
 
 Multiple configuration sources can be setup and customised to suit your
@@ -139,7 +144,7 @@ being drawn from struct field names or map keys:
 Unmarshalling into nested structs is supported, as is overiding struct field
 names using tags.
 
-## Concepts
+## Background Concepts
 
 ### Config Tree
 
@@ -237,7 +242,7 @@ sub-packages:
 
 Getter | Configuration Source
 :-----:| -----
-[blob](https://github.com/warthog618/config/tree/master/blob) | files and other sources of formatted configuration
+[blob](https://github.com/warthog618/config/tree/master/blob) | files and other sources of formatted configuration in various formats including JSON, YAML, INI, and properties
 [dict](https://github.com/warthog618/config/tree/master/dict) | key/value maps
 [env](https://github.com/warthog618/config/tree/master/env) | environment variables
 [etcd](https://github.com/warthog618/config/tree/master/etcd) | etcd v3 key/value server
@@ -261,57 +266,23 @@ The [**tree**](https://github.com/warthog618/config/tree/master/tree)
 sub-package provides a Get method to get a value from a map[string]interface{}
 or map[interface{}]interface{}.
 
-### Blobs
-
-Blobs represent configuration sources containing configuration stored as a block
-and in a known format, e.g. config files.  Blobs are partitioned into two layers,
-the Loader, which loads the configuration as a []byte blob from the source, and
-the Decoder, which decodes the blob into a form that can be used by config.
-
-The Loader may support being watched for changes, and if so the Blob
-containing it will automatically support being watched for changes as well.
-
-#### Loaders
-
-Loaders read configuration from some source.
-
-The following loaders are provided:
-
-Loader | Configuration Source
-:-----:| -----
-[bytes](https://github.com/warthog618/config/tree/master/blob/loader/bytes) | []byte
-[file](https://github.com/warthog618/config/tree/master/blob/loader/file) | local file
-
-#### Decoders
-
-Decoders unmarshal configuration from a particular text format.
-
-Decoders for the following formats are provided:
-
-- [JSON](https://github.com/warthog618/config/tree/master/blob/decoder/json)
-- [TOML](https://github.com/warthog618/config/tree/master/blob/decoder/toml)
-- [YAML](https://github.com/warthog618/config/tree/master/blob/decoder/yaml)
-- [HCL](https://github.com/warthog618/config/tree/master/blob/decoder/hcl)
-- [INI](https://github.com/warthog618/config/tree/master/blob/decoder/ini)
-- [properties](https://github.com/warthog618/config/tree/master/blob/decoder/properties)
-
 ### Decorators
 
 Additionally, getters may be wrapped in decorators, such as the
-[WithAlias](#alias) or [WithDefault](#default), to perform key translations
+[WithAlias](#alias) or [WithFallback](#fallback), to perform key translations
 before the key is passed to the getter, or to manipulate the value before
 returning it to the caller.
 
 A number of decorators are provided including:
 
 - [Alias](#alias)
-- [Default](#default)
+- [Fallback](#fallback)
 - [KeyReplacer](#keyreplacer)
 - [Prefix](#prefix)
 - [RegexAlias](#regexalias)
 - [Trace](#trace)
 
-Decorators are added to the getter before it is provided to the Config. e.g.:
+Decorators can be added to the getter before it is provided to the Config. e.g.:
 
 ```go
     a := config.NewAlias()
@@ -360,9 +331,9 @@ value from the alias (default) unless the parameter is explicitly set itself.
 This also allows default configuration values to be exposed in the configuration
 file rather than embedded in the application.
 
-#### Default
+#### Fallback
 
-The [WithDefault](https://godoc.org/github.com/warthog618/config#WithDefault)
+The [WithFallback](https://godoc.org/github.com/warthog618/config#WithFallback)
 decorator provides a fallback getter to use if the configuration is not found in
 the decorated getter.
 
@@ -414,11 +385,12 @@ application.
 
 ## Examples
 
-The following examples, and examples of more complex usage, can be found in the [example](https://github.com/warthog618/config/tree/master/example) directory.
+The following examples, and examples of more complex usage, can be found in the
+[example](https://github.com/warthog618/config/tree/master/example) directory.
 
 ### Usage
 
-The following is an example of setting up a config using a number of sources
+The following is an example of setting up a config stacking a number of sources
 (env, flag, JSON file, and a default map) and retrieving configuration
 parameters of various types. The getters are added to a Stack so the search
 order will be:
@@ -429,10 +401,9 @@ order will be:
 - default map
 
 Note that configuration from initial sources can be used when setting up
-subsequent sources, e.g. the *env.prefix* can be overridden by flags, and the
-JSON config filename can be specified by either flag or env.
-
-For brevity, this example omits error handling.
+subsequent sources, e.g. the *env.prefix* can be overridden by flags
+(**--env-prefix**), and the JSON config filename can be specified by either flag
+(**-c** or **--config-file**) or env (**MYAPP_CONFIG_FILE**).
 
 ```go
 func main() {
@@ -444,23 +415,18 @@ func main() {
         "sm.period":     "250ms",
         "sm.thresholds": []int8{23, 45, 64},
     }))
-    var g config.Getter
     // from flags and defaults...
-    g, _ = pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"}))
-    sources := config.NewStack(g)
-    cfg := config.NewConfig(
-        config.Decorate(sources, config.WithDefault(defaultConfig)))
+    sources := config.NewStack(
+        pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"})))
+    cfg := config.NewConfig(sources, config.WithDefault(defaultConfig))
 
     // and from environment...
     prefix := cfg.MustGet("env.prefix").String()
-    g, _ = env.New(env.WithEnvPrefix(prefix))
-    sources.Append(g)
+    sources.Append(env.New(env.WithEnvPrefix(prefix)))
 
     // and from config file...
     cf := cfg.MustGet("config.file").String()
-    f, _ := file.New(cf)
-    g, _ = blob.New(f, json.NewDecoder())
-    sources.Append(g)
+    sources.Append(blob.New(file.New(cf), json.NewDecoder(), blob.MustLoad()))
 
     // read a config field from the root config
     name := cfg.MustGet("name").String()
@@ -509,9 +475,8 @@ This example watches a configuration file and prints updates to the configuratio
 
 ```go
 func main() {
-    l, _ := file.New("config.json", file.WithWatcher())
-    g, _ := blob.New(l, json.NewDecoder())
-    c := config.NewConfig(g)
+    c := config.NewConfig(blob.New(
+        file.New("config.json", file.WithWatcher()), json.NewDecoder()))
 
     done := make(chan struct{})
     defer close(done)
@@ -533,7 +498,7 @@ func main() {
 }
 ```
 
-This is a simple example that omits error handling for brevity.  The implementation of the watcher goroutine and its interactions with other goroutines may vary to suit your application.
+This is a simple example that minimises error handling for brevity.  The implementation of the watcher goroutine and its interactions with other goroutines may vary to suit your application.
 
 A watcher for the whole configuration is very similar.  An example can be found in the [examples directory](https://github.com/warthog618/config/tree/master/example/readme/watcher).
 
