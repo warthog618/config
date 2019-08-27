@@ -73,7 +73,10 @@ func (c *Config) watcher() {
 		select {
 		case <-c.donech:
 			return
-		case update := <-c.gw.Update():
+		case update, ok := <-c.gw.Update():
+			if !ok {
+				return
+			}
 			c.bgmu.Lock()
 			update.Commit()
 			c.bgmu.Unlock()
