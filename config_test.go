@@ -77,25 +77,6 @@ func TestNewConfigWithMust(t *testing.T) {
 	})
 }
 
-func TestNewWatcher1(t *testing.T) {
-	mr := mockGetter{
-		"foo":   "this is foo",
-		"bar.b": "this is bar.b",
-	}
-	wg := watchedGetter{mr, nil}
-	cfg := config.NewConfig(&wg)
-	ws := wg.w
-	require.NotNil(t, ws)
-	w := cfg.NewWatcher()
-	assert.NotNil(t, w)
-
-	// Updated
-	testUpdated(t, w, ws.Notify)
-	assert.True(t, ws.Committed)
-	ws.Committed = false
-
-}
-
 func TestClose(t *testing.T) {
 	mr := mockGetter{
 		"foo":   "this is foo",
@@ -744,8 +725,28 @@ func TestNewWatcher(t *testing.T) {
 	w := cfg.NewWatcher()
 	testNotUpdated(t, w, nil)
 
-	// Updated
+	// config Closed
 	wg := watchedGetter{mr, nil}
+	cfg = config.NewConfig(&wg)
+	done := make(chan struct{})
+	defer close(done)
+	w = cfg.NewWatcher()
+	updated := make(chan error)
+	go func() {
+		e := w.Watch(done)
+		updated <- e
+	}()
+	cfg.Close()
+	time.Sleep(defaultTimeout)
+	select {
+	case e := <-updated:
+		assert.Equal(t, config.ErrClosed, e)
+	case <-time.After(defaultTimeout):
+		assert.Fail(t, "watch failed to return")
+	}
+
+	// Updated
+	wg = watchedGetter{mr, nil}
 	cfg = config.NewConfig(&wg)
 	ws := wg.w
 	require.NotNil(t, ws)
@@ -754,9 +755,9 @@ func TestNewWatcher(t *testing.T) {
 	testUpdated(t, w, ws.Notify)
 
 	// Cancelled
-	done := make(chan struct{})
+	done = make(chan struct{})
 	w = cfg.NewWatcher()
-	updated := make(chan error)
+	updated = make(chan error)
 	go func() {
 		e := w.Watch(done)
 		updated <- e
@@ -767,9 +768,10 @@ func TestNewWatcher(t *testing.T) {
 	case e := <-updated:
 		assert.Equal(t, config.ErrCanceled, e)
 	case <-time.After(defaultTimeout):
+		assert.Fail(t, "watch failed to return")
 	}
 
-	// Closed
+	// updatech closed by getter
 	done = make(chan struct{})
 	defer close(done)
 	w = cfg.NewWatcher()
@@ -778,11 +780,11 @@ func TestNewWatcher(t *testing.T) {
 		e := w.Watch(done)
 		updated <- e
 	}()
-	cfg.Close()
+	close(wg.w.updatech)
 	time.Sleep(defaultTimeout)
 	select {
 	case e := <-updated:
-		assert.Equal(t, config.ErrClosed, e)
+		assert.Fail(t, "unexpected update", "err: %#v", e)
 	case <-time.After(defaultTimeout):
 	}
 }
