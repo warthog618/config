@@ -48,6 +48,7 @@ var defaultTimeout = time.Millisecond
 
 func TestWatcherClose(t *testing.T) {
 	f, err := ioutil.TempFile(".", "file_test_")
+	defer f.Close()
 	assert.Nil(t, err)
 	require.NotNil(t, f)
 	fname := f.Name()
@@ -99,7 +100,7 @@ func TestWatcher(t *testing.T) {
 
 func TestWatcherWatch(t *testing.T) {
 	// Write
-	tf, err := ioutil.TempFile(".", "file_test_")
+	tf, err := ioutil.TempFile("", "file_test_")
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
 	fname := tf.Name()
@@ -124,7 +125,6 @@ func TestWatcherWatch(t *testing.T) {
 	wf = file.New(fname, file.WithWatcher())
 	require.NotNil(t, wf)
 	done = make(chan struct{})
-	defer close(done)
 	wchan = wf.NewWatcher(done)
 	require.NotNil(t, wchan)
 	testUpdated(t, wchan)
@@ -132,41 +132,49 @@ func TestWatcherWatch(t *testing.T) {
 	os.Remove(fname)
 	testErrored(t, wchan)
 
+	close(done)
+	testCanceled(t, wchan)
+
 	// Overwrite
-	tf, err = ioutil.TempFile(".", "file_test_")
+	tf, err = ioutil.TempFile("", "file_test_")
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
+	defer tf.Close()
 	fname = tf.Name()
 	wf = file.New(fname, file.WithWatcher())
 	require.NotNil(t, wf)
 	done = make(chan struct{})
+	defer close(done)
 	wchan = wf.NewWatcher(done)
 	require.NotNil(t, wchan)
 	// immediate update to trigger load
 	testUpdated(t, wchan)
-	tf, err = ioutil.TempFile(".", "file_test_")
+	tf, err = ioutil.TempFile("", "file_test_")
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
+	defer tf.Close()
 	fname2 := tf.Name()
 	os.Rename(fname2, fname)
 	testUpdated(t, wchan)
-	os.Remove(fname)
+	defer os.Remove(fname)
 
 	// Rename
-	tf, err = ioutil.TempFile(".", "file_test_")
+	tf, err = ioutil.TempFile("", "file_test_")
 	assert.Nil(t, err)
 	require.NotNil(t, tf)
+	defer tf.Close()
 	fname = tf.Name()
 	wf = file.New(fname, file.WithWatcher())
 	require.NotNil(t, wf)
 	done = make(chan struct{})
+	defer close(done)
 	wchan = wf.NewWatcher(done)
 	require.NotNil(t, wchan)
 	// immediate update to trigger load
 	testUpdated(t, wchan)
 	os.Rename(fname, fname+"r")
 	testUpdated(t, wchan)
-	os.Remove(fname + "r")
+	defer os.Remove(fname + "r")
 }
 
 func testErrored(t *testing.T, wchan <-chan error) {
