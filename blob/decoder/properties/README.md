@@ -11,17 +11,18 @@ import (
     "fmt"
 
     "github.com/warthog618/config"
+    "github.com/warthog618/config/blob"
     "github.com/warthog618/config/blob/decoder/properties"
     "github.com/warthog618/config/blob/loader/file"
 )
 
 func main() {
-    c := config.NewConfig(file.New("config.properties", properties.NewDecoder()))
+    c := config.NewConfig(
+        blob.New(file.New("config.properties"), properties.NewDecoder()))
     s := c.MustGet("nested.string").String()
     fmt.Println("s:", s)
     // ....
 }
-
 ```
 
 The following option can be applied to properties.NewDecoder:
