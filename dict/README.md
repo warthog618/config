@@ -20,7 +20,7 @@ func main() {
     d := dict.New()
     d.Set("config.file", "config.json")
     c := config.NewConfig(d)
-    cfgFile, _ := c.GetString("config.file")
+    cfgFile := c.MustGet("config.file").String()
     fmt.Println("config-file:", cfgFile)
     // ....
 }
@@ -28,4 +28,7 @@ func main() {
 
 One option can be applied to dict.New:
 
-The [WithMap](https://godoc.org/github.com/warthog618/config/dict#WithMap) option provides a map to be used instead of creating a new empty map.  Not that the dict takes ownership of the map and any subsequent sets will alter the underlying map.
+The [WithMap](https://godoc.org/github.com/warthog618/config/dict#WithMap)
+option provides a map to be used instead of creating a new empty map.  Not that
+the dict takes ownership of the map and any subsequent sets will alter the
+underlying map.

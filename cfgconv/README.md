@@ -7,4 +7,6 @@ The **cfgconv** package provides functions to convert from an *interface{}* to a
 The **cfgconv** package is similar to the standard
 [**strconv**](https://golang.org/pkg/strconv/) package, but converts from *interface{}* instead of *string*.
 
-The conversions performed by **cfgconv** are as permissive as possible, given the data types involved, to allow for mapping from sources that may not directly support the requested type.
+The conversions performed by **cfgconv** are as permissive as possible, given
+the data types involved, to allow for mapping from sources that may not directly
+support the requested type.

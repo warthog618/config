@@ -17,9 +17,8 @@ import (
 )
 
 func main() {
-    f, _ := pflag.New()
-    c := config.NewConfig(f)
-    cfgFile, _ := c.GetString("config.file")
+    c := config.NewConfig(pflag.New())
+    cfgFile := c.MustGet("config.file").String()
     fmt.Println("config-file:", cfgFile)
     // ....
 }
@@ -27,15 +26,25 @@ func main() {
 
 A number of options can be applied to pflag.New:
 
-The [WithCommandLine](https://godoc.org/github.com/warthog618/config/pflag#WithCommandLine) option provides an alternate command line, defined as a list of args, to be parsed.  By default the command line is *os.Args[1:]*.
+The
+[WithCommandLine](https://godoc.org/github.com/warthog618/config/pflag#WithCommandLine)
+option provides an alternate command line, defined as a list of args, to be
+parsed.  By default the command line is *os.Args[1:]*.
 
-The [WithKeyReplacer](https://godoc.org/github.com/warthog618/config/pflag#WithKeyReplacer) option performs a transformation on the flag name before it is added to the configuration.  This may be used, for example, to enforce a particular case.  The default key replacer replaces "-" with ".", so the flag "config-file" matches the key "config.file".
+The
+[WithKeyReplacer](https://godoc.org/github.com/warthog618/config/pflag#WithKeyReplacer)
+option performs a transformation on the flag name before it is added to the
+configuration.  This may be used, for example, to enforce a particular case.
+The default key replacer replaces "-" with ".", so the flag "config-file"
+matches the key "config.file".
 
-The [WithListSeparator](https://godoc.org/github.com/warthog618/config/pflag#WithListSeparator) option provides a string used to split list values into elements.  The default list separator is ",".
+The
+[WithListSeparator](https://godoc.org/github.com/warthog618/config/pflag#WithListSeparator)
+option provides a string used to split list values into elements.  The default
+list separator is ",".
 
-The [WithShortFlags](https://godoc.org/github.com/warthog618/config/pflag#WithShortFlags) option provides a set of short flags which provide short aliases for long flag names. When set using the short form the values still appear in the configuration as if it were set with the long name.
-
-## Future Work
-
-- Add command line validation.
-- Add help generation.
+The
+[WithShortFlags](https://godoc.org/github.com/warthog618/config/pflag#WithShortFlags)
+option provides a set of short flags which provide short aliases for long flag
+names. When set using the short form the values still appear in the
+configuration as if it were set with the long name.

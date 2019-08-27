@@ -548,13 +548,13 @@ func UnmarshalStructFromMap(m map[string]interface{}, obj interface{}) (rerr err
 	return rerr
 }
 
-// ErrInvalidStruct indicates UnMarshal was provides an object to populate
+// ErrInvalidStruct indicates UnMarshal was provided an object to populate
 // which is not a pointer to struct.
 var ErrInvalidStruct = errors.New("unmarshal: provided obj is not pointer to struct")
 
 // TypeError indicates a type conversion was not possible.
-// Identifies the value being converted and the kind it
-// couldn't be converted into.
+// Identifies the value being converted and the kind it couldn't be converted
+// into.
 type TypeError struct {
 	Value interface{}
 	Kind  reflect.Kind
@@ -565,8 +565,8 @@ func (e TypeError) Error() string {
 }
 
 // OverflowError indicates type conversion would lose precision.
-// Identifies the value being converted and the kind it
-// couldn't be converted into without loss of precision.
+// Identifies the value being converted and the kind it couldn't be converted
+// into without loss of precision.
 type OverflowError struct {
 	Value interface{}
 	Kind  reflect.Kind
@@ -577,8 +577,8 @@ func (e OverflowError) Error() string {
 }
 
 // lowerCamelCase converts the first rune of a string to lower case.
-// The function assumes key is already camel cased, so only
-// lower cases the leading character.
+// The function assumes key is already camel cased, so only lower cases the
+// leading character.
 // This is used to convert Go exported field names to config space keys.
 // e.g. ConfigFile becomes configFile.
 func lowerCamelCase(key string) string {

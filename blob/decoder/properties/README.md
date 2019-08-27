@@ -1,6 +1,6 @@
 # properties
 
-[![GoDoc](https://godoc.org/github.com/warthog618/config/decoder/properties/sar?status.svg)](https://godoc.org/github.com/warthog618/config/decoder/properties)
+[![GoDoc](https://godoc.org/github.com/warthog618/config/blob/decoder/properties/sar?status.svg)](https://godoc.org/github.com/warthog618/config/blob/decoder/properties)
 
 The **properties** package provides a [config](https://github.com/warthog618/config) Decoder that unmarshals values from Properties formatted sources.
 
@@ -11,13 +11,12 @@ import (
     "fmt"
 
     "github.com/warthog618/config"
-    "github.com/warthog618/config/decoder/properties"
-    "github.com/warthog618/config/loader/file"
+    "github.com/warthog618/config/blob/decoder/properties"
+    "github.com/warthog618/config/blob/loader/file"
 )
 
 func main() {
-    f, _ := config.NewSource(file.New("config.properties"), properties.NewDecoder())
-    c := config.NewConfig(f)
+    c := config.NewConfig(file.New("config.properties", properties.NewDecoder()))
     s := c.MustGet("nested.string").String()
     fmt.Println("s:", s)
     // ....
@@ -27,4 +26,7 @@ func main() {
 
 The following option can be applied to properties.NewDecoder:
 
-The [WithListSeparator](https://godoc.org/github.com/warthog618/config/decoder/properties#WithListSeparator) option provides a string used to split list values into elements.  The default list separator is ",".
+The
+[WithListSeparator](https://godoc.org/github.com/warthog618/config/blob/decoder/properties#WithListSeparator)
+option provides a string used to split list values into elements.  The default
+list separator is ",".
