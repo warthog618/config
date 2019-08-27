@@ -741,7 +741,7 @@ func TestNewWatcher(t *testing.T) {
 	select {
 	case e := <-updated:
 		assert.Equal(t, config.ErrClosed, e)
-	case <-time.After(defaultTimeout):
+	case <-time.After(time.Second):
 		assert.Fail(t, "watch failed to return")
 	}
 
@@ -767,7 +767,7 @@ func TestNewWatcher(t *testing.T) {
 	select {
 	case e := <-updated:
 		assert.Equal(t, config.ErrCanceled, e)
-	case <-time.After(defaultTimeout):
+	case <-time.After(time.Second):
 		assert.Fail(t, "watch failed to return")
 	}
 
@@ -884,7 +884,7 @@ func testKeyNotUpdated(t *testing.T, w keyWatcher, notify func()) {
 	select {
 	case <-updated:
 		// his watch is done
-	case <-time.After(5 * defaultTimeout):
+	case <-time.After(time.Second):
 		assert.Fail(t, "watcher failed to exit on close")
 	}
 }
@@ -944,7 +944,7 @@ func TestNewKeyWatcher(t *testing.T) {
 	select {
 	case e := <-updated:
 		assert.Equal(t, config.ErrCanceled, e)
-	case <-time.After(defaultTimeout):
+	case <-time.After(time.Second):
 		assert.Fail(t, "didn't cancel")
 	}
 }

@@ -63,7 +63,7 @@ func TestWatcherClose(t *testing.T) {
 	case err, ok := <-wchan:
 		assert.True(t, ok)
 		assert.Nil(t, err)
-	case <-time.After(defaultTimeout):
+	case <-time.After(time.Second):
 		assert.Fail(t, "watch didn't return")
 	}
 	close(done)
