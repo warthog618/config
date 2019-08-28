@@ -327,6 +327,22 @@ func TestStackWatcherClosedDuringUpdate(t *testing.T) {
 	testWatcherNotUpdated(t, w)
 }
 
+func TestStackWatcherClosedByHandler(t *testing.T) {
+	g1 := mockGetter{
+		"a.b.c": 43,
+		"a.b.d": 41,
+	}
+	ow := &watchedGetter{g1, nil}
+	g := config.NewStack(ow)
+	require.NotNil(t, g)
+	done := make(chan struct{})
+	defer close(done)
+	w := g.NewWatcher(done)
+	close(ow.w.updatech)
+	time.Sleep(defaultTimeout)
+	testWatcherNotUpdated(t, w)
+}
+
 func testDonePropagation(t *testing.T, g config.Getter, done <-chan struct{}) {
 	t.Helper()
 	wg, ok := g.(*watchedGetter)

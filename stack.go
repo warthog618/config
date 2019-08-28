@@ -114,7 +114,10 @@ func (s *stackWatcher) append(w GetterWatcher) {
 			select {
 			case <-s.done:
 				return
-			case u := <-w.Update():
+			case u, ok := <-w.Update():
+				if !ok {
+					return
+				}
 				select {
 				case s.gw.uch <- u:
 				case <-s.done:
