@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-    c := config.NewConfig(blob.New(file.New("config.yaml"), yaml.NewDecoder()))
+    c := config.New(blob.New(file.New("config.yaml"), yaml.NewDecoder()))
     s := c.MustGet("nested.string").String()
     fmt.Println("s:", s)
     // ....

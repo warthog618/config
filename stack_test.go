@@ -108,7 +108,7 @@ func TestStackGet(t *testing.T) {
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			s := config.NewStack(p.gg...)
-			c := config.NewConfig(s)
+			c := config.New(s)
 			for _, x := range p.expected {
 				v, err := c.Get(x.k)
 				assert.Equal(t, x.err, err, x.k)

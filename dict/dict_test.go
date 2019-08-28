@@ -21,7 +21,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestGetterAsOption(t *testing.T) {
-	c := config.NewConfig(dict.New(), dict.New())
+	c := config.New(dict.New(), dict.New())
 	c.Close()
 }
 

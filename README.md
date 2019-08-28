@@ -37,7 +37,7 @@ A minimal setup to access configuration from POSIX/GNU style command line flags,
 might look like:
 
 ```go
-    c := config.NewConfig(pflag.New())
+    c := config.New(pflag.New())
 ```
 
 A command line parameter such as
@@ -55,7 +55,7 @@ could then be read using:
 Or read configuration from a configuration file - in this case a TOML file:
 
 ```go
-    c := config.NewConfig(blob.New(file.New("myconfig.toml"), toml.NewDecoder()))
+    c := config.New(blob.New(file.New("myconfig.toml"), toml.NewDecoder()))
 ```
 
 Multiple configuration sources can be setup and customised to suit your
@@ -76,7 +76,7 @@ when converting the value to requested types.  By default the Value absorbs
 conversion errors and returns the zero value for the requested type. e.g.
 
 ```go
-    c := config.NewConfig(g)
+    c := config.New(g)
     pin := c.MustGet("pin").Int()
 ```
 
@@ -88,7 +88,7 @@ returned by the Config. This allows errors to be directed to an error handler
 rather than being handled where the functions return. e.g.
 
 ```go
-    m := config.NewConfig(g, config.WithMust())
+    m := config.New(g, config.WithMust())
     v, _ := m.Get("pin")
     pin := v.Int()
     v,_ = m.Get("ports")
@@ -286,7 +286,7 @@ Decorators can be added to the getter before it is provided to the Config. e.g.:
 
 ```go
     a := config.NewAlias()
-    c := config.NewConfig(config.Decorate(g, config.WithAlias(a)))
+    c := config.New(config.Decorate(g, config.WithAlias(a)))
     a.Append(newKey, oldKey)
 ```
 
@@ -365,7 +365,7 @@ default values for fields in array elements.  e.g. this alias
 ```go
     r := config.NewRegexAlias()
     r.Append(`somearray\[\d+\](.*)`, "somearray[0]$1")
-    c := config.NewConfig(config.Decorate(g, config.WithRegexAlias(r)))
+    c := config.New(config.Decorate(g, config.WithRegexAlias(r)))
 ```
 
 defaults all fields in the array elements to the values of the first element of
@@ -418,7 +418,7 @@ func main() {
     // from flags and defaults...
     sources := config.NewStack(
         pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"})))
-    cfg := config.NewConfig(sources, config.WithDefault(defaultConfig))
+    cfg := config.New(sources, config.WithDefault(defaultConfig))
 
     // and from environment...
     prefix := cfg.MustGet("env.prefix").String()
@@ -475,7 +475,7 @@ This example watches a configuration file and prints updates to the configuratio
 
 ```go
 func main() {
-    c := config.NewConfig(blob.New(
+    c := config.New(blob.New(
         file.New("config.json", file.WithWatcher()), json.NewDecoder()))
 
     done := make(chan struct{})

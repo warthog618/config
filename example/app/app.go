@@ -85,7 +85,7 @@ func loadConfig() *config.Config {
 		'u': "unmarshal",
 	}
 	// highest priority sources first - flags override environment
-	cfg := config.NewConfig(
+	cfg := config.New(
 		pflag.New(pflag.WithShortFlags(shortFlags)),
 		env.New(env.WithEnvPrefix("APP_")),
 		config.WithDefault(def))

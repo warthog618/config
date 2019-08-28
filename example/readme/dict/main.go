@@ -10,7 +10,7 @@ import (
 func main() {
 	d := dict.New()
 	d.Set("config.file", "config.json")
-	c := config.NewConfig(d)
+	c := config.New(d)
 	cfgFile := c.MustGet("config.file").String()
 	fmt.Println("config-file:", cfgFile)
 	// ....

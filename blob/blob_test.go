@@ -80,7 +80,7 @@ func TestNewWatcher(t *testing.T) {
 func TestGetterAsOption(t *testing.T) {
 	l := newMockLoader(nil)
 	d := mockDecoder{}
-	c := config.NewConfig(blob.New(l, &d), blob.New(l, &d))
+	c := config.New(blob.New(l, &d), blob.New(l, &d))
 	c.Close()
 }
 
@@ -207,7 +207,7 @@ func TestNewConfigFile(t *testing.T) {
 		"cfg": "blob_test.json",
 		"go":  "blob_test.go"}}
 	b := blob.New(l, &d)
-	c := config.NewConfig(b)
+	c := config.New(b)
 	defer c.Close()
 	jsondec := json.NewDecoder()
 	f := blob.NewConfigFile(c, "cfg", "no_such_file.json", jsondec)

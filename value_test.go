@@ -33,7 +33,7 @@ func TestBool(t *testing.T) {
 		{"boolInt", true, nil},
 		{"notabool", false, &strconv.NumError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -64,7 +64,7 @@ func TestDuration(t *testing.T) {
 		{"duration", time.Duration(123000000), nil},
 		{"notaduration", time.Duration(0), errors.New("")},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -99,7 +99,7 @@ func TestFloat(t *testing.T) {
 		{"floatInt", 1, nil},
 		{"notafloat", 0, &strconv.NumError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -132,7 +132,7 @@ func TestInt(t *testing.T) {
 		{"intString", 43, nil},
 		{"notaint", 0, &strconv.NumError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -165,7 +165,7 @@ func TestString(t *testing.T) {
 		{"stringInt", "42", nil},
 		{"notastring", "", cfgconv.TypeError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -196,7 +196,7 @@ func TestTime(t *testing.T) {
 		{"time", time.Date(2017, 3, 1, 1, 2, 3, 0, time.UTC), nil},
 		{"notatime", time.Time{}, &time.ParseError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -229,7 +229,7 @@ func TestUint(t *testing.T) {
 		{"uintString", 43, nil},
 		{"notaUint", 0, &strconv.NumError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -270,7 +270,7 @@ func TestSlice(t *testing.T) {
 		{"casttoslice", []interface{}{"bogus"}, nil},
 		{"notaslice", nil, cfgconv.TypeError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -305,7 +305,7 @@ func TestIntSlice(t *testing.T) {
 		{"stringslice", []int64{0, 0, 0}, &strconv.NumError{}},
 		{"notaslice", []int64{0}, &strconv.NumError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -344,7 +344,7 @@ func TestStringSlice(t *testing.T) {
 		{"notastringslice", []string{"1", "2", ""}, cfgconv.TypeError{}},
 		{"notaslice", nil, cfgconv.TypeError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error
@@ -381,7 +381,7 @@ func TestUintSlice(t *testing.T) {
 		{"stringslice", []uint64{0, 0, 0}, &strconv.NumError{}},
 		{"notaslice", []uint64{0}, &strconv.NumError{}},
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var eherr error

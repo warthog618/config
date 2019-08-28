@@ -21,7 +21,7 @@ func main() {
 }
 
 func arrays() {
-	c := config.NewConfig(pflag.New())
+	c := config.New(pflag.New())
 
 	// arrays
 	ports := c.MustGet("ports").UintSlice()
@@ -38,7 +38,7 @@ func alias() {
 	var newKey, oldKey string
 
 	a := config.NewAlias()
-	c := config.NewConfig(config.Decorate(pflag.New(), config.WithAlias(a)))
+	c := config.New(config.Decorate(pflag.New(), config.WithAlias(a)))
 	a.Append(newKey, oldKey)
 
 	c.Get("")
@@ -47,13 +47,13 @@ func alias() {
 func regexalias() {
 	r := config.NewRegexAlias()
 	r.Append(`somearray\[\d+\](.*)`, "somearray[0]$1")
-	c := config.NewConfig(config.Decorate(pflag.New(), config.WithRegexAlias(r)))
+	c := config.New(config.Decorate(pflag.New(), config.WithRegexAlias(r)))
 
 	c.Get("")
 }
 
 func newConfig() {
-	c := config.NewConfig(pflag.New())
+	c := config.New(pflag.New())
 	pin := c.MustGet("pin").Int()
 	ports := c.MustGet("ports").UintSlice()
 
@@ -61,7 +61,7 @@ func newConfig() {
 }
 
 func must() {
-	c := config.NewConfig(pflag.New())
+	c := config.New(pflag.New())
 	pin := c.MustGet("pin").Int()
 
 	if pin == 0 {
@@ -70,14 +70,14 @@ func must() {
 
 func blobDef() {
 	cfgFile := blob.New(file.New("config.json"), json.NewDecoder())
-	c := config.NewConfig(cfgFile)
+	c := config.New(cfgFile)
 
 	c.Close()
 }
 
 func blobStack() {
 	sources := config.NewStack()
-	c := config.NewConfig(sources)
+	c := config.New(sources)
 	cfgFile := blob.New(file.New("config.json"), json.NewDecoder())
 	sources.Append(cfgFile)
 

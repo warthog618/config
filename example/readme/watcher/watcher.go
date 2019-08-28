@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	c := config.NewConfig(blob.New(
+	c := config.New(blob.New(
 		file.New("config.json", file.WithWatcher()),
 		json.NewDecoder()))
 

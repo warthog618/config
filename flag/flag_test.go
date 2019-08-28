@@ -36,7 +36,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestGetterAsOption(t *testing.T) {
-	c := config.NewConfig(flag.New(), flag.New())
+	c := config.New(flag.New(), flag.New())
 	c.Close()
 }
 

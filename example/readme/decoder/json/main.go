@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	c := config.NewConfig(blob.New(file.New("config.json"), json.NewDecoder()))
+	c := config.New(blob.New(file.New("config.json"), json.NewDecoder()))
 	s := c.MustGet("nested.string").String()
 	fmt.Println("s:", s)
 	// ....

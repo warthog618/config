@@ -18,7 +18,7 @@ import (
 )
 
 func TestGetterAsOption(t *testing.T) {
-	c := config.NewConfig(pflag.New(), pflag.New())
+	c := config.New(pflag.New(), pflag.New())
 	c.Close()
 }
 

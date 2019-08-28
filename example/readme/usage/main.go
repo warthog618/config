@@ -25,7 +25,7 @@ func main() {
 	// from flags and defaults...
 	sources := config.NewStack(
 		pflag.New(pflag.WithShortFlags(map[byte]string{'c': "config-file"})))
-	cfg := config.NewConfig(sources, config.WithDefault(defaultConfig))
+	cfg := config.New(sources, config.WithDefault(defaultConfig))
 
 	// and from environment...
 	prefix := cfg.MustGet("env.prefix").String()

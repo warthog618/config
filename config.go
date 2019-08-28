@@ -17,8 +17,8 @@ import (
 	"github.com/warthog618/config/cfgconv"
 )
 
-// NewConfig creates a new Config with minimal initial state.
-func NewConfig(g Getter, options ...Option) *Config {
+// New creates a new Config with minimal initial state.
+func New(g Getter, options ...Option) *Config {
 	c := Config{
 		getter:   g,
 		pathSep:  ".",

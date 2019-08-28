@@ -8,8 +8,7 @@ import (
 )
 
 func main() {
-	f := pflag.New()
-	c := config.NewConfig(f)
+	c := config.New(pflag.New())
 	cfgFile := c.MustGet("config.file").String()
 	fmt.Println("config-file:", cfgFile)
 	// ....

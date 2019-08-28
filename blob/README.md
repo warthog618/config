@@ -18,16 +18,16 @@ containing it will automatically support being watched for changes as well.
 Given a loader and decoder, you create a blob and add it to your config:
 
 ```go
-    c := config.NewConfig(blob.New(file.New("config.json"), json.NewDecoder()))
+    c := config.New(blob.New(file.New("config.json"), json.NewDecoder()))
 ```
 
 or add it into your config stack:
 
 ```go
-    sources := config.NewStack(pflag.New(),env.New())
-    c := config.NewConfig(sources)
+    c := config.New(pflag.New(), env.New())
+    // ...
     cfgFile := blob.New(file.New("config.json"), json.NewDecoder())
-    sources.Append(cfgFile)
+    c.Append(cfgFile)
 ```
 
 ## Loaders

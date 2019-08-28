@@ -20,9 +20,9 @@ import (
 
 var defaultTimeout = 10 * time.Millisecond
 
-func TestNewConfig(t *testing.T) {
+func TestNew(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	require.NotNil(t, c)
 	v, err := c.Get("")
 	assert.IsType(t, config.NotFoundError{}, err)
@@ -32,7 +32,7 @@ func TestNewConfig(t *testing.T) {
 	assert.Equal(t, true, v.Value())
 
 	// nil getter
-	c = config.NewConfig(nil)
+	c = config.New(nil)
 	v, err = c.Get("")
 	assert.IsType(t, config.NotFoundError{}, err)
 	assert.Equal(t, nil, v.Value())
@@ -43,7 +43,7 @@ func TestNewConfig(t *testing.T) {
 	// multiple getters
 	mr2 := mockGetterAsOption{mockGetter: mockGetter{"a.b.c_d": false, "a.b.c_e": 2}}
 	mr3 := mockGetterAsOption{mockGetter: mockGetter{"a.b.c_d": false, "a.b.c_e": 3}}
-	c = config.NewConfig(&mr, &mr2, &mr3)
+	c = config.New(&mr, &mr2, &mr3)
 	require.NotNil(t, c)
 	v, err = c.Get("")
 	assert.IsType(t, config.NotFoundError{}, err)
@@ -56,14 +56,14 @@ func TestNewConfig(t *testing.T) {
 	assert.Equal(t, int64(2), v.Int())
 }
 
-func TestNewConfigWithErrorHandler(t *testing.T) {
+func TestNewWithErrorHandler(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": "this is a.b.c.d"}
 	var eherr error
 	eh := func(err error) error {
 		eherr = err
 		return nil
 	}
-	c := config.NewConfig(&mr, config.WithErrorHandler(eh))
+	c := config.New(&mr, config.WithErrorHandler(eh))
 	v, err := c.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Nil(t, eherr)
@@ -78,9 +78,9 @@ func TestNewConfigWithErrorHandler(t *testing.T) {
 	eherr = nil
 }
 
-func TestNewConfigWithZeroDefaults(t *testing.T) {
+func TestNewWithZeroDefaults(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
-	c := config.NewConfig(&mr, config.WithZeroDefaults())
+	c := config.New(&mr, config.WithZeroDefaults())
 	v, err := c.Get("not.a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, nil, v.Value())
@@ -90,9 +90,9 @@ func TestNewConfigWithZeroDefaults(t *testing.T) {
 	assert.Equal(t, true, v.Value())
 }
 
-func TestNewConfigWithMust(t *testing.T) {
+func TestNewWithMust(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
-	c := config.NewConfig(&mr, config.WithMust())
+	c := config.New(&mr, config.WithMust())
 	v, err := c.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
@@ -112,8 +112,8 @@ func TestAppend(t *testing.T) {
 		"bar.b": "this is bar.b",
 		"id":    2,
 	}
-	cfg0 := config.NewConfig(nil)
-	cfg1 := config.NewConfig(&mr1)
+	cfg0 := config.New(nil)
+	cfg1 := config.New(&mr1)
 	patterns := []struct {
 		name string
 		cfg  *config.Config
@@ -146,7 +146,7 @@ func TestAppendNil(t *testing.T) {
 	mr := mockGetter{
 		"id": 1,
 	}
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	cfg.Append(nil)
 	v, err := cfg.Get("id")
 	assert.Nil(t, err)
@@ -158,7 +158,7 @@ func TestClose(t *testing.T) {
 		"foo":   "this is foo",
 		"bar.b": "this is bar.b",
 	}
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	w := cfg.NewWatcher()
 	testNotUpdated(t, w, nil)
 	done := make(chan struct{})
@@ -188,7 +188,7 @@ func TestGet(t *testing.T) {
 		{"bar.b", "this is bar.b", nil},
 		{"nosuch", nil, config.NotFoundError{}},
 	}
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			v, err := cfg.Get(p.k)
@@ -216,7 +216,7 @@ func TestGetWithErrorHandler(t *testing.T) {
 		{"nil", config.WithErrorHandler(nil), nil},
 		{"eh", config.WithErrorHandler(eh), &strconv.NumError{}},
 	}
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			eherr = nil
@@ -236,7 +236,7 @@ func TestGetWithPanic(t *testing.T) {
 	mr := mockGetter{
 		"foo": "this is foo",
 	}
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	assert.Panics(t, func() {
 		v, _ := cfg.Get("foo", config.WithMust())
 		v.Int()
@@ -305,7 +305,7 @@ func TestGetConfig(t *testing.T) {
 			{"e", nil, config.NotFoundError{}},
 		}},
 	}
-	cfg := config.NewConfig(config.Decorate(&mr, config.WithAlias(a)))
+	cfg := config.New(config.Decorate(&mr, config.WithAlias(a)))
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			for _, tp := range p.tp {
@@ -324,7 +324,7 @@ func TestGetConfigWithSeparator(t *testing.T) {
 	mr := mockGetter{
 		"a.b.c_d": true,
 	}
-	c := config.NewConfig(&mr)
+	c := config.New(&mr)
 	v, err := c.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
@@ -349,8 +349,8 @@ func TestInsert(t *testing.T) {
 		"bar.b": "this is bar.b",
 		"id":    2,
 	}
-	cfg0 := config.NewConfig(nil)
-	cfg1 := config.NewConfig(&mr1)
+	cfg0 := config.New(nil)
+	cfg1 := config.New(&mr1)
 	patterns := []struct {
 		name string
 		cfg  *config.Config
@@ -383,7 +383,7 @@ func TestInsertNil(t *testing.T) {
 	mr := mockGetter{
 		"id": 1,
 	}
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	cfg.Insert(nil)
 	v, err := cfg.Get("id")
 	assert.Nil(t, err)
@@ -408,7 +408,7 @@ func TestMustGet(t *testing.T) {
 		{"hit2", "bar.b", "this is bar.b", nil, nil},
 		{"miss", "nosuch", nil, nil, config.NotFoundError{Key: "nosuch"}},
 	}
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			var v config.Value
@@ -568,7 +568,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			c := config.NewConfig(p.g)
+			c := config.New(p.g)
 			err := c.Unmarshal(p.k, p.target)
 			assert.IsType(t, p.err, err)
 			assert.Equal(t, p.x, p.target)
@@ -600,7 +600,7 @@ func TestUnmarshalWithTag(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			c := config.NewConfig(p.g, config.WithTag("cfg"))
+			c := config.New(p.g, config.WithTag("cfg"))
 			err := c.Unmarshal(p.k, p.target)
 			assert.IsType(t, p.err, err)
 			assert.Equal(t, p.x, p.target)
@@ -830,7 +830,7 @@ func TestUnmarshalToMap(t *testing.T) {
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
-			c := config.NewConfig(p.g)
+			c := config.New(p.g)
 			target, err := deepcopy(p.target)
 			assert.Nil(t, err)
 			require.NotNil(t, target)
@@ -849,13 +849,13 @@ func TestNewWatcher(t *testing.T) {
 	}
 
 	// Static config
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	w := cfg.NewWatcher()
 	testNotUpdated(t, w, nil)
 
 	// config Closed
 	wg := watchedGetter{mr, nil}
-	cfg = config.NewConfig(&wg)
+	cfg = config.New(&wg)
 	done := make(chan struct{})
 	defer close(done)
 	w = cfg.NewWatcher()
@@ -875,7 +875,7 @@ func TestNewWatcher(t *testing.T) {
 
 	// Updated
 	wg = watchedGetter{mr, nil}
-	cfg = config.NewConfig(&wg)
+	cfg = config.New(&wg)
 	ws := wg.w
 	require.NotNil(t, ws)
 	w = cfg.NewWatcher()
@@ -1023,13 +1023,13 @@ func TestNewKeyWatcher(t *testing.T) {
 		"bar.b": "this is bar.b",
 	}
 	// Static config
-	cfg := config.NewConfig(&mr)
+	cfg := config.New(&mr)
 	w := cfg.NewKeyWatcher("foo")
 	testKeyUpdated(t, w, nil, "this is foo", nil)
 
 	// Updated
 	wg := watchedGetter{mr, nil}
-	cfg = config.NewConfig(&wg)
+	cfg = config.New(&wg)
 	ws := wg.w
 	require.NotNil(t, ws)
 	w = cfg.NewKeyWatcher("foo")

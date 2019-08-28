@@ -32,7 +32,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestGetterAsOption(t *testing.T) {
-	c := config.NewConfig(env.New(), env.New())
+	c := config.New(env.New(), env.New())
 	c.Close()
 }
 

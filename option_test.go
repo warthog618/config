@@ -21,10 +21,10 @@ func TestNewAliasWithSeparator(t *testing.T) {
 	assert.Equal(t, "X", a.pathSep)
 }
 
-func TestNewConfigWithDefault(t *testing.T) {
+func TestNewWithDefault(t *testing.T) {
 	g := mockGetter{"a": 42}
 	d := mockGetter{"a": 45, "d": 47}
-	c := NewConfig(g, WithDefault(d))
+	c := New(g, WithDefault(d))
 	require.NotNil(t, c)
 	val, err := c.Get("a")
 	assert.Nil(t, err)
@@ -34,22 +34,22 @@ func TestNewConfigWithDefault(t *testing.T) {
 	assert.Equal(t, val.Int(), int64(47))
 }
 
-func TestNewConfigWithSeparator(t *testing.T) {
+func TestNewWithSeparator(t *testing.T) {
 	g := mockGetter{"a": 42}
-	c := NewConfig(g)
+	c := New(g)
 	require.NotNil(t, c)
 	assert.Equal(t, ".", c.pathSep)
-	c = NewConfig(g, WithSeparator("X"))
+	c = New(g, WithSeparator("X"))
 	require.NotNil(t, c)
 	assert.Equal(t, "X", c.pathSep)
 }
 
-func TestNewConfigWithTag(t *testing.T) {
+func TestNewWithTag(t *testing.T) {
 	g := mockGetter{"a": 42}
-	c := NewConfig(g)
+	c := New(g)
 	require.NotNil(t, c)
 	assert.Equal(t, "config", c.tag)
-	c = NewConfig(g, WithTag("bogus"))
+	c = New(g, WithTag("bogus"))
 	require.NotNil(t, c)
 	assert.Equal(t, "bogus", c.tag)
 }

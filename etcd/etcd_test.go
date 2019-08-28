@@ -163,7 +163,7 @@ func TestGetterAsOption(t *testing.T) {
 	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
 	cancel()
 	assert.Nil(t, err)
-	c := config.NewConfig(e, e)
+	c := config.New(e, e)
 	c.Close()
 }
 

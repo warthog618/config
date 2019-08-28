@@ -11,8 +11,7 @@ import (
 func main() {
 	flag.String("config-file", "config.json", "config file name")
 	flag.Parse()
-	f := cfgflag.New()
-	c := config.NewConfig(f)
+	c := config.New(cfgflag.New())
 	cfgFile := c.MustGet("config.file").String()
 	fmt.Println("config-file:", cfgFile)
 	// ....
