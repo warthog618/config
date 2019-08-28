@@ -58,6 +58,17 @@ Or read configuration from a configuration file - in this case a TOML file:
     c := config.New(blob.New(file.New("myconfig.toml"), toml.NewDecoder()))
 ```
 
+Multiple configuration sources can be added to the config, for example:
+
+```go
+    c := config.New(
+        pflag.New(),
+        env.New(),
+        blob.New(file.New("myconfig.json"), json.NewDecoder()))
+```
+
+which would overlay configuration from POSIX flags over environment variables and over a JSON configuration file.  Gets from the configuration will search through the source in the provided order for each key.
+
 Multiple configuration sources can be setup and customised to suit your
 application requirements.  The [Example Usage](#usage) section provides
 a more extensive example.
