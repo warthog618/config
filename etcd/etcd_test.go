@@ -156,6 +156,17 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestGetterAsOption(t *testing.T) {
+	addr, _, terminate := dummyEtcdServer(t, map[string]string{})
+	defer terminate()
+	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
+	e, err := etcd.New(ctx, "/my/config/", etcd.WithEndpoint(addr))
+	cancel()
+	assert.Nil(t, err)
+	c := config.NewConfig(e, e)
+	c.Close()
+}
+
 func TestWatch(t *testing.T) {
 	cfg := map[string]string{
 		"/my/config/leaf": "42",

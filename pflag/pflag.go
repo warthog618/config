@@ -37,6 +37,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/keys"
 	"github.com/warthog618/config/list"
 	"github.com/warthog618/config/tree"
@@ -70,6 +71,7 @@ func New(options ...Option) *Getter {
 // The Getter scans the command line only at construction time, so its config state
 // is effectively immutable.
 type Getter struct {
+	config.GetterAsOption
 	// The args to parse into config values.
 	cmdArgs []string
 	// residual args after flag parsing.

@@ -17,6 +17,11 @@ import (
 	"github.com/warthog618/config/pflag"
 )
 
+func TestGetterAsOption(t *testing.T) {
+	c := config.NewConfig(pflag.New(), pflag.New())
+	c.Close()
+}
+
 func TestNew(t *testing.T) {
 	f := pflag.New()
 	require.NotNil(t, f)

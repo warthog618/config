@@ -28,6 +28,10 @@ func NewConfig(g Getter, options ...Option) *Config {
 		donech:   make(chan struct{}),
 	}
 	for _, option := range options {
+		if gas, ok := option.(Getter); ok {
+			c.getter = Overlay(c.getter, gas)
+			continue
+		}
 		option.applyConfigOption(&c)
 	}
 	if wg, ok := g.(WatchableGetter); ok {
@@ -46,6 +50,8 @@ type ErrorHandler func(error) error
 // functions that return the requested type, if possible, or an error if not.
 type Config struct {
 	getter Getter
+	// default Getter - used if a field is not found in the main getter.
+	defg Getter
 	// path separator for nested objects. This is used to split keys into a list
 	// of tier names and leaf key. By default this is ".". e.g. a key
 	// "db.postgres.client" splits into "db","postgres","client"
@@ -85,6 +91,18 @@ func (c *Config) watcher() {
 	}
 }
 
+// Append adds a getter to the end of the list of getters searched by the
+// config, but still before a default getter specified by WithDefault.
+// This function is not safe to call from multiple goroutines, and should only
+// be called to set up configuration in a single goroutine before passing the
+// final config to other goroutines.
+func (c *Config) Append(g Getter) {
+	if g == nil {
+		return
+	}
+	c.getter = Overlay(c.getter, g)
+}
+
 // Close releases any resources allocated to the Config including
 // cancelling any actve watches.
 func (c *Config) Close() error {
@@ -100,7 +118,14 @@ func (c *Config) Close() error {
 // Get gets the raw value corresponding to the key.
 // Returns a zero Value and an error if the value cannot be retrieved.
 func (c *Config) Get(key string, opts ...ValueOption) (Value, error) {
-	v, ok := c.getter.Get(key)
+	var v interface{}
+	var ok bool
+	if c.getter != nil {
+		v, ok = c.getter.Get(key)
+	}
+	if !ok && c.defg != nil {
+		v, ok = c.defg.Get(key)
+	}
 	if !ok {
 		var err error
 		err = NotFoundError{Key: key}
@@ -125,11 +150,14 @@ func (c *Config) Get(key string, opts ...ValueOption) (Value, error) {
 // where the node identifies the root node of the config returned.
 func (c *Config) GetConfig(node string, options ...Option) *Config {
 	g := c.getter
+	d := c.defg
 	if node != "" {
 		g = Decorate(c.getter, WithPrefix(node+c.pathSep))
+		d = Decorate(c.defg, WithPrefix(node+c.pathSep))
 	}
 	v := &Config{
 		getter:   g,
+		defg:     d,
 		pathSep:  c.pathSep,
 		tag:      c.tag,
 		notifier: c.notifier,
@@ -139,6 +167,18 @@ func (c *Config) GetConfig(node string, options ...Option) *Config {
 		option.applyConfigOption(v)
 	}
 	return v
+}
+
+// Insert adds a getter to the beginning of the list of getters searched by the
+// config.
+// This function is not safe to call from multiple goroutines, and should only
+// be called to set up configuration in a single goroutine before passing the
+// final config to other goroutines.
+func (c *Config) Insert(g Getter) {
+	if g == nil {
+		return
+	}
+	c.getter = Overlay(g, c.getter)
 }
 
 // MustGet gets the value corresponding to the key, or panics if the key is not

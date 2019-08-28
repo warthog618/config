@@ -85,13 +85,13 @@ func loadConfig() *config.Config {
 		'u': "unmarshal",
 	}
 	// highest priority sources first - flags override environment
-	sources := config.NewStack(
+	cfg := config.NewConfig(
 		pflag.New(pflag.WithShortFlags(shortFlags)),
-		env.New(env.WithEnvPrefix("APP_")))
-	cfg := config.NewConfig(sources, config.WithDefault(def))
+		env.New(env.WithEnvPrefix("APP_")),
+		config.WithDefault(def))
 	// config file may be specified via flag or env, so check for it
 	// and if present add it with lower priority than flag and env.
-	sources.Append(blob.NewConfigFile(
+	cfg.Append(blob.NewConfigFile(
 		cfg, "config.file", "app.json", jsondec, file.WithWatcher()))
 	return cfg
 }

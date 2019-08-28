@@ -35,6 +35,11 @@ func TestNew(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
+func TestGetterAsOption(t *testing.T) {
+	c := config.NewConfig(flag.New(), flag.New())
+	c.Close()
+}
+
 func TestGetterGet(t *testing.T) {
 	type kv struct {
 		k string

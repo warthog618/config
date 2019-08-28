@@ -10,6 +10,7 @@ package flag
 import (
 	"flag"
 
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/keys"
 	"github.com/warthog618/config/list"
 	"github.com/warthog618/config/tree"
@@ -44,6 +45,7 @@ func New(options ...Option) *Getter {
 // The Getter scans the command line flags only at construction time, so its config state
 // is effectively immutable.
 type Getter struct {
+	config.GetterAsOption
 	// The parsed config.
 	config map[string]interface{}
 	// A replacer that maps from flag space to config space.

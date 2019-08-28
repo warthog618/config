@@ -31,6 +31,11 @@ func TestNew(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), e)
 }
 
+func TestGetterAsOption(t *testing.T) {
+	c := config.NewConfig(env.New(), env.New())
+	c.Close()
+}
+
 func TestGetterGet(t *testing.T) {
 	patterns := []struct {
 		name string

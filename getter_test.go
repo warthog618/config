@@ -64,6 +64,11 @@ func TestDecorate(t *testing.T) {
 	}
 }
 
+func TestDecorateNil(t *testing.T) {
+	p := config.Decorate(nil, config.WithKeyReplacer(keys.LowerCaseReplacer()))
+	assert.Nil(t, p)
+}
+
 func TestWithFallback(t *testing.T) {
 	def := mockGetter{
 		"a.b.c": 43,
@@ -247,7 +252,6 @@ func TestWithUpdateHandler(t *testing.T) {
 		<-done
 	}
 	testDecoratorNoUpdate(t, config.WithUpdateHandler(config.UpdateHandler(dropper)))
-
 }
 
 func testDecoratorWatchable(t *testing.T, d config.Decorator) {

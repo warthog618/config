@@ -40,6 +40,13 @@ type Getter interface {
 	Get(key string) (value interface{}, found bool)
 }
 
+// GetterAsOption allows a Getter to be passed to New as an option.
+type GetterAsOption struct {
+}
+
+func (s GetterAsOption) applyConfigOption(c *Config) {
+}
+
 // UpdateCommit is a function that commits an update to a getter.
 // After the call the change becomes visible to Get.
 type UpdateCommit func()
@@ -100,6 +107,9 @@ func (g getterDecorator) NewWatcher(done <-chan struct{}) GetterWatcher {
 // When the returned getter is used, the first decorator is called first, then
 // the second, etc and finally the decorated Getter itself.
 func Decorate(g Getter, dd ...Decorator) Getter {
+	if g == nil {
+		return nil
+	}
 	dg := g
 	for i := len(dd) - 1; i >= 0; i-- {
 		dg = dd[i](dg)
@@ -205,7 +215,8 @@ func (g prefixDecorator) Get(key string) (interface{}, bool) {
 
 // UpdateHandler receives an update, performs some transformation
 // on it, and forwards (or not) the transformed update.
-// Must return if the done or in channels are closed.
+// Must return if either the done or in channels are closed.
+// May close the out chan to indicate that no further updates are possible.
 type UpdateHandler func(done <-chan struct{}, in <-chan GetterUpdate, out chan<- GetterUpdate)
 
 // WithUpdateHandler adds an update processing decorator to a getter.

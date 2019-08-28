@@ -56,10 +56,11 @@ type DefaultOption struct {
 }
 
 func (o DefaultOption) applyConfigOption(c *Config) {
-	c.getter = Overlay(c.getter, o.d)
+	c.defg = o.d
 }
 
 // WithDefault is an Option that sets the default configuration.
+// If applied multiple times, the earlier defaults are ignored.
 func WithDefault(d Getter) DefaultOption {
 	return DefaultOption{d}
 }

@@ -9,6 +9,7 @@ package dict
 import (
 	"sync"
 
+	"github.com/warthog618/config"
 	"github.com/warthog618/config/tree"
 )
 
@@ -16,6 +17,7 @@ import (
 // The Getter is mutable, though only by setting keys, and
 // is safe to call from multiple goroutines.
 type Getter struct {
+	config.GetterAsOption
 	mu sync.RWMutex
 	// set of keys (node or leaf).
 	config map[string]interface{}

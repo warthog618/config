@@ -20,6 +20,11 @@ func TestNew(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), d)
 }
 
+func TestGetterAsOption(t *testing.T) {
+	c := config.NewConfig(dict.New(), dict.New())
+	c.Close()
+}
+
 func TestGetterGet(t *testing.T) {
 	patterns := []struct {
 		name string

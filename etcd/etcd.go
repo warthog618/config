@@ -61,6 +61,7 @@ func New(ctx context.Context, prefix string, options ...Option) (*Getter, error)
 // It is assumed that the relevant configuration is located within a section
 // of the etcd keyspace with a fixed key prefix, e.g. /my/app/config/.
 type Getter struct {
+	config.GetterAsOption
 	mu sync.RWMutex
 	// The current snapshot of configuration loaded from etcd.
 	msi map[string]interface{}

@@ -12,7 +12,20 @@ func Overlay(gg ...Getter) Getter {
 	if len(gg) == 1 {
 		return gg[0]
 	}
-	return &overlay{gg}
+	mingg := []Getter{}
+	for _, g := range gg {
+		// ignore nils
+		if g == nil {
+			continue
+		}
+		// consolidate overlays
+		if og, ok := g.(*overlay); ok {
+			mingg = append(mingg, og.gg...)
+			continue
+		}
+		mingg = append(mingg, g)
+	}
+	return &overlay{mingg}
 }
 
 type overlay struct {

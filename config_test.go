@@ -30,6 +30,30 @@ func TestNewConfig(t *testing.T) {
 	v, err = c.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
+
+	// nil getter
+	c = config.NewConfig(nil)
+	v, err = c.Get("")
+	assert.IsType(t, config.NotFoundError{}, err)
+	assert.Equal(t, nil, v.Value())
+	v, err = c.Get("a.b.c_d")
+	assert.IsType(t, config.NotFoundError{}, err)
+	assert.Equal(t, nil, v.Value())
+
+	// multiple getters
+	mr2 := mockGetterAsOption{mockGetter: mockGetter{"a.b.c_d": false, "a.b.c_e": 2}}
+	mr3 := mockGetterAsOption{mockGetter: mockGetter{"a.b.c_d": false, "a.b.c_e": 3}}
+	c = config.NewConfig(&mr, &mr2, &mr3)
+	require.NotNil(t, c)
+	v, err = c.Get("")
+	assert.IsType(t, config.NotFoundError{}, err)
+	assert.Equal(t, nil, v.Value())
+	v, err = c.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Equal(t, true, v.Value())
+	v, err = c.Get("a.b.c_e")
+	assert.Nil(t, err)
+	assert.Equal(t, int64(2), v.Int())
 }
 
 func TestNewConfigWithErrorHandler(t *testing.T) {
@@ -75,6 +99,58 @@ func TestNewConfigWithMust(t *testing.T) {
 	assert.Panics(t, func() {
 		c.Get("")
 	})
+}
+
+func TestAppend(t *testing.T) {
+	mr1 := mockGetter{
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
+		"id":    1,
+	}
+	mrA := mockGetter{
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
+		"id":    2,
+	}
+	cfg0 := config.NewConfig(nil)
+	cfg1 := config.NewConfig(&mr1)
+	patterns := []struct {
+		name string
+		cfg  *config.Config
+		k    string
+		v    interface{}
+		err  error
+	}{
+		{"solo", cfg0, "foo", "this is foo", nil},
+		{"solo", cfg0, "bar.b", "this is bar.b", nil},
+		{"solo", cfg0, "id", 2, nil},
+		{"solo", cfg0, "nosuch", nil, config.NotFoundError{}},
+		{"underlay", cfg1, "foo", "this is foo", nil},
+		{"underlay", cfg1, "bar.b", "this is bar.b", nil},
+		{"underlay", cfg1, "id", 1, nil},
+		{"underlay", cfg1, "nosuch", nil, config.NotFoundError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			cfg := p.cfg.GetConfig("")
+			cfg.Append(&mrA)
+			v, err := cfg.Get(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v.Value())
+		}
+		t.Run(p.name+"-"+p.k, f)
+	}
+}
+
+func TestAppendNil(t *testing.T) {
+	mr := mockGetter{
+		"id": 1,
+	}
+	cfg := config.NewConfig(&mr)
+	cfg.Append(nil)
+	v, err := cfg.Get("id")
+	assert.Nil(t, err)
+	assert.Equal(t, 1, v.Value())
 }
 
 func TestClose(t *testing.T) {
@@ -260,6 +336,58 @@ func TestGetConfigWithSeparator(t *testing.T) {
 	v, err = cfg.Get("d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
+}
+
+func TestInsert(t *testing.T) {
+	mr1 := mockGetter{
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
+		"id":    1,
+	}
+	mrI := mockGetter{
+		"foo":   "this is foo",
+		"bar.b": "this is bar.b",
+		"id":    2,
+	}
+	cfg0 := config.NewConfig(nil)
+	cfg1 := config.NewConfig(&mr1)
+	patterns := []struct {
+		name string
+		cfg  *config.Config
+		k    string
+		v    interface{}
+		err  error
+	}{
+		{"solo", cfg0, "foo", "this is foo", nil},
+		{"solo", cfg0, "bar.b", "this is bar.b", nil},
+		{"solo", cfg0, "id", 2, nil},
+		{"solo", cfg0, "nosuch", nil, config.NotFoundError{}},
+		{"overlay", cfg1, "foo", "this is foo", nil},
+		{"overlay", cfg1, "bar.b", "this is bar.b", nil},
+		{"overlay", cfg1, "id", 2, nil},
+		{"overlay", cfg1, "nosuch", nil, config.NotFoundError{}},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			cfg := p.cfg.GetConfig("")
+			cfg.Insert(&mrI)
+			v, err := cfg.Get(p.k)
+			assert.IsType(t, p.err, err)
+			assert.Equal(t, p.v, v.Value())
+		}
+		t.Run(p.name+"-"+p.k, f)
+	}
+}
+
+func TestInsertNil(t *testing.T) {
+	mr := mockGetter{
+		"id": 1,
+	}
+	cfg := config.NewConfig(&mr)
+	cfg.Insert(nil)
+	v, err := cfg.Get("id")
+	assert.Nil(t, err)
+	assert.Equal(t, 1, v.Value())
 }
 
 func TestMustGet(t *testing.T) {
@@ -954,6 +1082,11 @@ type mockGetter map[string]interface{}
 func (m *mockGetter) Get(key string) (interface{}, bool) {
 	v, ok := (*m)[key]
 	return v, ok
+}
+
+type mockGetterAsOption struct {
+	config.GetterAsOption
+	mockGetter
 }
 
 type watchedGetter struct {

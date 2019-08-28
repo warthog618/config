@@ -43,6 +43,7 @@ type ErrorHandler func(error)
 // source. The second stage is the Decoder, which converts the returned []byte
 // blob into a map[string]interface{}.
 type Getter struct {
+	config.GetterAsOption
 	l Loader
 	d Decoder
 	// current committed configuration

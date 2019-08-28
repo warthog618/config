@@ -77,6 +77,13 @@ func TestNewWatcher(t *testing.T) {
 	assert.Nil(t, w)
 }
 
+func TestGetterAsOption(t *testing.T) {
+	l := newMockLoader(nil)
+	d := mockDecoder{}
+	c := config.NewConfig(blob.New(l, &d), blob.New(l, &d))
+	c.Close()
+}
+
 func TestGet(t *testing.T) {
 	l := newMockLoader(nil)
 	d := mockDecoder{M: map[string]interface{}{
