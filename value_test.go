@@ -16,6 +16,19 @@ import (
 	"github.com/warthog618/config/cfgconv"
 )
 
+func TestNewValue(t *testing.T) {
+	v := config.NewValue(1)
+	assert.Equal(t, int64(1), v.Int())
+	assert.NotPanics(t, func() {
+		v.Time()
+	})
+	v = config.NewValue(2, config.WithMust())
+	assert.Equal(t, int64(2), v.Int())
+	assert.Panics(t, func() {
+		v.Time()
+	})
+}
+
 func TestBool(t *testing.T) {
 	mr := mockGetter{
 		"bool":       true,

@@ -30,7 +30,6 @@ func New(g Getter, options ...Option) *Config {
 	for _, option := range options {
 		if gas, ok := option.(Getter); ok {
 			c.getter = Overlay(c.getter, gas)
-			continue
 		}
 		option.applyConfigOption(&c)
 	}
@@ -44,6 +43,9 @@ func New(g Getter, options ...Option) *Config {
 }
 
 // ErrorHandler handles an error.
+// The passed error is processed and an error, which may be the same or
+// different, is returned. The returned error may be nil to indicate the error
+// has been handled.
 type ErrorHandler func(error) error
 
 // Config is a wrapper around a Getter that provides a set of conversion
@@ -60,9 +62,11 @@ type Config struct {
 	tag string
 	// notifier indicates the config has been updated.
 	notifier *Notifier
-	// error handler for gets. Is propagated to Values unless overridden by
-	// ValueOption.
-	eh ErrorHandler
+	// error handler for Gets.
+	geh ErrorHandler
+	// error handler for Values returned by Gets.
+	// May be overridden by ValueOptions.
+	veh ErrorHandler
 	// Mutex covering block gets - inhibits changes to underlying Loaders while
 	// unmarshalling blocks, as that could result in inconsistent and
 	// unpredicatable results.
@@ -129,21 +133,17 @@ func (c *Config) Get(key string, opts ...ValueOption) (Value, error) {
 	if !ok {
 		var err error
 		err = NotFoundError{Key: key}
-		if c.eh != nil {
-			err = c.eh(err)
+		if c.geh != nil {
+			err = c.geh(err)
 		}
 		if err != nil {
 			return Value{}, err
 		}
 	}
-	if c.eh != nil {
-		opts = append([]ValueOption{WithErrorHandler(c.eh)}, opts...)
+	if c.veh != nil {
+		opts = append([]ValueOption{WithErrorHandler(c.veh)}, opts...)
 	}
-	val := Value{value: v}
-	for _, option := range opts {
-		option.applyValueOption(&val)
-	}
-	return val, nil
+	return NewValue(v, opts...), nil
 }
 
 // GetConfig gets the Config corresponding to a subtree of the config,

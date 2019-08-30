@@ -18,6 +18,17 @@ type Value struct {
 	eh ErrorHandler
 }
 
+// NewValue creates a Value given a raw value.
+// Values are generally returned by Config.Get or Config.GetMust, so you
+// probably don't want to be calling this function.
+func NewValue(value interface{}, options ...ValueOption) Value {
+	v := Value{value: value}
+	for _, option := range options {
+		option.applyValueOption(&v)
+	}
+	return v
+}
+
 // Bool converts the value to a bool.
 // Returns false if conversion is not possible.
 func (v Value) Bool() bool {

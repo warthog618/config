@@ -70,20 +70,55 @@ type ErrorHandlerOption struct {
 	e ErrorHandler
 }
 
-func (e ErrorHandlerOption) applyConfigOption(c *Config) {
-	c.eh = e.e
+func (o ErrorHandlerOption) applyConfigOption(c *Config) {
+	c.geh = o.e
+	c.veh = o.e
 }
 
-func (e ErrorHandlerOption) applyValueOption(v *Value) {
-	v.eh = e.e
+func (o ErrorHandlerOption) applyValueOption(v *Value) {
+	v.eh = o.e
 }
 
-// WithErrorHandler is an Option that sets the error handling for an object.
+// WithErrorHandler is an Option that sets the error handling for a Config or Value.
+// For Config this applies to Get and is propagated to returned Values.
+// For Value this applies to all type conversions.
 func WithErrorHandler(e ErrorHandler) ErrorHandlerOption {
 	return ErrorHandlerOption{e}
 }
 
+// WithGetErrorHandler is an Option that sets the error handling for a Config Gets.
+func WithGetErrorHandler(e ErrorHandler) GetErrorHandlerOption {
+	return GetErrorHandlerOption{e}
+}
+
+// GetErrorHandlerOption defines the handler for errors returned by Gets.
+type GetErrorHandlerOption struct {
+	e ErrorHandler
+}
+
+func (o GetErrorHandlerOption) applyConfigOption(c *Config) {
+	c.geh = o.e
+}
+
+// WithValueErrorHandler is an Option that sets the error handling for a Config Gets.
+func WithValueErrorHandler(e ErrorHandler) ValueErrorHandlerOption {
+	return ValueErrorHandlerOption{e}
+}
+
+// ValueErrorHandlerOption defines the error handler added to Values returned by
+// Config Gets.
+// These may be overridden by ValueOptions.
+type ValueErrorHandlerOption struct {
+	e ErrorHandler
+}
+
+func (o ValueErrorHandlerOption) applyConfigOption(c *Config) {
+	c.veh = o.e
+}
+
 // WithMust makes an object panic on error.
+// For Config this applies to Get and is propagated to returned Values.
+// For Value this applies to all type conversions.
 func WithMust() ErrorHandlerOption {
 	return ErrorHandlerOption{func(err error) error {
 		panic(err)
@@ -92,6 +127,8 @@ func WithMust() ErrorHandlerOption {
 
 // WithZeroDefaults makes an object ignore errors and instead return zeroed
 // default values.
+// For Config this applies to Get and is propagated to returned Values.
+// For Value this applies to all type conversions.
 func WithZeroDefaults() ErrorHandlerOption {
 	return ErrorHandlerOption{func(err error) error {
 		return nil

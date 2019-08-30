@@ -219,7 +219,7 @@ func (g prefixDecorator) Get(key string) (interface{}, bool) {
 // May close the out chan to indicate that no further updates are possible.
 type UpdateHandler func(done <-chan struct{}, in <-chan GetterUpdate, out chan<- GetterUpdate)
 
-// WithUpdateHandler adds an update processing decorator to a getter.
+// WithUpdateHandler adds an update processing decorator to a Getter.
 func WithUpdateHandler(handler UpdateHandler) Decorator {
 	return func(g Getter) Getter {
 		if _, ok := g.(WatchableGetter); !ok {

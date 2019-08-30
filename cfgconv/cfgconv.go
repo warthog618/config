@@ -398,7 +398,7 @@ func Struct(v interface{}, obj interface{}) error {
 	return TypeError{Value: v, Kind: reflect.Struct}
 }
 
-// Time converts a string to a duration, if possible.
+// Time converts a string to a Time, if possible.
 // Returns 0 and an error if conversion is not possible.
 func Time(v interface{}) (time.Time, error) {
 	switch vt := v.(type) {

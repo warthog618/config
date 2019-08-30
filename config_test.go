@@ -64,18 +64,67 @@ func TestNewWithErrorHandler(t *testing.T) {
 		return nil
 	}
 	c := config.New(&mr, config.WithErrorHandler(eh))
-	v, err := c.Get("a.b.c_d")
-	assert.Nil(t, err)
-	assert.Nil(t, eherr)
-	assert.Equal(t, "this is a.b.c.d", v.Value())
-	v.Int()
-	assert.IsType(t, &strconv.NumError{}, eherr)
-	eherr = nil
-	v, err = c.Get("")
+	// get fail
+	v, err := c.Get("")
 	assert.Nil(t, err)
 	assert.IsType(t, config.NotFoundError{}, eherr)
 	assert.Equal(t, nil, v.Value())
 	eherr = nil
+	// get ok
+	v, err = c.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Nil(t, eherr)
+	assert.Equal(t, "this is a.b.c.d", v.Value())
+	// convert fail
+	v.Int()
+	assert.IsType(t, &strconv.NumError{}, eherr)
+}
+
+func TestNewWithGetErrorHandler(t *testing.T) {
+	mr := mockGetter{"a.b.c_d": "this is a.b.c.d"}
+	var eherr error
+	eh := func(err error) error {
+		eherr = err
+		return nil
+	}
+	c := config.New(&mr, config.WithGetErrorHandler(eh))
+	// get fail
+	v, err := c.Get("")
+	assert.Nil(t, err)
+	assert.IsType(t, config.NotFoundError{}, eherr)
+	assert.Equal(t, nil, v.Value())
+	eherr = nil
+	// get ok
+	v, err = c.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Nil(t, eherr)
+	assert.Equal(t, "this is a.b.c.d", v.Value())
+	// convert fail
+	v.Int()
+	assert.Nil(t, eherr)
+}
+
+func TestNewWithValueErrorHandler(t *testing.T) {
+	mr := mockGetter{"a.b.c_d": "this is a.b.c.d"}
+	var eherr error
+	eh := func(err error) error {
+		eherr = err
+		return nil
+	}
+	c := config.New(&mr, config.WithValueErrorHandler(eh))
+	// get fail
+	v, err := c.Get("")
+	assert.IsType(t, config.NotFoundError{}, err)
+	assert.Nil(t, eherr)
+	assert.Equal(t, nil, v.Value())
+	// get ok
+	v, err = c.Get("a.b.c_d")
+	assert.Nil(t, err)
+	assert.Nil(t, eherr)
+	assert.Equal(t, "this is a.b.c.d", v.Value())
+	// convert fail
+	v.Int()
+	assert.IsType(t, &strconv.NumError{}, eherr)
 }
 
 func TestNewWithZeroDefaults(t *testing.T) {
@@ -88,6 +137,11 @@ func TestNewWithZeroDefaults(t *testing.T) {
 	v, err = c.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
+	assert.NotPanics(t, func() {
+		v := c.MustGet("not.a.b.c_d")
+		assert.Equal(t, nil, v.Value())
+		assert.Equal(t, int64(0), v.Int())
+	})
 }
 
 func TestNewWithMust(t *testing.T) {

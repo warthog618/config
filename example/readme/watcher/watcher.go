@@ -16,9 +16,7 @@ import (
 )
 
 func main() {
-	c := config.New(blob.New(
-		file.New("config.json", file.WithWatcher()),
-		json.NewDecoder()))
+	c := config.New(blob.New(file.New("config.json", file.WithWatcher()), json.NewDecoder()))
 
 	done := make(chan struct{})
 	defer close(done)
