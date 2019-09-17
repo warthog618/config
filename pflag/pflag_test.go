@@ -383,6 +383,59 @@ func TestNewWithShortFlags(t *testing.T) {
 	assert.Implements(t, (*config.Getter)(nil), f)
 }
 
+func TestNewWithBooleanFlags(t *testing.T) {
+	patterns := []struct {
+		name   string
+		args   []string
+		shorts map[byte]string
+		bools  []string
+		key    string
+		xval   interface{}
+		narg   int
+	}{
+		{"short",
+			[]string{"-avbcvv", "-c", "woot"},
+			map[byte]string{'c': "config-file"},
+			[]string{"config.file"},
+			"config.file", 2, 1,
+		},
+		{"short val",
+			[]string{"-avbcvv", "-c=true", "woot"},
+			map[byte]string{'c': "config-file"},
+			[]string{"config.file"},
+			"config.file", "true", 1,
+		},
+		{"long",
+			[]string{"--config-file", "woot"},
+			nil,
+			[]string{"config.file"},
+			"config.file", 1, 1,
+		},
+		{"long val",
+			[]string{"--config-file=false", "woot"},
+			nil,
+			[]string{"config.file"},
+			"config.file", "false", 1,
+		},
+	}
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			f := pflag.New(
+				pflag.WithCommandLine(p.args),
+				pflag.WithBooleanFlags(p.bools),
+				pflag.WithShortFlags(p.shorts),
+			)
+			require.NotNil(t, f)
+			v, ok := f.Get(p.key)
+			assert.True(t, ok)
+			assert.Equal(t, p.xval, v)
+			assert.Equal(t, p.narg, f.NArg())
+			assert.Implements(t, (*config.Getter)(nil), f)
+		}
+		t.Run(p.name, f)
+	}
+}
+
 func BenchmarkNew(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		pflag.New(pflag.WithCommandLine([]string{"--leaf", "44"}))

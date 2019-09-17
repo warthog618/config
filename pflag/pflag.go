@@ -80,6 +80,8 @@ type Getter struct {
 	config map[string]interface{}
 	// map of short flag characters to long form flag name
 	shortFlags map[byte]string
+	// set of bool flag names
+	boolFlags map[string]bool
 	// A replacer that maps from flag space to config space.
 	keyReplacer keys.Replacer
 	// The splitter for slices stored in string values.
@@ -125,6 +127,20 @@ func WithShortFlags(shortFlags map[byte]string) Option {
 	}
 }
 
+// WithBooleanFlags sets the set of flags that will be forced to be boolean.
+// Boolean flags do not have to be declared here - they can still be determined
+// from context.  This list of flags are assumed boolean even if potential
+// values follow.
+func WithBooleanFlags(boolFlags []string) Option {
+	return func(r *Getter) {
+		r.boolFlags = make(map[string]bool)
+		for _, f := range boolFlags {
+			r.boolFlags[f] = true
+
+		}
+	}
+}
+
 // Args returns the trailing arguments from the command line that are not flags,
 // or flag values.
 func (g *Getter) Args() []string {
@@ -153,6 +169,12 @@ func (g *Getter) parse() {
 	config := map[string]interface{}{}
 	for idx := 0; idx < len(g.cmdArgs); idx++ {
 		arg := g.cmdArgs[idx]
+		nxarg := ""
+		if idx < len(g.cmdArgs)-1 {
+			if !strings.HasPrefix(g.cmdArgs[idx+1], "-") {
+				nxarg = g.cmdArgs[idx+1]
+			}
+		}
 		if strings.HasPrefix(arg, "--") {
 			if len(arg) == 2 {
 				// -- terminator
@@ -161,60 +183,11 @@ func (g *Getter) parse() {
 			}
 			// long form
 			arg = arg[2:]
-			if strings.Contains(arg, "=") {
-				// split on = and process complete in place
-				s := strings.SplitN(arg, "=", 2)
-				key := g.keyReplacer.Replace(s[0])
-				config[key] = g.listSplitter.Split(s[1])
-			} else {
-				key := g.keyReplacer.Replace(arg)
-				if idx < len(g.cmdArgs)-1 {
-					val := g.cmdArgs[idx+1]
-					if strings.HasPrefix(val, "-") {
-						incrementFlag(config, key)
-					} else {
-						config[key] = g.listSplitter.Split(val)
-						idx++
-					}
-				} else {
-					incrementFlag(config, key)
-				}
-			}
+			idx += g.parseLongForm(config, arg, nxarg)
 		} else if strings.HasPrefix(arg, "-") {
 			// short form
 			arg = arg[1:]
-			if len(arg) > 1 && !strings.Contains(arg, "=") {
-				// grouped short flags
-				for sidx := 0; sidx < len(arg); sidx++ {
-					if flag, ok := g.shortFlags[arg[sidx]]; ok {
-						incrementFlag(config, g.keyReplacer.Replace(flag))
-					}
-				}
-				continue
-			}
-			val := ""
-			if strings.Index(arg, "=") == 1 {
-				val = arg[2:]
-			} else if len(arg) != 1 {
-				// ignore malformed flag
-				continue
-			} else {
-				if idx < len(g.cmdArgs)-1 {
-					v := g.cmdArgs[idx+1]
-					if v[0] != '-' {
-						val = v
-						idx++
-					}
-				}
-			}
-			if flag, ok := g.shortFlags[arg[0]]; ok {
-				key := g.keyReplacer.Replace(flag)
-				if val == "" {
-					incrementFlag(config, key)
-				} else {
-					config[key] = g.listSplitter.Split(val)
-				}
-			}
+			idx += g.parseShortForm(config, arg, nxarg)
 		} else {
 			// non-flag terminator
 			g.args = g.cmdArgs[idx:]
@@ -222,6 +195,64 @@ func (g *Getter) parse() {
 		}
 	}
 	g.config = config
+}
+
+// parses the short form flags.
+// Returns 1 if it absorbs the nxarg.
+func (g *Getter) parseShortForm(config map[string]interface{}, arg, nxarg string) int {
+	if len(arg) > 1 && !strings.Contains(arg, "=") {
+		// grouped short flags
+		for sidx := 0; sidx < len(arg); sidx++ {
+			if flag, ok := g.shortFlags[arg[sidx]]; ok {
+				incrementFlag(config, g.keyReplacer.Replace(flag))
+			}
+		}
+		return 0
+	}
+	if flag, ok := g.shortFlags[arg[0]]; ok {
+		key := g.keyReplacer.Replace(flag)
+		val := ""
+		switch {
+		case strings.Index(arg, "=") == 1:
+			val = arg[2:]
+			config[key] = g.listSplitter.Split(val)
+		case len(arg) != 1:
+			// ignore malformed flag
+			return 0
+		case g.boolFlags[key] == true:
+			// ignore any trailing value
+			incrementFlag(config, key)
+		case len(nxarg) != 0:
+			config[key] = g.listSplitter.Split(nxarg)
+			return 1
+		default:
+			incrementFlag(config, key)
+		}
+	}
+	return 0
+}
+
+// parses the long form flags.
+// Returns 1 if it absorbs the nxarg.
+func (g *Getter) parseLongForm(config map[string]interface{}, arg, nxarg string) int {
+	if strings.Contains(arg, "=") {
+		// split on = and process complete in place
+		s := strings.SplitN(arg, "=", 2)
+		key := g.keyReplacer.Replace(s[0])
+		config[key] = g.listSplitter.Split(s[1])
+	} else {
+		key := g.keyReplacer.Replace(arg)
+		switch {
+		case g.boolFlags[key] == true:
+			incrementFlag(config, key)
+		case len(nxarg) > 0:
+			config[key] = g.listSplitter.Split(nxarg)
+			return 1
+		default:
+			incrementFlag(config, key)
+		}
+	}
+	return 0
 }
 
 func incrementFlag(config map[string]interface{}, key string) {
