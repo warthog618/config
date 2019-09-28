@@ -63,27 +63,70 @@ func New(options ...Option) *Getter {
 	if g.cmdArgs == nil {
 		g.cmdArgs = os.Args[1:]
 	}
+	if len(g.flags) != 0 {
+		g.shortFlags = make(map[rune]string)
+		g.boolFlags = make(map[string]bool)
+		for _, f := range g.flags {
+			if len(f.Name) == 0 {
+				// ignore unnamed flags
+				continue
+			}
+			if f.Short != 0 {
+				g.shortFlags[f.Short] = f.Name
+			}
+			key := g.keyReplacer.Replace(f.Name)
+			if f.Options&IsBool != 0 {
+				g.boolFlags[key] = true
+			}
+		}
+	}
 	g.parse()
 	return &g
 }
 
+// Flag represents one of the command line flags.
+type Flag struct {
+	Name    string
+	Short   rune
+	Options FlagOptions
+}
+
+// FlagOptions is a set of boolean options for a flag.
+type FlagOptions int
+
+const (
+	// IsBool indicates the flag is only allowed to be a bool
+	IsBool FlagOptions = 1 << iota
+)
+
 // Getter provides the mapping from command line arguments to a config.Getter.
+//
 // The Getter scans the command line only at construction time, so its config state
 // is effectively immutable.
 type Getter struct {
 	config.GetterAsOption
+
 	// The args to parse into config values.
 	cmdArgs []string
+
 	// residual args after flag parsing.
 	args []string
+
 	// config key=value
 	config map[string]interface{}
+
+	// set of flags that get special treatment
+	flags []Flag
+
 	// map of short flag characters to long form flag name
-	shortFlags map[byte]string
-	// set of bool flag names
+	shortFlags map[rune]string
+
+	// set of flag names that are boolean
 	boolFlags map[string]bool
+
 	// A replacer that maps from flag space to config space.
 	keyReplacer keys.Replacer
+
 	// The splitter for slices stored in string values.
 	listSplitter list.Splitter
 }
@@ -93,6 +136,7 @@ type Option func(*Getter)
 
 // WithCommandLine uses the provided command line as the source of config
 // instead of os.Args[1:].
+//
 // The provided command line should NOT include the name of the executable
 // (os.Args[0]).
 func WithCommandLine(cmdArgs []string) Option {
@@ -110,6 +154,7 @@ func WithKeyReplacer(keyReplacer keys.Replacer) Option {
 }
 
 // WithListSplitter splits slice fields stored as strings in the pflag space.
+//
 // The default splitter separates on ",".
 func WithListSplitter(splitter list.Splitter) Option {
 	return func(g *Getter) {
@@ -117,27 +162,13 @@ func WithListSplitter(splitter list.Splitter) Option {
 	}
 }
 
-// WithShortFlags sets the set of short flags to be parsed from the command line.
-// The shortFlags defines the mapping from single character short flags to
-// long flag names.  Long names are within the flag space and so should
-// use the appropriate tier separator. e.g. {'c':"config-file"}
-func WithShortFlags(shortFlags map[byte]string) Option {
+// WithFlags places constraints on some flags as they are parsed.
+//
+// This option is not necessary to specify flags - only those that require
+// special treatment.
+func WithFlags(flags []Flag) Option {
 	return func(r *Getter) {
-		r.shortFlags = shortFlags
-	}
-}
-
-// WithBooleanFlags sets the set of flags that will be forced to be boolean.
-// Boolean flags do not have to be declared here - they can still be determined
-// from context.  This list of flags are assumed boolean even if potential
-// values follow.
-func WithBooleanFlags(boolFlags []string) Option {
-	return func(r *Getter) {
-		r.boolFlags = make(map[string]bool)
-		for _, f := range boolFlags {
-			r.boolFlags[f] = true
-
-		}
+		r.flags = flags
 	}
 }
 
@@ -153,14 +184,15 @@ func (g *Getter) NArg() int {
 }
 
 // NFlag returns the number of flags detected in the command line.
+//
 // Multiple instances of the same flag, in either short or long form, count
 // as a single flag.
 func (g *Getter) NFlag() int {
 	return len(g.config)
 }
 
-// Get returns the value for a given key and true if found, or
-// nil and false if not.
+// Get returns the value for a given key and true if found, or nil and false if
+// not.
 func (g *Getter) Get(key string) (interface{}, bool) {
 	return tree.Get(g.config, key, "")
 }
@@ -202,14 +234,14 @@ func (g *Getter) parse() {
 func (g *Getter) parseShortForm(config map[string]interface{}, arg, nxarg string) int {
 	if len(arg) > 1 && !strings.Contains(arg, "=") {
 		// grouped short flags
-		for sidx := 0; sidx < len(arg); sidx++ {
-			if flag, ok := g.shortFlags[arg[sidx]]; ok {
+		for _, ch := range arg {
+			if flag, ok := g.shortFlags[ch]; ok {
 				incrementFlag(config, g.keyReplacer.Replace(flag))
 			}
 		}
 		return 0
 	}
-	if flag, ok := g.shortFlags[arg[0]]; ok {
+	if flag, ok := g.shortFlags[rune(arg[0])]; ok {
 		key := g.keyReplacer.Replace(flag)
 		val := ""
 		switch {

@@ -35,10 +35,10 @@ func TestNew(t *testing.T) {
 // TestArgs tests the Args and Narg functions.
 func TestArgs(t *testing.T) {
 	patterns := []struct {
-		name   string
-		in     []string
-		shorts map[byte]string
-		args   []string
+		name  string
+		in    []string
+		flags []pflag.Flag
+		args  []string
 	}{
 		{"nil", nil, nil, nil},
 		{"empty", nil, nil, nil},
@@ -70,7 +70,7 @@ func TestArgs(t *testing.T) {
 		f := func(t *testing.T) {
 			f := pflag.New(
 				pflag.WithCommandLine(p.in),
-				pflag.WithShortFlags(p.shorts))
+				pflag.WithFlags(p.flags))
 			assert.Equal(t, p.args, f.Args())
 			assert.Equal(t, len(p.args), f.NArg())
 		}
@@ -79,7 +79,7 @@ func TestArgs(t *testing.T) {
 		f = func(t *testing.T) {
 			oldArgs := os.Args
 			os.Args = append([]string{"flagTest"}, p.in...)
-			f := pflag.New(pflag.WithShortFlags(p.shorts))
+			f := pflag.New(pflag.WithFlags(p.flags))
 			os.Args = oldArgs
 			assert.Equal(t, p.args, f.Args())
 			assert.Equal(t, len(p.args), f.NArg())
@@ -90,10 +90,10 @@ func TestArgs(t *testing.T) {
 
 func TestNFlag(t *testing.T) {
 	patterns := []struct {
-		name   string
-		in     []string
-		shorts map[byte]string
-		nflag  int
+		name  string
+		in    []string
+		flags []pflag.Flag
+		nflag int
 	}{
 		{"empty", []string{}, nil, 0},
 		{"only args", []string{"arg1"}, nil, 0},
@@ -118,27 +118,27 @@ func TestNFlag(t *testing.T) {
 			"-v",
 			"-n=44",
 			"--leaf", "42"},
-			map[byte]string{
-				'n': "nested-leaf",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'n', Name: "nested-leaf"},
+				{Short: 'v', Name: "logging-verbosity"},
 			}, 3},
 		{"malformed shorts", []string{
 			"-vn=44",
 			"--leaf", "42"},
-			map[byte]string{
-				'n': "nested-leaf",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'n', Name: "nested-leaf"},
+				{Short: 'v', Name: "logging-verbosity"},
 			}, 1},
 		{"short leaf", []string{
 			"-l", "42"},
-			map[byte]string{
-				'l': "leaf",
+			[]pflag.Flag{
+				{Short: 'l', Name: "leaf"},
 			}, 1},
 		{"short and long leaf", []string{
 			"-l", "42",
 			"--leaf", "43"},
-			map[byte]string{
-				'l': "leaf",
+			[]pflag.Flag{
+				{Short: 'l', Name: "leaf"},
 			}, 1},
 		{"terminated parsing", []string{
 			"-v",    // ignored as no shorts
@@ -153,16 +153,16 @@ func TestNFlag(t *testing.T) {
 				"-ab",
 				"stophere",
 				"--addon", "second string"},
-			map[byte]string{
-				'a': "angle",
-				'b': "bonus",
+			[]pflag.Flag{
+				{Short: 'a', Name: "angle"},
+				{Short: 'b', Name: "bonus"},
 			}, 3},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			f := pflag.New(
 				pflag.WithCommandLine(p.in),
-				pflag.WithShortFlags(p.shorts))
+				pflag.WithFlags(p.flags))
 			assert.Equal(t, p.nflag, f.NFlag())
 		}
 		t.Run(p.name, f)
@@ -178,7 +178,7 @@ func TestGetterGet(t *testing.T) {
 	patterns := []struct {
 		name      string
 		args      []string
-		shorts    map[byte]string
+		flags     []pflag.Flag
 		expected  []kv
 		expectedZ []string
 	}{
@@ -186,24 +186,25 @@ func TestGetterGet(t *testing.T) {
 		{"no shorts", []string{"-abc"}, nil, nil, bogus},
 		{"a short",
 			[]string{"-abc"},
-			map[byte]string{
-				'a': "nested-leaf",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'a', Name: "nested-leaf"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{{"nested.leaf", 1}}, bogus},
 		{"two shorts",
 			[]string{"-a", "-b", "-c"},
-			map[byte]string{
-				'a': "nested-leaf",
-				'b': "bonus",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'a', Name: "nested-leaf"},
+				{Short: 'b', Name: "bonus"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{{"nested.leaf", 1}, {"bonus", 1}}, bogus},
 		{"grouped shorts",
-			[]string{"-abc"}, map[byte]string{
-				'a': "nested-leaf",
-				'b': "bonus",
-				'v': "logging-verbosity",
+			[]string{"-abc"},
+			[]pflag.Flag{
+				{Short: 'a', Name: "nested-leaf"},
+				{Short: 'b', Name: "bonus"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{{"nested.leaf", 1}, {"bonus", 1}}, bogus},
 		{"repeated long",
@@ -218,9 +219,9 @@ func TestGetterGet(t *testing.T) {
 				"--slice=a,b",
 				"--nested-slice", "c,d",
 			},
-			map[byte]string{
-				'n': "nested-leaf",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'n', Name: "nested-leaf"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{
 				{"leaf", "42"},
@@ -237,9 +238,9 @@ func TestGetterGet(t *testing.T) {
 				"--addon", "first string",
 				"-abc",
 			},
-			map[byte]string{
-				'a': "addon",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'a', Name: "addon"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{{"addon", 1}}, bogus},
 		{"precedence2",
@@ -248,9 +249,9 @@ func TestGetterGet(t *testing.T) {
 				"-abc",
 				"--addon", "second string",
 			},
-			map[byte]string{
-				'a': "addon",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'a', Name: "addon"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{{"addon", "second string"}}, bogus},
 		{"non flag after group",
@@ -259,10 +260,11 @@ func TestGetterGet(t *testing.T) {
 				"-ab",
 				"stophere",
 				"--addon", "second string",
-			}, map[byte]string{
-				'a': "addon",
-				'b': "bonus",
-				'v': "logging-verbosity",
+			},
+			[]pflag.Flag{
+				{Short: 'a', Name: "addon"},
+				{Short: 'b', Name: "bonus"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{{"addon", 1}, {"bonus", 1}}, bogus},
 		{"malformed flag",
@@ -270,10 +272,10 @@ func TestGetterGet(t *testing.T) {
 				"--addon", "first string",
 				"-abc=42",
 			},
-			map[byte]string{
-				'a': "addon",
-				'b': "bonus",
-				'v': "logging-verbosity",
+			[]pflag.Flag{
+				{Short: 'a', Name: "addon"},
+				{Short: 'b', Name: "bonus"},
+				{Short: 'v', Name: "logging-verbosity"},
 			},
 			[]kv{
 				{"addon", "first string"}}, append(bogus, "bonus")},
@@ -282,7 +284,7 @@ func TestGetterGet(t *testing.T) {
 		f := func(t *testing.T) {
 			f := pflag.New(
 				pflag.WithCommandLine(p.args),
-				pflag.WithShortFlags(p.shorts))
+				pflag.WithFlags(p.flags))
 			require.NotNil(t, f)
 			for _, x := range p.expected {
 				v, ok := f.Get(x.k)
@@ -301,7 +303,7 @@ func TestGetterGet(t *testing.T) {
 
 func TestNewWithKeyReplacer(t *testing.T) {
 	args := []string{"-n=44", "--leaf", "42"}
-	shorts := map[byte]string{'n': "nested-leaf"}
+	flags := []pflag.Flag{{Short: 'n', Name: "nested-leaf"}}
 	patterns := []struct {
 		name     string
 		r        keys.Replacer
@@ -316,7 +318,7 @@ func TestNewWithKeyReplacer(t *testing.T) {
 		f := func(t *testing.T) {
 			r := pflag.New(
 				pflag.WithCommandLine(args),
-				pflag.WithShortFlags(shorts),
+				pflag.WithFlags(flags),
 				pflag.WithKeyReplacer(p.r))
 			require.NotNil(t, r)
 			v, ok := r.Get(p.expected)
@@ -343,7 +345,7 @@ func TestNewWithCommandLine(t *testing.T) {
 
 func TestNewWithListSplitter(t *testing.T) {
 	args := []string{"-s", "a,#b"}
-	shorts := map[byte]string{'s': "slice"}
+	flags := []pflag.Flag{{Short: 's', Name: "slice"}}
 	patterns := []struct {
 		name     string
 		sep      string
@@ -357,7 +359,7 @@ func TestNewWithListSplitter(t *testing.T) {
 		f := func(t *testing.T) {
 			r := pflag.New(
 				pflag.WithCommandLine(args),
-				pflag.WithShortFlags(shorts),
+				pflag.WithFlags(flags),
 				pflag.WithListSplitter(list.NewSplitter(p.sep)))
 			require.NotNil(t, r)
 			v, ok := r.Get("slice")
@@ -368,62 +370,48 @@ func TestNewWithListSplitter(t *testing.T) {
 	}
 }
 
-func TestNewWithShortFlags(t *testing.T) {
-	args := []string{"-avbcvv", "-c", "woot"}
-	shorts := map[byte]string{'c': "config-file"}
-	f := pflag.New(
-		pflag.WithCommandLine(args),
-		pflag.WithShortFlags(shorts),
-	)
-	require.NotNil(t, f)
-	// basic get
-	v, ok := f.Get("config.file")
-	assert.True(t, ok)
-	assert.Equal(t, "woot", v)
-	assert.Implements(t, (*config.Getter)(nil), f)
-}
-
-func TestNewWithBooleanFlags(t *testing.T) {
+func TestNewWithFlags(t *testing.T) {
 	patterns := []struct {
-		name   string
-		args   []string
-		shorts map[byte]string
-		bools  []string
-		key    string
-		xval   interface{}
-		narg   int
+		name  string
+		args  []string
+		flags []pflag.Flag
+		key   string
+		xval  interface{}
+		narg  int
 	}{
-		{"short",
+		{"short bool",
 			[]string{"-avbcvv", "-c", "woot"},
-			map[byte]string{'c': "config-file"},
-			[]string{"config.file"},
+			[]pflag.Flag{{Short: 'c', Name: "config-file", Options: pflag.IsBool}},
 			"config.file", 2, 1,
 		},
-		{"short val",
+		{"short bool val",
 			[]string{"-avbcvv", "-c=true", "woot"},
-			map[byte]string{'c': "config-file"},
-			[]string{"config.file"},
+			[]pflag.Flag{{Short: 'c', Name: "config-file", Options: pflag.IsBool}},
 			"config.file", "true", 1,
 		},
-		{"long",
+		{"long bool",
 			[]string{"--config-file", "woot"},
-			nil,
-			[]string{"config.file"},
+			[]pflag.Flag{{Name: "config-file", Options: pflag.IsBool}},
 			"config.file", 1, 1,
 		},
-		{"long val",
+		{"long bool val",
 			[]string{"--config-file=false", "woot"},
-			nil,
-			[]string{"config.file"},
+			[]pflag.Flag{{Name: "config-file", Options: pflag.IsBool}},
 			"config.file", "false", 1,
+		},
+		{"ignore unnamed",
+			[]string{"-c", "woot"},
+			[]pflag.Flag{
+				{Short: 'c', Name: "config-file"},
+				{Short: 'c', Options: pflag.IsBool}},
+			"config.file", "woot", 0,
 		},
 	}
 	for _, p := range patterns {
 		f := func(t *testing.T) {
 			f := pflag.New(
 				pflag.WithCommandLine(p.args),
-				pflag.WithBooleanFlags(p.bools),
-				pflag.WithShortFlags(p.shorts),
+				pflag.WithFlags(p.flags),
 			)
 			require.NotNil(t, f)
 			v, ok := f.Get(p.key)
