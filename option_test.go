@@ -28,10 +28,10 @@ func TestNewWithDefault(t *testing.T) {
 	require.NotNil(t, c)
 	val, err := c.Get("a")
 	assert.Nil(t, err)
-	assert.Equal(t, val.Int(), int64(42))
+	assert.Equal(t, 42, val.Int())
 	val, err = c.Get("d")
 	assert.Nil(t, err)
-	assert.Equal(t, val.Int(), int64(47))
+	assert.Equal(t, 47, val.Int())
 }
 
 func TestNewWithSeparator(t *testing.T) {

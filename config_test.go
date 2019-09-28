@@ -53,7 +53,7 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, true, v.Value())
 	v, err = c.Get("a.b.c_e")
 	assert.Nil(t, err)
-	assert.Equal(t, int64(2), v.Int())
+	assert.Equal(t, 2, v.Int())
 }
 
 func TestNewWithErrorHandler(t *testing.T) {
@@ -133,14 +133,14 @@ func TestNewWithZeroDefaults(t *testing.T) {
 	v, err := c.Get("not.a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, nil, v.Value())
-	assert.Equal(t, int64(0), v.Int())
+	assert.Equal(t, 0, v.Int())
 	v, err = c.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
 	assert.NotPanics(t, func() {
 		v := c.MustGet("not.a.b.c_d")
 		assert.Equal(t, nil, v.Value())
-		assert.Equal(t, int64(0), v.Int())
+		assert.Equal(t, 0, v.Int())
 	})
 }
 
@@ -279,7 +279,7 @@ func TestGetWithErrorHandler(t *testing.T) {
 			assert.Equal(t, "this is foo", v.Value())
 			assert.Nil(t, eherr)
 			vi := v.Int()
-			assert.Equal(t, int64(0), vi)
+			assert.Equal(t, 0, vi)
 			assert.IsType(t, p.err, eherr)
 		}
 		t.Run(p.k, f)

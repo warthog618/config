@@ -18,12 +18,12 @@ import (
 
 func TestNewValue(t *testing.T) {
 	v := config.NewValue(1)
-	assert.Equal(t, int64(1), v.Int())
+	assert.Equal(t, int(1), v.Int())
 	assert.NotPanics(t, func() {
 		v.Time()
 	})
 	v = config.NewValue(2, config.WithMust())
-	assert.Equal(t, int64(2), v.Int())
+	assert.Equal(t, int(2), v.Int())
 	assert.Panics(t, func() {
 		v.Time()
 	})
@@ -138,7 +138,7 @@ func TestInt(t *testing.T) {
 	}
 	patterns := []struct {
 		k   string
-		v   int64
+		v   int
 		err error
 	}{
 		{"int", 42, nil},
@@ -163,6 +163,38 @@ func TestInt(t *testing.T) {
 	}
 }
 
+func TestInt64(t *testing.T) {
+	mr := mockGetter{
+		"int":       42,
+		"intString": "43",
+		"notaint":   "bogus",
+	}
+	patterns := []struct {
+		k   string
+		v   int64
+		err error
+	}{
+		{"int", 42, nil},
+		{"intString", 43, nil},
+		{"notaint", 0, &strconv.NumError{}},
+	}
+	c := config.New(&mr)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
+				})))
+			assert.Nil(t, err)
+			v := val.Int64()
+			assert.IsType(t, p.err, eherr)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.k, f)
+	}
+}
 func TestString(t *testing.T) {
 	mr := mockGetter{
 		"string":     "a string",
@@ -235,7 +267,7 @@ func TestUint(t *testing.T) {
 	}
 	patterns := []struct {
 		k   string
-		v   uint64
+		v   uint
 		err error
 	}{
 		{"uint", 42, nil},
@@ -253,6 +285,39 @@ func TestUint(t *testing.T) {
 				})))
 			assert.Nil(t, err)
 			v := val.Uint()
+			assert.IsType(t, p.err, eherr)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.k, f)
+	}
+}
+
+func TestUint64(t *testing.T) {
+	mr := mockGetter{
+		"uint":       42,
+		"uintString": "43",
+		"notaUint":   "bogus",
+	}
+	patterns := []struct {
+		k   string
+		v   uint64
+		err error
+	}{
+		{"uint", 42, nil},
+		{"uintString", 43, nil},
+		{"notaUint", 0, &strconv.NumError{}},
+	}
+	c := config.New(&mr)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
+				})))
+			assert.Nil(t, err)
+			v := val.Uint64()
 			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
@@ -310,6 +375,41 @@ func TestIntSlice(t *testing.T) {
 	}
 	patterns := []struct {
 		k   string
+		v   []int
+		err error
+	}{
+		{"slice", []int{1, 2, -3, 4}, nil},
+		{"casttoslice", []int{42}, nil},
+		{"stringslice", []int{0, 0, 0}, &strconv.NumError{}},
+		{"notaslice", []int{0}, &strconv.NumError{}},
+	}
+	c := config.New(&mr)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
+				})))
+			assert.Nil(t, err)
+			v := val.IntSlice()
+			assert.IsType(t, p.err, eherr)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.k, f)
+	}
+}
+
+func TestInt64Slice(t *testing.T) {
+	mr := mockGetter{
+		"slice":       []int64{1, 2, -3, 4},
+		"casttoslice": "42",
+		"stringslice": []string{"one", "two", "three"},
+		"notaslice":   "bogus",
+	}
+	patterns := []struct {
+		k   string
 		v   []int64
 		err error
 	}{
@@ -328,7 +428,7 @@ func TestIntSlice(t *testing.T) {
 					return nil
 				})))
 			assert.Nil(t, err)
-			v := val.IntSlice()
+			v := val.Int64Slice()
 			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}
@@ -385,6 +485,43 @@ func TestUintSlice(t *testing.T) {
 	}
 	patterns := []struct {
 		k   string
+		v   []uint
+		err error
+	}{
+		{"slice", []uint{1, 2, 3, 4}, nil},
+		{"casttoslice", []uint{42}, nil},
+		{"intslice", []uint{1, 2, 0, 4}, cfgconv.TypeError{}},
+		{"stringslice", []uint{0, 0, 0}, &strconv.NumError{}},
+		{"notaslice", []uint{0}, &strconv.NumError{}},
+	}
+	c := config.New(&mr)
+	for _, p := range patterns {
+		f := func(t *testing.T) {
+			var eherr error
+			val, err := c.Get(p.k, config.WithErrorHandler(
+				config.ErrorHandler(func(e error) error {
+					eherr = e
+					return nil
+				})))
+			assert.Nil(t, err)
+			v := val.UintSlice()
+			assert.IsType(t, p.err, eherr)
+			assert.Equal(t, p.v, v)
+		}
+		t.Run(p.k, f)
+	}
+}
+
+func TestUint64Slice(t *testing.T) {
+	mr := mockGetter{
+		"slice":       []uint64{1, 2, 3, 4},
+		"casttoslice": "42",
+		"intslice":    []int64{1, 2, -3, 4},
+		"stringslice": []string{"one", "two", "three"},
+		"notaslice":   "bogus",
+	}
+	patterns := []struct {
+		k   string
 		v   []uint64
 		err error
 	}{
@@ -404,7 +541,7 @@ func TestUintSlice(t *testing.T) {
 					return nil
 				})))
 			assert.Nil(t, err)
-			v := val.UintSlice()
+			v := val.Uint64Slice()
 			assert.IsType(t, p.err, eherr)
 			assert.Equal(t, p.v, v)
 		}

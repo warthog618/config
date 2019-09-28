@@ -57,7 +57,7 @@ func newConfig() {
 	pin := c.MustGet("pin").Int()
 	ports := c.MustGet("ports").UintSlice()
 
-	ports[0] = uint64(pin)
+	ports[0] = uint(pin)
 }
 
 func must() {

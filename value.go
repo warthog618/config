@@ -60,9 +60,15 @@ func (v Value) Float() float64 {
 	return f
 }
 
-// Int converts the value to an int64.
+// Int converts the value to an int.
 // Returns 0 if conversion is not possible.
-func (v Value) Int() int64 {
+func (v Value) Int() int {
+	return int(v.Int64())
+}
+
+// Int64 converts the value to an int64.
+// Returns 0 if conversion is not possible.
+func (v Value) Int64() int64 {
 	i, err := cfgconv.Int(v.value)
 	if err != nil && v.eh != nil {
 		v.eh(err)
@@ -70,9 +76,23 @@ func (v Value) Int() int64 {
 	return i
 }
 
-// IntSlice converts the value to a slice of int64s.
+// IntSlice converts the value to a slice of ints.
 // Returns nil if conversion is not possible.
-func (v Value) IntSlice() []int64 {
+func (v Value) IntSlice() []int {
+	i64s, err := cfgconv.IntSlice(v.value)
+	if err != nil && v.eh != nil {
+		v.eh(err)
+	}
+	is := make([]int, len(i64s))
+	for i, v := range i64s {
+		is[i] = int(v)
+	}
+	return is
+}
+
+// Int64Slice converts the value to a slice of int64s.
+// Returns nil if conversion is not possible.
+func (v Value) Int64Slice() []int64 {
 	is, err := cfgconv.IntSlice(v.value)
 	if err != nil && v.eh != nil {
 		v.eh(err)
@@ -120,9 +140,15 @@ func (v Value) Time() time.Time {
 	return t
 }
 
-// Uint converts the value to a iint64.
+// Uint converts the value to a uint.
 // Returns 0 if conversion is not possible.
-func (v Value) Uint() uint64 {
+func (v Value) Uint() uint {
+	return uint(v.Uint64())
+}
+
+// Uint64 converts the value to a iint64.
+// Returns 0 if conversion is not possible.
+func (v Value) Uint64() uint64 {
 	u, err := cfgconv.Uint(v.value)
 	if err != nil && v.eh != nil {
 		v.eh(err)
@@ -130,9 +156,23 @@ func (v Value) Uint() uint64 {
 	return u
 }
 
-// UintSlice converts the value to a slice of uint64.
+// UintSlice converts the value to a slice of uint.
 // Returns nil if conversion is not possible.
-func (v Value) UintSlice() []uint64 {
+func (v Value) UintSlice() []uint {
+	u64s, err := cfgconv.UintSlice(v.value)
+	if err != nil && v.eh != nil {
+		v.eh(err)
+	}
+	us := make([]uint, len(u64s))
+	for i, v := range u64s {
+		us[i] = uint(v)
+	}
+	return us
+}
+
+// Uint64Slice converts the value to a slice of uint64.
+// Returns nil if conversion is not possible.
+func (v Value) Uint64Slice() []uint64 {
 	us, err := cfgconv.UintSlice(v.value)
 	if err != nil && v.eh != nil {
 		v.eh(err)
