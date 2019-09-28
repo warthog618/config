@@ -79,14 +79,14 @@ var defaultConfig = []byte(`{
 func loadConfig() *config.Config {
 	jsondec := json.NewDecoder()
 	def := blob.New(bytes.New(defaultConfig), jsondec, blob.MustLoad())
-	shortFlags := map[byte]string{
-		'b': "module2.bool",
-		'c': "config-file",
-		'u': "unmarshal",
+	flags := []pflag.Flag{
+		{Short: 'b', Name: "module2.bool"},
+		{Short: 'c', Name: "config-file"},
+		{Short: 'u', Name: "unmarshal"},
 	}
 	// highest priority sources first - flags override environment
 	cfg := config.New(
-		pflag.New(pflag.WithShortFlags(shortFlags)),
+		pflag.New(pflag.WithFlags(flags)),
 		env.New(env.WithEnvPrefix("APP_")),
 		config.WithDefault(def))
 	// config file may be specified via flag or env, so check for it
