@@ -166,14 +166,14 @@ func TestWithKeyReplacer(t *testing.T) {
 
 func TestWithMustGet(t *testing.T) {
 	mg := mockGetter{"a": "is a"}
-	pr := config.WithMustGet()(&mg)
+	pr := config.WithMustGet(&mg)
 	v, ok := pr.Get("a")
 	assert.True(t, true, ok)
 	assert.Equal(t, "is a", v)
 	assert.Panics(t, func() {
 		pr.Get("nosuch")
 	})
-	testDecoratorWatchable(t, config.WithMustGet())
+	testDecoratorWatchable(t, config.WithMustGet)
 }
 
 func TestWithPrefix(t *testing.T) {

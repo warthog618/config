@@ -119,18 +119,14 @@ func (o ValueErrorHandlerOption) applyConfigOption(c *Config) {
 // WithMust makes an object panic on error.
 // For Config this applies to Get and is propagated to returned Values.
 // For Value this applies to all type conversions.
-func WithMust() ErrorHandlerOption {
-	return ErrorHandlerOption{func(err error) error {
-		panic(err)
-	}}
-}
+var WithMust = ErrorHandlerOption{func(err error) error {
+	panic(err)
+}}
 
 // WithZeroDefaults makes an object ignore errors and instead return zeroed
 // default values.
 // For Config this applies to Get and is propagated to returned Values.
 // For Value this applies to all type conversions.
-func WithZeroDefaults() ErrorHandlerOption {
-	return ErrorHandlerOption{func(err error) error {
-		return nil
-	}}
-}
+var WithZeroDefaults = ErrorHandlerOption{func(err error) error {
+	return nil
+}}

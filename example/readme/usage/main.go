@@ -24,7 +24,8 @@ func main() {
 	}))
 	// from flags and defaults...
 	cfg := config.New(
-		pflag.New(pflag.WithFlags([]pflag.Flag{{Short: 'c', Name: "config-file"}})),
+		pflag.New(pflag.WithFlags(
+			[]pflag.Flag{{Short: 'c', Name: "config-file"}})),
 		config.WithDefault(defaultConfig))
 
 	// and from environment...

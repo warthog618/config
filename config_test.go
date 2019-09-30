@@ -129,7 +129,7 @@ func TestNewWithValueErrorHandler(t *testing.T) {
 
 func TestNewWithZeroDefaults(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
-	c := config.New(&mr, config.WithZeroDefaults())
+	c := config.New(&mr, config.WithZeroDefaults)
 	v, err := c.Get("not.a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, nil, v.Value())
@@ -146,7 +146,7 @@ func TestNewWithZeroDefaults(t *testing.T) {
 
 func TestNewWithMust(t *testing.T) {
 	mr := mockGetter{"a.b.c_d": true}
-	c := config.New(&mr, config.WithMust())
+	c := config.New(&mr, config.WithMust)
 	v, err := c.Get("a.b.c_d")
 	assert.Nil(t, err)
 	assert.Equal(t, true, v.Value())
@@ -292,7 +292,7 @@ func TestGetWithPanic(t *testing.T) {
 	}
 	cfg := config.New(&mr)
 	assert.Panics(t, func() {
-		v, _ := cfg.Get("foo", config.WithMust())
+		v, _ := cfg.Get("foo", config.WithMust)
 		v.Int()
 	})
 }

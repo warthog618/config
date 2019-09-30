@@ -176,10 +176,8 @@ func (g keyReplacerDecorator) Get(key string) (interface{}, bool) {
 
 // WithMustGet provides a Decorator that panics if a key is not found by the
 // decorated Getter.
-func WithMustGet() Decorator {
-	return func(g Getter) Getter {
-		return mustDecorator{getterDecorator{g}}
-	}
+var WithMustGet = func(g Getter) Getter {
+	return mustDecorator{getterDecorator{g}}
 }
 
 type mustDecorator struct {

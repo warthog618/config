@@ -22,7 +22,7 @@ func TestNewValue(t *testing.T) {
 	assert.NotPanics(t, func() {
 		v.Time()
 	})
-	v = config.NewValue(2, config.WithMust())
+	v = config.NewValue(2, config.WithMust)
 	assert.Equal(t, int(2), v.Int())
 	assert.Panics(t, func() {
 		v.Time()
