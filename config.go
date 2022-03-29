@@ -438,7 +438,7 @@ func unmarshalObjectArrayToMap(node *Config, key string, tmpl []map[string]inter
 			return a, rerr
 		}
 		al := int(al64)
-		a = make([]map[string]interface{}, al, al)
+		a = make([]map[string]interface{}, al)
 		for i := 0; i < al; i++ {
 			a[i] = make(map[string]interface{}, len(tmpl[0]))
 			for k, v := range tmpl[0] {
