@@ -130,6 +130,7 @@ func TestWatcherWatch(t *testing.T) {
 	testUpdated(t, wchan)
 	tf.Close()
 	os.Remove(fname)
+	testUpdated(t, wchan)
 	testErrored(t, wchan)
 
 	close(done)
