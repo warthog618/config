@@ -65,6 +65,22 @@ func WithDefault(d Getter) DefaultOption {
 	return DefaultOption{d}
 }
 
+// DefaultValueOption defines a default value used as a fall back if a field is not found in the config.
+type DefaultValueOption struct {
+	vdef interface{}
+}
+
+func (o DefaultValueOption) applyValueOption(v *Value) {
+	if v.value == nil {
+		v.value = o.vdef
+	}
+}
+
+// WithDefaultValue is an Option that sets the default value for an individual field.
+func WithDefaultValue(defVal interface{}) DefaultValueOption {
+	return DefaultValueOption{defVal}
+}
+
 // ErrorHandlerOption defines the handler for errors.
 type ErrorHandlerOption struct {
 	e ErrorHandler

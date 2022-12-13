@@ -131,6 +131,14 @@ func (c *Config) Get(key string, opts ...ValueOption) (Value, error) {
 		v, ok = c.defg.Get(key)
 	}
 	if !ok {
+		for _, opt := range opts {
+			_, ok = opt.(DefaultValueOption)
+			if ok {
+				break
+			}
+		}
+	}
+	if !ok {
 		var err error
 		err = NotFoundError{Key: key}
 		if c.geh != nil {
