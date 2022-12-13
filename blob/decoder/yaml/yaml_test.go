@@ -69,7 +69,7 @@ var parsedConfig = map[string]interface{}{
 	"sliceslice": []interface{}{
 		[]interface{}{1, 2, 3, 4},
 		[]interface{}{5, 6, 7, 8}},
-	"nested": map[interface{}]interface{}{
+	"nested": map[string]interface{}{
 		"string":      "this is also a string",
 		"intSlice":    []interface{}{1, 2, 3, 4, 5, 6},
 		"stringSlice": []interface{}{"one", "two", "three"},
@@ -78,8 +78,8 @@ var parsedConfig = map[string]interface{}{
 		"float":       3.141,
 	},
 	"animals": []interface{}{
-		map[interface{}]interface{}{"Name": "Platypus", "Order": "Monotremata"},
-		map[interface{}]interface{}{"Name": "Quoll", "Order": "Dasyuromorphia"},
+		map[string]interface{}{"Name": "Platypus", "Order": "Monotremata"},
+		map[string]interface{}{"Name": "Quoll", "Order": "Dasyuromorphia"},
 	},
 }
 

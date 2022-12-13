@@ -6,7 +6,7 @@
 // Package yaml provides a YAML format decoder for config.
 package yaml
 
-import yaml "gopkg.in/yaml.v2"
+import yaml "gopkg.in/yaml.v3"
 
 // NewDecoder returns a YAML decoder.
 func NewDecoder() Decoder {
