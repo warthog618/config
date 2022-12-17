@@ -2,7 +2,7 @@
 
 A lightweight and versatile configuration toolkit for Go.
 
-[![Build Status](https://img.shields.io/github/workflow/status/warthog618/config/Go.svg?logo=github)](https://github.com/warthog618/config/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/warthog618/config/go.yml?logo=github&branch=master)](https://github.com/warthog618/config/actions/workflows/go.yml)
 [![GoDoc](https://godoc.org/github.com/warthog618/config/sar?status.svg)](https://godoc.org/github.com/warthog618/config)
 [![Go Report Card](https://goreportcard.com/badge/github.com/warthog618/config)](https://goreportcard.com/report/github.com/warthog618/config)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/warthog618/config/blob/master/LICENSE)
